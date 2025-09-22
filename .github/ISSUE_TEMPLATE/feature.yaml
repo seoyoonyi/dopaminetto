@@ -1,0 +1,24 @@
+name: feature
+description: 새로운 기능이나 명세가 있나요?
+title: "[feature] "
+labels: ["✨ feature"]
+projects: ["untitled"]
+body:
+  - type: markdown
+    attributes:
+      value: "**주의: 이슈 생성 후 Assignee로 지정해 주세요.**"
+  - type: textarea
+    id: feature-todo
+    attributes:
+      label: ✅ 해야 할 일
+      description: 해야 할 일에 대한 Tasks를 작성해 주세요.
+      placeholder: 최대한 세분화해서 작성! (체크박스 활용하기)
+    validations:
+      required: true
+  - type: textarea
+    id: feature-memo
+    attributes:
+      label: 📝 메모
+      description: 더 하고 싶은 말이 있다면 작성해 주세요.
+    validations:
+      required: false

@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
+
 import { createContext, useContext } from "react";
 
 // Supabase 클라이언트 생성 (익명 접속용, SSR 지원)
@@ -17,11 +18,7 @@ interface SupabaseProviderProps {
 }
 
 const SupabaseProvider = ({ children }: SupabaseProviderProps) => {
-  return (
-    <SupabaseContext.Provider value={supabase}>
-      {children}
-    </SupabaseContext.Provider>
-  );
+  return <SupabaseContext.Provider value={supabase}>{children}</SupabaseContext.Provider>;
 };
 
 // Hook for using Supabase client

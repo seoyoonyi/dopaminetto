@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+
 import AppProviders from "./providers/AppProviders";
+
 import "./globals.css";
 
 // next/font로 로컬 폰트를 불러와 CSS 변수로 노출
@@ -19,8 +21,8 @@ const galmuri9 = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Dopaminetto",
-  description: "Dopaminetto by yoonu",
+  title: "Dopaminetto(Coming soon)",
+  description: "Dopaminetto Side Project",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

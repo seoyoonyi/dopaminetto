@@ -12,7 +12,7 @@ module.exports = {
   plugins: ["@typescript-eslint", "react", "react-hooks", "jsx-a11y", "import", "filenames"],
   rules: {
     // --- 파일 및 네이밍 규칙 ---
-    "filenames/match-regex": ["error", "^[a-z-.@]+$", true], // 파일명은 소문자, 하이픈(-), 마침표(.)만 허용
+    "filenames/match-regex": ["error", "^[a-z-._]+$", true], // 파일명은 소문자, 하이픈(-), 마침표(.), 밑줄(_)만 허용
     "react/jsx-pascal-case": "error", // 컴포넌트 이름은 PascalCase로 작성
     camelcase: ["error", { properties: "never" }], // 변수명은 camelCase로 작성
     "react/jsx-handler-names": [
@@ -46,15 +46,6 @@ module.exports = {
 
     // --- 코드 스타일 규칙 ---
     "react/destructuring-assignment": ["error", "always"], // props는 항상 구조 분해 할당 사용
-    "import/order": [
-      // import 순서 규칙
-      "error",
-      {
-        groups: ["builtin", "external", "internal", "parent", "sibling", "index", "object", "type"],
-        "newlines-between": "always",
-        alphabetize: { order: "asc", caseInsensitive: true },
-      },
-    ],
     "arrow-body-style": ["error", "as-needed"], // 화살표 함수 본문은 필요할 때만 중괄호 사용
 
     // --- TypeScript 관련 규칙 ---

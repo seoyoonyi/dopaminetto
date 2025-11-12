@@ -32,18 +32,14 @@ export default function TownPage() {
         {/* Map 컴포넌트가 들어올 예정 */}
         <div className="flex-1"></div>
 
-        <div className="flex flex-col w-100 h-full">
+        <div className="flex flex-col w-96 h-full">
           <ChatHistory userNickname={userNickname} messages={messages} />
-          <MessageField
-            userNickname={userNickname}
-            channelType="public"
-            onMessageSend={handleMessageSend}
-          />
+          <MessageField channelType="public" onMessageSend={handleMessageSend} />
         </div>
       </div>
 
       {/* 하단 바 컴포넌트가 들어올 예정 */}
-      <div className="w-full h-10 bg-gray-100"> </div>
+      <div className="w-full h-10 bg-gray-100"></div>
     </div>
   );
 }

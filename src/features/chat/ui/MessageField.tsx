@@ -3,7 +3,6 @@
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
 
 interface MessageFieldProps {
-  userNickname: string;
   channelType: "public" | "private";
   onMessageSend?: (message: string) => void;
 }
@@ -15,17 +14,12 @@ const ERROR_MESSAGES = {
 
 const PLACEHOLDER_TEXT = "메시지를 입력해 주세요.";
 
-export default function MessageField({
-  userNickname,
-  channelType,
-  onMessageSend,
-}: MessageFieldProps) {
+export default function MessageField({ channelType, onMessageSend }: MessageFieldProps) {
   const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isPrivateChannel = channelType === "private";
-  const isButtonDisabled = isPrivateChannel || isLoading || !message.trim();
+  const isButtonDisabled = isPrivateChannel || !message.trim();
 
   const isValidMessage = (trimmed: string) => {
     if (isPrivateChannel) {
@@ -35,26 +29,16 @@ export default function MessageField({
     return trimmed.length > 0;
   };
 
-  const sendMessage = async () => {
+  const sendMessage = () => {
     const trimmed = message.trim();
 
     if (!isValidMessage(trimmed)) {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      console.log(`[${channelType}] ${userNickname}: ${trimmed}`);
-      onMessageSend?.(trimmed);
-      setMessage("");
-      textareaRef.current?.focus();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : ERROR_MESSAGES.UNKNOWN;
-      console.error("메시지 전송 실패:", msg);
-    } finally {
-      setIsLoading(false);
-    }
+    onMessageSend?.(trimmed);
+    setMessage("");
+    textareaRef.current?.focus();
   };
 
   const handleEnterKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -86,7 +70,7 @@ export default function MessageField({
         disabled={isButtonDisabled}
         className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
-        {isLoading ? "전송 중…" : "전송"}
+        전송
       </button>
     </div>
   );

@@ -9,20 +9,28 @@ import { useState } from "react";
 interface MessageState {
   user: string;
   text: string;
+  timestamp: Date;
 }
+
+const MAX_MESSAGES = 20;
 
 export default function TownPage() {
   const { userNickname } = useUserStore();
   const [messages, setMessages] = useState<MessageState[]>([]);
 
   const handleMessageSend = (message: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        user: userNickname,
-        text: message,
-      },
-    ]);
+    setMessages((prev) => {
+      const updated = [
+        ...prev,
+        {
+          user: userNickname,
+          text: message,
+          timestamp: new Date(),
+        },
+      ];
+
+      return updated.length > MAX_MESSAGES ? updated.slice(-MAX_MESSAGES) : updated;
+    });
   };
 
   return (

@@ -26,24 +26,33 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    const chatChannel = supabase.channel("public:chat-room");
+    // "에코 끄기" 옵션을 적용합니다.
+    const chatChannel = supabase.channel("public:chat-room", {
+      config: {
+        broadcast: {
+          self: false, // ⬅️ "내가 보낸 broadcast는 나에게 다시 '에코'하지 마세요"
+        },
+      },
+    });
 
-    chatChannel
-      .on("broadcast", { event: "chat-message" }, (payload) => {
-        const newMsg: Message = {
-          user: payload.payload.nickname,
-          text: payload.payload.message,
-        };
-        setMessages((prev) => [...prev, newMsg]);
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setChannel(chatChannel);
-        }
-      });
+    chatChannel.on("broadcast", { event: "chat-message" }, (payload) => {
+      const newMsg: Message = {
+        user: payload.payload.nickname,
+        text: payload.payload.message,
+      };
+      setMessages((prev) => [...prev, newMsg]);
+    });
+    // 구독(subscribe) 실행
+    chatChannel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        console.log("STATUS:", status);
+        setChannel(chatChannel);
+      }
+    });
 
     return () => {
-      chatChannel.unsubscribe();
+      // chatChannel.unsubscribe(); 대신 아래를 사용합니다.
+      supabase.removeChannel(chatChannel);
     };
   }, [userNickname, supabase]);
 

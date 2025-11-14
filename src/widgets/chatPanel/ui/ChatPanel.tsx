@@ -15,12 +15,12 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="p-6 bg-gray-200 h-screen w-80">
+    <>
       {/* features/chat/ui에서 가져온 컴포넌트 */}
       <ChatHistory userNickname={userNickname} messages={messages} />
       <MessageField channelType="public" onMessageSend={handleMessageSend} />
       <hr className="my-4" />
-    </div>
+    </>
   );
 }
 

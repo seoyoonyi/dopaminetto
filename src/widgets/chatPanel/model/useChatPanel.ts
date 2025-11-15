@@ -1,17 +1,12 @@
 "use client";
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
+import { Message } from "@/features/chat/types";
+import { CHAT_CHANNEL_NAME } from "@/shared/config";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimeChannel } from "@supabase/supabase-js";
 
 import { useEffect, useState } from "react";
-
-// (TODO: types.ts 분리 예정)
-interface Message {
-  user: string;
-  text: string;
-  timestamp?: string;
-}
 
 export function useChatPanel() {
   const supabase = useSupabase();
@@ -23,23 +18,23 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    const chatChannel = supabase.channel("public:chat-room", {
+    const chatChannel = supabase.channel(CHAT_CHANNEL_NAME, {
       config: {
         broadcast: {
-          self: false,
+          self: true,
         },
       },
     });
 
     chatChannel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
-        console.log("STATUS:", status);
         setChannel(chatChannel);
 
         chatChannel.on("broadcast", { event: "chat-message" }, (payload) => {
           const newMsg: Message = {
             user: payload.payload.nickname,
             text: payload.payload.message,
+            timestamp: payload.payload.timestamp,
           };
           setMessages((prev) => [...prev, newMsg]);
         });
@@ -65,11 +60,6 @@ export function useChatPanel() {
       event: "chat-message",
       payload: messagePayload,
     });
-
-    setMessages((prev) => [
-      ...prev,
-      { user: userNickname, text: messageText, timestamp: messagePayload.timestamp },
-    ]);
   };
 
   return {

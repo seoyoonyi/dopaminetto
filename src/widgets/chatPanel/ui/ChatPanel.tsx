@@ -4,12 +4,12 @@ import { ChatHistory, MessageField } from "@/features/chat";
 
 import { useChatPanel } from "../model/useChatPanel";
 
-export function ChatPanel() {
-  const { userNickname, messages, handleMessageSend, isConnected } = useChatPanel();
+interface ChatPanelProps {
+  userNickname: string;
+}
 
-  if (!userNickname) {
-    return null;
-  }
+export function ChatPanel({ userNickname }: ChatPanelProps) {
+  const { messages, handleMessageSend, isConnected } = useChatPanel();
 
   return (
     <>

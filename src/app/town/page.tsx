@@ -1,40 +1,42 @@
 "use client";
 
-import { ChatHistory } from "@/features/chat";
-import { MessageField } from "@/features/chat";
-import { useUserStore } from "@/shared/store";
+import { useUserInfo } from "@/shared/hooks";
+import { useUserStore } from "@/shared/store/useUserStore";
+import { ChatPanel } from "@/widgets/chatPanel";
 
-import { useState } from "react";
-
-interface MessageState {
-  user: string;
-  text: string;
-}
+import { useEffect } from "react";
 
 export default function TownPage() {
-  const { userNickname } = useUserStore();
-  const [messages, setMessages] = useState<MessageState[]>([]);
+  const { data: user, isLoading } = useUserInfo();
+  const userNickname = user?.user_metadata?.nickname;
+  const { setUserNickname } = useUserStore();
 
-  const handleMessageSend = (message: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        user: userNickname,
-        text: message,
-      },
-    ]);
-  };
+  useEffect(() => {
+    if (userNickname) {
+      setUserNickname(userNickname);
+    }
+  }, [setUserNickname, userNickname]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-screen overflow-hidden items-center justify-center">
+        <p>사용자 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* 메인 콘텐츠 영역 */}
       <div className="flex flex-1 min-h-0">
-        {/* Map 컴포넌트가 들어올 예정 */}
         <div className="flex-1"></div>
-
         <div className="flex flex-col w-96 h-full">
-          <ChatHistory userNickname={userNickname} messages={messages} />
-          <MessageField channelType="public" onMessageSend={handleMessageSend} />
+          {userNickname ? (
+            <ChatPanel userNickname={userNickname} />
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              닉네임을 설정해주세요.
+            </div>
+          )}
         </div>
       </div>
 

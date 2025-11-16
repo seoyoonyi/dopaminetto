@@ -4,9 +4,10 @@ import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { TOWN_MAIN_CHANNEL } from "@/shared/config/supabase.client";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import { PresenceParticipant } from "../types";
+import { useTownPresenceStore } from "./useTownPresenceStore";
 
 type PresencePayload = {
   userId: string;
@@ -45,8 +46,11 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
  */
 export function useTownPresence() {
   const supabase = useSupabase();
-  const [participants, setParticipants] = useState<PresenceParticipant[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const participants = useTownPresenceStore((state) => state.participants);
+  const isConnected = useTownPresenceStore((state) => state.isConnected);
+  const setParticipantsState = useTownPresenceStore((state) => state.setParticipants);
+  const setConnectionState = useTownPresenceStore((state) => state.setConnectionState);
+  const resetStore = useTownPresenceStore((state) => state.reset);
 
   useEffect(() => {
     if (!supabase) return;
@@ -80,20 +84,20 @@ export function useTownPresence() {
       newChannel
         .on("presence", { event: "sync" }, () => {
           if (!isMounted) return;
-          setParticipants(mapPresenceState(newChannel.presenceState()));
+          setParticipantsState(mapPresenceState(newChannel.presenceState()));
         })
         .on("presence", { event: "join" }, () => {
           if (!isMounted) return;
-          setParticipants(mapPresenceState(newChannel.presenceState()));
+          setParticipantsState(mapPresenceState(newChannel.presenceState()));
         })
         .on("presence", { event: "leave" }, () => {
           if (!isMounted) return;
-          setParticipants(mapPresenceState(newChannel.presenceState()));
+          setParticipantsState(mapPresenceState(newChannel.presenceState()));
         });
 
       newChannel.subscribe(async (status) => {
         if (!isMounted) return;
-        setIsConnected(status === "SUBSCRIBED");
+        setConnectionState(status === "SUBSCRIBED");
 
         if (status === "SUBSCRIBED" && isMounted) {
           await newChannel.track({
@@ -115,8 +119,7 @@ export function useTownPresence() {
 
     return () => {
       isMounted = false;
-      setIsConnected(false);
-      setParticipants([]);
+      resetStore();
       channelPromise
         ?.catch(() => undefined)
         .finally(() => {
@@ -124,7 +127,7 @@ export function useTownPresence() {
           cleanupChannel = null;
         });
     };
-  }, [supabase]);
+  }, [supabase, resetStore, setConnectionState, setParticipantsState]);
 
   const orderedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => a.nickname.localeCompare(b.nickname, "ko-KR"));

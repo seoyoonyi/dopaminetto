@@ -10,8 +10,12 @@ export default function TownPresenceDebugPage() {
       <h1 className="text-xl font-semibold">타운 Presence 디버그</h1>
       <div>
         상태:{" "}
-        <span className={isConnected ? "text-green-600" : "text-red-600"}>
-          {isConnected ? "연결됨" : "연결 끊김"}
+        <span
+          className={isConnected ? "text-green-600" : "text-red-600"}
+          role="status"
+          aria-label={isConnected ? "연결됨 (Connected)" : "연결 끊김 (Disconnected)"}
+        >
+          {isConnected ? "✓ 연결됨" : "✗ 연결 끊김"}
         </span>
       </div>
       <div className="border rounded p-4">

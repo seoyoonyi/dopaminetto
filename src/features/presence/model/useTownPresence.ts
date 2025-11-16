@@ -51,8 +51,8 @@ export function useTownPresence() {
   useEffect(() => {
     if (!supabase) return;
 
-    let channel: RealtimeChannel | null = null;
     let channelPromise: Promise<void> | null = null;
+    let cleanupChannel: (() => void) | null = null;
     let isMounted = true;
 
     const subscribePresence = async () => {
@@ -60,11 +60,11 @@ export function useTownPresence() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) {
+      if (!user || !isMounted) {
         return;
       }
 
-      channel = supabase.channel(TOWN_MAIN_CHANNEL, {
+      const newChannel = supabase.channel(TOWN_MAIN_CHANNEL, {
         config: {
           presence: {
             key: user.id,
@@ -72,44 +72,54 @@ export function useTownPresence() {
         },
       });
 
-      channel
+      if (!isMounted) {
+        supabase.removeChannel(newChannel);
+        return;
+      }
+
+      newChannel
         .on("presence", { event: "sync" }, () => {
-          if (!isMounted || !channel) return;
-          setParticipants(mapPresenceState(channel.presenceState()));
+          if (!isMounted) return;
+          setParticipants(mapPresenceState(newChannel.presenceState()));
         })
         .on("presence", { event: "join" }, () => {
-          if (!isMounted || !channel) return;
-          setParticipants(mapPresenceState(channel.presenceState()));
+          if (!isMounted) return;
+          setParticipants(mapPresenceState(newChannel.presenceState()));
         })
         .on("presence", { event: "leave" }, () => {
-          if (!isMounted || !channel) return;
-          setParticipants(mapPresenceState(channel.presenceState()));
+          if (!isMounted) return;
+          setParticipants(mapPresenceState(newChannel.presenceState()));
         });
 
-      channel.subscribe(async (status) => {
+      newChannel.subscribe(async (status) => {
         if (!isMounted) return;
         setIsConnected(status === "SUBSCRIBED");
 
         if (status === "SUBSCRIBED" && isMounted) {
-          await channel?.track({
+          await newChannel.track({
             userId: user.id,
             nickname: (user.user_metadata?.nickname as string) || "익명",
             joinedAt: new Date().toISOString(),
           });
         }
       });
+
+      return () => {
+        supabase.removeChannel(newChannel);
+      };
     };
 
-    channelPromise = subscribePresence();
+    channelPromise = subscribePresence().then((cleanup) => {
+      cleanupChannel = cleanup ?? null;
+    });
 
     return () => {
       isMounted = false;
       channelPromise
         ?.catch(() => undefined)
         .finally(() => {
-          if (channel) {
-            supabase.removeChannel(channel);
-          }
+          cleanupChannel?.();
+          cleanupChannel = null;
         });
     };
   }, [supabase]);

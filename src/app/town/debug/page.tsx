@@ -13,7 +13,7 @@ export default function TownPresenceDebugPage() {
         <span
           className={isConnected ? "text-green-600" : "text-red-600"}
           role="status"
-          aria-label={isConnected ? "연결됨 (Connected)" : "연결 끊김 (Disconnected)"}
+          aria-label={isConnected ? "연결됨" : "연결 끊김"}
         >
           {isConnected ? "✓ 연결됨" : "✗ 연결 끊김"}
         </span>

@@ -1,9 +1,7 @@
 "use client";
 
-interface Message {
-  user: string;
-  text: string;
-}
+import { Message } from "../types";
+
 interface ChatHistoryProps {
   userNickname: string;
   messages: Message[];

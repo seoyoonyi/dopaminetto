@@ -2,7 +2,7 @@
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { TOWN_MAIN_CHANNEL } from "@/shared/config/supabase.client";
-import { RealtimeChannel, RealtimePresenceState } from "@supabase/supabase-js";
+import { RealtimePresenceState } from "@supabase/supabase-js";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -115,6 +115,8 @@ export function useTownPresence() {
 
     return () => {
       isMounted = false;
+      setIsConnected(false);
+      setParticipants([]);
       channelPromise
         ?.catch(() => undefined)
         .finally(() => {

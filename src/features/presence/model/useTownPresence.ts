@@ -102,7 +102,8 @@ export function useTownPresence() {
         if (status === "SUBSCRIBED" && isMounted) {
           await newChannel.track({
             userId: user.id,
-            nickname: (user.user_metadata?.nickname as string) || "익명",
+            nickname: (user.user_metadata?.nickname as string) || "undefined",
+
             joinedAt: new Date().toISOString(),
           });
         }

@@ -7,7 +7,7 @@ import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
 import { TownToolbar } from "@/widgets/townToolbar";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 export default function TownPage() {
   const { data: user, isLoading } = useUserInfo();
@@ -22,13 +22,10 @@ export default function TownPage() {
     }
   }, [setUserNickname, userNickname]);
 
-  const nicknameFallback = useMemo(
-    () => (
-      <div className="flex h-full items-center justify-center text-gray-500">
-        닉네임을 설정해주세요.
-      </div>
-    ),
-    [],
+  const nicknameFallback = (
+    <div className="flex h-full items-center justify-center text-gray-500">
+      닉네임을 설정해주세요.
+    </div>
   );
 
   if (isLoading) {

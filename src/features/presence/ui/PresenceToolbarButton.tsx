@@ -17,7 +17,7 @@ export const PresenceToolbarButton = ({
   const participantCount = useTownPresenceStore((state) => state.participants.length);
   const isConnected = useTownPresenceStore((state) => state.isConnected);
   const toggleLabel = isUsersPanel ? "채팅 패널로 보기" : "사용자 패널로 보기";
-  const toggleText = isUsersPanel ? "사용자" : "채팅";
+  const toggleText = isUsersPanel ? "채팅" : "사용자";
   const connectionIndicatorClass = `h-2 w-2 rounded-full ${
     isConnected ? "bg-emerald-500" : "bg-red-500"
   }`;
@@ -31,21 +31,24 @@ export const PresenceToolbarButton = ({
       aria-pressed={isUsersPanel}
       aria-label={toggleLabel}
       onClick={onToggle}
-      className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-        isUsersPanel ? "bg-gray-900 text-white" : "bg-white text-gray-700"
+      className={`flex h-10 min-w-[145px] items-center justify-between gap-2 rounded-full px-4 text-sm font-medium transition-colors shadow-sm ${
+        isUsersPanel
+          ? "border border-gray-900 bg-gray-900 text-white"
+          : "border bg-white text-gray-700"
       }`}
     >
       <Users className="h-4 w-4" aria-hidden />
       <span>{participantCount}</span>
       <span className="hidden sm:inline">{toggleText}</span>
       <span
-        className="flex items-center gap-1 text-xs font-normal text-gray-500"
+        className={`flex items-center gap-1 text-[11px] font-normal ${
+          isUsersPanel ? "text-gray-300" : "text-gray-500"
+        }`}
         aria-live="polite"
       >
         <span className={connectionIndicatorClass} aria-hidden />
         <span>{connectionIndicatorText}</span>
       </span>
-      <span className="sr-only">{isConnected ? "Presence 연결됨" : "Presence 연결 대기"}</span>
     </Button>
   );
 };

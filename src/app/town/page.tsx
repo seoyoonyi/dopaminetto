@@ -1,5 +1,6 @@
 "use client";
 
+import { PresenceToolbarButton } from "@/features/presence";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
@@ -40,8 +41,9 @@ export default function TownPage() {
         </div>
       </div>
 
-      {/* 하단 바 컴포넌트가 들어올 예정 */}
-      <div className="w-full h-10 bg-gray-100"></div>
+      <div className="w-full h-12 bg-gray-100 flex items-center justify-end px-4">
+        <PresenceToolbarButton />
+      </div>
     </div>
   );
 }

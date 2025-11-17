@@ -18,6 +18,7 @@ export const PresenceToolbarButton = ({ onToggle }: PresenceToolbarButtonProps) 
       size="sm"
       onClick={onToggle}
       className="rounded-full px-4 text-sm text-gray-700"
+      aria-label={`현재 접속자 ${participants.length}명, ${isConnected ? "연결됨" : "대기 중"}`}
     >
       <span className="font-medium">사용자</span>
       <span className="text-gray-500">{participants.length}명</span>

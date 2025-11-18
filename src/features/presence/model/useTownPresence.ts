@@ -44,13 +44,26 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
  *   isConnected: boolean;
  * }} 닉네임 오름차순 정렬된 접속자 목록과 Presence 채널 연결 여부
  */
-export function useTownPresence() {
-  const supabase = useSupabase();
+export const useTownPresenceView = () => {
   const participants = useTownPresenceStore((state) => state.participants);
   const isConnected = useTownPresenceStore((state) => state.isConnected);
+
+  const orderedParticipants = useMemo(() => {
+    return [...participants].sort((a, b) => a.nickname.localeCompare(b.nickname, "ko-KR"));
+  }, [participants]);
+
+  return {
+    participants: orderedParticipants,
+    isConnected,
+  };
+};
+
+export function useTownPresence() {
+  const supabase = useSupabase();
   const setParticipantsState = useTownPresenceStore((state) => state.setParticipants);
   const setConnectionState = useTownPresenceStore((state) => state.setConnectionState);
   const resetStore = useTownPresenceStore((state) => state.reset);
+  const presenceView = useTownPresenceView();
 
   useEffect(() => {
     if (!supabase) return;
@@ -102,7 +115,7 @@ export function useTownPresence() {
         if (status === "SUBSCRIBED" && isMounted) {
           await newChannel.track({
             userId: user.id,
-            nickname: (user.user_metadata?.nickname as string) || "undefined",
+            nickname: user.user_metadata?.nickname as string,
 
             joinedAt: new Date().toISOString(),
           });
@@ -130,12 +143,5 @@ export function useTownPresence() {
     };
   }, [supabase, resetStore, setConnectionState, setParticipantsState]);
 
-  const orderedParticipants = useMemo(() => {
-    return [...participants].sort((a, b) => a.nickname.localeCompare(b.nickname, "ko-KR"));
-  }, [participants]);
-
-  return {
-    participants: orderedParticipants,
-    isConnected,
-  };
+  return presenceView;
 }

@@ -6,6 +6,7 @@ import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
 import { TownToolbar } from "@/widgets/townToolbar";
+import { UsersPanel } from "@/widgets/usersPanel";
 
 import { useEffect } from "react";
 
@@ -38,11 +39,7 @@ export default function TownPage() {
 
   const renderPanel = () => {
     if (activePanel === "users") {
-      return (
-        <div className="flex h-full items-center justify-center text-sm text-gray-500">
-          사용자 패널 UI는 추후 커밋에서 제공될 예정입니다.
-        </div>
-      );
+      return <UsersPanel />;
     }
 
     if (!userNickname) {

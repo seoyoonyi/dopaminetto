@@ -1,5 +1,7 @@
 "use client";
 
+import { Textarea } from "@/shared/ui/textarea";
+
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
 
 interface MessageFieldProps {
@@ -64,7 +66,7 @@ export default function MessageField({
 
   return (
     <div className="border-t p-3 flex gap-2 items-end">
-      <textarea
+      <Textarea
         ref={textareaRef}
         value={message}
         onChange={updateMessage}

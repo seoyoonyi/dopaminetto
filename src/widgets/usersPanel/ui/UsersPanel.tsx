@@ -1,28 +1,10 @@
 "use client";
 
-import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
-
-const joinedTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const formatJoinedTime = (joinedAt?: string) => {
-  if (!joinedAt) {
-    return "입장 시각 확인 중";
-  }
-
-  const joinedDate = new Date(joinedAt);
-  if (Number.isNaN(joinedDate.getTime())) {
-    return "입장 시각 확인 중";
-  }
-
-  return joinedTimeFormatter.format(joinedDate);
-};
+import { useTownPresenceView } from "@/features/presence/model/useTownPresence";
+import { formatJoinedTime } from "@/shared/lib";
 
 export function UsersPanel() {
-  const participants = useTownPresenceStore((state) => state.participants);
-  const isConnected = useTownPresenceStore((state) => state.isConnected);
+  const { participants, isConnected } = useTownPresenceView();
   const participantCount = participants.length;
   const presenceStatus = isConnected ? "실시간으로 동기화 중" : "연결 대기 중";
   const presenceIndicatorLabel = isConnected ? "Presence 연결됨" : "Presence 연결 대기";
@@ -54,9 +36,7 @@ export function UsersPanel() {
               className="flex items-center justify-between px-4 py-3 text-sm"
             >
               <div className="flex flex-col">
-                <span className="font-medium text-gray-900">
-                  {participant.nickname || "닉네임 미지정"}
-                </span>
+                <span className="font-medium text-gray-900">{participant.nickname}</span>
                 <span className="text-xs text-gray-500">
                   입장 {formatJoinedTime(participant.joinedAt)}
                 </span>

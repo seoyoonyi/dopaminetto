@@ -4,12 +4,16 @@ import { ChatHistory, MessageField } from "@/features/chat";
 
 import { useChatPanel } from "../model/useChatPanel";
 
-export function ChatPanel() {
+interface ChatPanelProps {
+  userNickname: string;
+}
+
+export function ChatPanel({ userNickname }: ChatPanelProps) {
   const { messages, handleMessageSend, isConnected } = useChatPanel();
 
   return (
     <>
-      <ChatHistory messages={messages} />
+      <ChatHistory currentUserNickname={userNickname} messages={messages} />
       <MessageField
         channelType="public"
         onMessageSend={handleMessageSend}

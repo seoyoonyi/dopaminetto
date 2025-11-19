@@ -46,7 +46,7 @@ export default function TownPage() {
       return nicknameFallback;
     }
 
-    return <ChatPanel />;
+    return <ChatPanel userNickname={userNickname} />;
   };
 
   return (

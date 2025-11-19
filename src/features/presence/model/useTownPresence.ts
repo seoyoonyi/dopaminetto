@@ -71,6 +71,7 @@ export function useTownPresence() {
     let channelPromise: Promise<void> | null = null;
     let cleanupChannel: (() => void) | null = null;
     let isMounted = true;
+    let currentUserNickname = "";
 
     const subscribePresence = async () => {
       const {
@@ -80,6 +81,8 @@ export function useTownPresence() {
       if (!user || !isMounted) {
         return;
       }
+
+      currentUserNickname = user.user_metadata?.nickname as string;
 
       const newChannel = supabase.channel(TOWN_MAIN_CHANNEL, {
         config: {
@@ -97,15 +100,15 @@ export function useTownPresence() {
       newChannel
         .on("presence", { event: "sync" }, () => {
           if (!isMounted) return;
-          setParticipantsState(mapPresenceState(newChannel.presenceState()));
+          setParticipantsState(mapPresenceState(newChannel.presenceState()), currentUserNickname);
         })
         .on("presence", { event: "join" }, () => {
           if (!isMounted) return;
-          setParticipantsState(mapPresenceState(newChannel.presenceState()));
+          setParticipantsState(mapPresenceState(newChannel.presenceState()), currentUserNickname);
         })
         .on("presence", { event: "leave" }, () => {
           if (!isMounted) return;
-          setParticipantsState(mapPresenceState(newChannel.presenceState()));
+          setParticipantsState(mapPresenceState(newChannel.presenceState()), currentUserNickname);
         });
 
       newChannel.subscribe(async (status) => {
@@ -115,8 +118,7 @@ export function useTownPresence() {
         if (status === "SUBSCRIBED" && isMounted) {
           await newChannel.track({
             userId: user.id,
-            nickname: user.user_metadata?.nickname as string,
-
+            nickname: currentUserNickname,
             joinedAt: new Date().toISOString(),
           });
         }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useTownPresenceView } from "@/features/presence/model/useTownPresence";
+import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { hasMultipleDates, isSameDay } from "@/shared/lib";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { Message, SystemMessage } from "../types";
 import { ChatMessageItem } from "./ChatMessageItem";
@@ -12,89 +12,14 @@ import { SystemMessageItem } from "./SystemMessageItem";
 
 interface ChatHistoryProps {
   messages: Message[];
-  currentUserNickname: string;
 }
 
 type TimelineItem = { type: "message"; data: Message } | { type: "system"; data: SystemMessage };
 
-export default function ChatHistory({ messages, currentUserNickname }: ChatHistoryProps) {
+export default function ChatHistory({ messages }: ChatHistoryProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { participants } = useTownPresenceView();
 
-  const trackedParticipantsRef = useRef<Set<string> | null>(null);
-  const isInitialPresenceSyncRef = useRef(true);
-
-  const [systemMessages, setSystemMessages] = useState<SystemMessage[]>([]);
-
-  useEffect(() => {
-    const currentNicknames = participants.map((p) => p.nickname);
-    const currentSet = new Set(currentNicknames);
-    const trackedSet = trackedParticipantsRef.current;
-
-    if (isInitialPresenceSyncRef.current) {
-      if (!currentNicknames.includes(currentUserNickname)) {
-        return;
-      }
-
-      isInitialPresenceSyncRef.current = false;
-      trackedParticipantsRef.current = new Set(currentSet);
-
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSystemMessages((prev) => [
-        ...prev,
-        {
-          id: `join-${currentUserNickname}-${Date.now()}`,
-          type: "join",
-          nickname: currentUserNickname,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-
-      return;
-    }
-
-    if (!trackedSet) {
-      trackedParticipantsRef.current = new Set(currentSet);
-      return;
-    }
-
-    const newJoins: string[] = [];
-    const leaves: string[] = [];
-
-    currentSet.forEach((nickname) => {
-      if (!trackedSet.has(nickname)) {
-        newJoins.push(nickname);
-        trackedSet.add(nickname);
-      }
-    });
-
-    trackedSet.forEach((nickname) => {
-      if (!currentSet.has(nickname)) {
-        leaves.push(nickname);
-        trackedSet.delete(nickname);
-      }
-    });
-
-    if (newJoins.length === 0 && leaves.length === 0) {
-      return;
-    }
-
-    setSystemMessages((prev) => [
-      ...prev,
-      ...newJoins.map<SystemMessage>((nickname) => ({
-        id: `join-${nickname}-${Date.now()}`,
-        type: "join",
-        nickname,
-        timestamp: new Date().toISOString(),
-      })),
-      ...leaves.map<SystemMessage>((nickname) => ({
-        id: `leave-${nickname}-${Date.now()}`,
-        type: "leave",
-        nickname,
-        timestamp: new Date().toISOString(),
-      })),
-    ]);
-  }, [participants, currentUserNickname]);
+  const systemMessages = useTownPresenceStore((state) => state.systemMessages);
 
   const shouldShowDateDividers = hasMultipleDates(messages);
 

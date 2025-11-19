@@ -1,23 +1,18 @@
 "use client";
 
 import { useTownPresenceView } from "@/features/presence/model/useTownPresence";
-import { hasMultipleDates, isSameUserContinuous } from "@/shared/lib";
-import { formatDate, formatTime, isSameDay } from "@/shared/lib";
+import { hasMultipleDates, isSameDay } from "@/shared/lib";
 
 import { useEffect, useRef, useState } from "react";
 
-import { Message } from "../types";
+import { Message, SystemMessage } from "../types";
+import { ChatMessageItem } from "./ChatMessageItem";
+import { DateDivider } from "./DateDivider";
+import { SystemMessageItem } from "./SystemMessageItem";
 
 interface ChatHistoryProps {
   messages: Message[];
   currentUserNickname: string;
-}
-
-interface SystemMessage {
-  id: string;
-  type: "join" | "leave";
-  nickname: string;
-  timestamp: string;
 }
 
 type TimelineItem = { type: "message"; data: Message } | { type: "system"; data: SystemMessage };
@@ -84,7 +79,6 @@ export default function ChatHistory({ messages, currentUserNickname }: ChatHisto
       return;
     }
 
-     
     setSystemMessages((prev) => [
       ...prev,
       ...newJoins.map<SystemMessage>((nickname) => ({
@@ -113,8 +107,6 @@ export default function ChatHistory({ messages, currentUserNickname }: ChatHisto
     (a, b) => new Date(a.data.timestamp).getTime() - new Date(b.data.timestamp).getTime(),
   );
 
-  const seenUsers = new Set<string>();
-
   useEffect(() => {
     const container = messagesEndRef.current?.parentElement;
     if (!container) return;
@@ -135,97 +127,23 @@ export default function ChatHistory({ messages, currentUserNickname }: ChatHisto
 
       <div className="flex flex-col flex-1 overflow-y-auto p-3 text-sm">
         {allItems.map((item, index) => {
-          if (item.type === "system") {
-            const sys = item.data;
-            const prevItem = index > 0 ? allItems[index - 1] : undefined;
-
-            const showDateDivider =
-              shouldShowDateDividers &&
-              (index === 0 || (prevItem && !isSameDay(prevItem.data.timestamp, sys.timestamp)));
-
-            return (
-              <div key={sys.id}>
-                {showDateDivider && (
-                  <div
-                    role="separator"
-                    aria-label={`날짜: ${formatDate(sys.timestamp)}`}
-                    className="my-4 flex items-center gap-3"
-                  >
-                    <div className="h-px flex-1 bg-gray-300" />
-                    <span className="px-2 text-xs text-gray-400" aria-hidden="true">
-                      {formatDate(sys.timestamp)}
-                    </span>
-                    <div className="h-px flex-1 bg-gray-300" />
-                  </div>
-                )}
-
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="my-2 text-center text-xs text-gray-400"
-                >
-                  {sys.nickname} {sys.type === "join" ? "입장했습니다." : "퇴장했습니다."}
-                </div>
-              </div>
-            );
-          }
-
-          const msg = item.data;
           const prevItem = index > 0 ? allItems[index - 1] : undefined;
-          const prevMsg = prevItem?.type === "message" ? (prevItem.data as Message) : undefined;
 
           const showDateDivider =
             shouldShowDateDividers &&
-            (index === 0 || (prevItem && !isSameDay(prevItem.data.timestamp, msg.timestamp)));
+            (index === 0 || (prevItem && !isSameDay(prevItem.data.timestamp, item.data.timestamp)));
 
-          const isContinuous = isSameUserContinuous(msg, prevMsg);
-
-          const showUserEntry = !seenUsers.has(msg.user);
-          if (showUserEntry) {
-            seenUsers.add(msg.user);
-          }
+          const prevMsg = prevItem?.type === "message" ? (prevItem.data as Message) : undefined;
 
           return (
-            <div key={`${msg.user}-${msg.timestamp}-${index}`}>
-              {showDateDivider && (
-                <div
-                  role="separator"
-                  aria-label={`날짜: ${formatDate(msg.timestamp)}`}
-                  className="my-4 flex items-center gap-3"
-                >
-                  <div className="h-px flex-1 bg-gray-300" />
-                  <span className="px-2 text-xs text-gray-400">{formatDate(msg.timestamp)}</span>
-                  <div className="h-px flex-1 bg-gray-300" />
-                </div>
+            <div key={`${item.type}-${item.data.timestamp}-${index}`}>
+              {showDateDivider && <DateDivider timestamp={item.data.timestamp} />}
+
+              {item.type === "system" ? (
+                <SystemMessageItem message={item.data as SystemMessage} />
+              ) : (
+                <ChatMessageItem message={item.data as Message} previousMessage={prevMsg} />
               )}
-
-              <div className={`flex gap-2 ${isContinuous ? "mb-1" : "mb-3"}`}>
-                <div className="flex-shrink-0">
-                  {!isContinuous ? (
-                    <div
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-semibold text-gray-600"
-                      role="img"
-                      aria-label={`${msg.user}의 프로필`}
-                    >
-                      {msg.user.charAt(0)}
-                    </div>
-                  ) : (
-                    <div className="h-8 w-8" />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  {!isContinuous && (
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-gray-900">{msg.user}</span>
-                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
-                    </div>
-                  )}
-                  <div className="whitespace-pre-wrap break-words text-sm text-gray-800">
-                    {msg.text}
-                  </div>
-                </div>
-              </div>
             </div>
           );
         })}

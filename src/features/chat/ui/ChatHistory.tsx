@@ -18,9 +18,10 @@ export default function ChatHistory({ messages }: ChatHistoryProps) {
     const container = messagesEndRef.current?.parentElement;
     if (!container) return;
 
-    const threshold = 80;
+    const AUTO_SCROLL_THRESHOLD_PX = 80;
     const isNearBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      AUTO_SCROLL_THRESHOLD_PX;
 
     if (isNearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,15 +53,25 @@ export default function ChatHistory({ messages }: ChatHistoryProps) {
           return (
             <div key={`${msg.user}-${msg.timestamp}-${index}`}>
               {showDateDivider && (
-                <div className="my-4 flex items-center gap-3">
+                <div
+                  role="separator"
+                  aria-label={`날짜: ${formatDate(msg.timestamp)}`}
+                  className="my-4 flex items-center gap-3"
+                >
                   <div className="h-px flex-1 bg-gray-300" />
-                  <span className="px-2 text-xs text-gray-400">{formatDate(msg.timestamp)}</span>
+                  <span className="px-2 text-xs text-gray-400" aria-hidden="true">
+                    {formatDate(msg.timestamp)}
+                  </span>
                   <div className="h-px flex-1 bg-gray-300" />
                 </div>
               )}
 
               {showUserEntry && (
-                <div className="my-2 text-center text-xs text-gray-400">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="my-2 text-center text-xs text-gray-400"
+                >
                   {msg.user} 입장했습니다.
                 </div>
               )}
@@ -68,7 +79,11 @@ export default function ChatHistory({ messages }: ChatHistoryProps) {
               <div className={`flex gap-2 ${isContinuous ? "mb-1" : "mb-3"}`}>
                 <div className="flex-shrink-0">
                   {!isContinuous ? (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-semibold text-gray-600">
+                    <div
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-semibold text-gray-600"
+                      role="img"
+                      aria-label={`${msg.user}의 프로필`}
+                    >
                       {msg.user.charAt(0)}
                     </div>
                   ) : (

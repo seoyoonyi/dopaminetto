@@ -8,7 +8,7 @@ interface TownPresenceState {
   isConnected: boolean;
   lastSyncedAt?: string;
   systemMessages: SystemMessage[];
-  previousNicknames: Set<string>;
+  previousUserIds: Set<string>;
   hasInitialized: boolean;
 
   setParticipants: (participants: PresenceParticipant[], currentUserNickname: string) => void;
@@ -21,17 +21,19 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   isConnected: false,
   lastSyncedAt: undefined,
   systemMessages: [],
-  previousNicknames: new Set(),
+  previousUserIds: new Set(),
   hasInitialized: true,
 
   setParticipants: (participants, currentUserNickname) => {
     const state = get();
-    const currentNicknames = participants.map((p) => p.nickname);
-    const currentSet = new Set(currentNicknames);
+    const currentUserIds = participants.map((p) => p.userId);
+    const currentUserIdSet = new Set(currentUserIds);
 
     let newSystemMessages: SystemMessage[] = [];
 
-    if (state.hasInitialized && currentNicknames.includes(currentUserNickname)) {
+    const currentUser = participants.find((p) => p.nickname === currentUserNickname);
+
+    if (state.hasInitialized && currentUser) {
       newSystemMessages = [
         {
           id: `join-${currentUserNickname}-${Date.now()}`,
@@ -45,26 +47,32 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
         participants,
         lastSyncedAt: new Date().toISOString(),
         systemMessages: [...state.systemMessages, ...newSystemMessages],
-        previousNicknames: currentSet,
+        previousUserIds: currentUserIdSet,
         hasInitialized: false,
       });
 
       return;
     }
 
-    if (!state.hasInitialized && state.previousNicknames.size > 0) {
+    if (!state.hasInitialized && state.previousUserIds.size > 0) {
       const newJoins: string[] = [];
       const leaves: string[] = [];
 
-      currentSet.forEach((nickname) => {
-        if (!state.previousNicknames.has(nickname)) {
-          newJoins.push(nickname);
+      currentUserIdSet.forEach((userId) => {
+        if (!state.previousUserIds.has(userId)) {
+          const participant = participants.find((p) => p.userId === userId);
+          if (participant) {
+            newJoins.push(participant.nickname);
+          }
         }
       });
 
-      state.previousNicknames.forEach((nickname) => {
-        if (!currentSet.has(nickname)) {
-          leaves.push(nickname);
+      state.previousUserIds.forEach((userId) => {
+        if (!currentUserIdSet.has(userId)) {
+          const previousParticipant = state.participants.find((p) => p.userId === userId);
+          if (previousParticipant) {
+            leaves.push(previousParticipant.nickname);
+          }
         }
       });
 
@@ -90,7 +98,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       participants,
       lastSyncedAt: new Date().toISOString(),
       systemMessages: [...state.systemMessages, ...newSystemMessages],
-      previousNicknames: currentSet,
+      previousUserIds: currentUserIdSet,
     });
   },
 
@@ -102,7 +110,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       isConnected: false,
       lastSyncedAt: undefined,
       systemMessages: [],
-      previousNicknames: new Set(),
+      previousUserIds: new Set(),
       hasInitialized: true,
     }),
 }));

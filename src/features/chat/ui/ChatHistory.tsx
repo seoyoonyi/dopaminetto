@@ -1,93 +1,74 @@
 "use client";
 
-import { hasMultipleDates, isSameUserContinuous } from "@/shared/lib";
-import { formatDate, formatTime, isSameDay } from "@/shared/lib";
+import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
+import { hasMultipleDates, isSameDay } from "@/shared/lib";
 
 import { useEffect, useRef } from "react";
 
-import { Message } from "../types";
+import { Message, SystemMessage } from "../types";
+import { ChatMessageItem } from "./ChatMessageItem";
+import { DateDivider } from "./DateDivider";
+import { SystemMessageItem } from "./SystemMessageItem";
 
 interface ChatHistoryProps {
   messages: Message[];
 }
 
+type TimelineItem = { type: "message"; data: Message } | { type: "system"; data: SystemMessage };
+
 export default function ChatHistory({ messages }: ChatHistoryProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const systemMessages = useTownPresenceStore((state) => state.systemMessages);
+
+  const shouldShowDateDividers = hasMultipleDates(messages);
+
+  const mergedItems: TimelineItem[] = [
+    ...messages.map<TimelineItem>((msg) => ({ type: "message", data: msg })),
+    ...systemMessages.map<TimelineItem>((sys) => ({ type: "system", data: sys })),
+  ];
+
+  const allItems = mergedItems.sort(
+    (a, b) => new Date(a.data.timestamp).getTime() - new Date(b.data.timestamp).getTime(),
+  );
 
   useEffect(() => {
     const container = messagesEndRef.current?.parentElement;
     if (!container) return;
 
-    const threshold = 80;
-    const isNearBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    const AUTO_SCROLL_THRESHOLD_PX = 80;
+    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    const isNearBottom = distanceToBottom < AUTO_SCROLL_THRESHOLD_PX;
 
     if (isNearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
-
-  const shouldShowDateDividers = hasMultipleDates(messages);
-  const seenUsers = new Set<string>();
+  }, [messages, systemMessages]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b px-3 py-2 text-sm font-semibold">채팅</div>
 
       <div className="flex flex-col flex-1 overflow-y-auto p-3 text-sm">
-        {messages.map((msg, index) => {
-          const prevMsg = index > 0 ? messages[index - 1] : undefined;
+        {allItems.map((item, index) => {
+          const prevItem = index > 0 ? allItems[index - 1] : undefined;
 
           const showDateDivider =
             shouldShowDateDividers &&
-            (index === 0 || (prevMsg && !isSameDay(prevMsg.timestamp, msg.timestamp)));
+            (index === 0 || (prevItem && !isSameDay(prevItem.data.timestamp, item.data.timestamp)));
 
-          const isContinuous = isSameUserContinuous(msg, prevMsg);
-
-          const showUserEntry = !seenUsers.has(msg.user);
-          if (showUserEntry) {
-            seenUsers.add(msg.user);
-          }
+          const prevMsg = prevItem?.type === "message" ? (prevItem.data as Message) : undefined;
 
           return (
-            <div key={`${msg.user}-${msg.timestamp}-${index}`}>
-              {showDateDivider && (
-                <div className="my-4 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-gray-300" />
-                  <span className="px-2 text-xs text-gray-400">{formatDate(msg.timestamp)}</span>
-                  <div className="h-px flex-1 bg-gray-300" />
-                </div>
+            <div key={`${item.type}-${item.data.timestamp}-${index}`}>
+              {showDateDivider && <DateDivider timestamp={item.data.timestamp} />}
+
+              {item.type === "system" ? (
+                <SystemMessageItem message={item.data as SystemMessage} />
+              ) : (
+                <ChatMessageItem message={item.data as Message} previousMessage={prevMsg} />
               )}
-
-              {showUserEntry && (
-                <div className="my-2 text-center text-xs text-gray-400">
-                  {msg.user} 입장했습니다.
-                </div>
-              )}
-
-              <div className={`flex gap-2 ${isContinuous ? "mb-1" : "mb-3"}`}>
-                <div className="flex-shrink-0">
-                  {!isContinuous ? (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-semibold text-gray-600">
-                      {msg.user.charAt(0)}
-                    </div>
-                  ) : (
-                    <div className="h-8 w-8" />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  {!isContinuous && (
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-gray-900">{msg.user}</span>
-                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
-                    </div>
-                  )}
-                  <div className="whitespace-pre-wrap break-words text-sm text-gray-800">
-                    {msg.text}
-                  </div>
-                </div>
-              </div>
             </div>
           );
         })}

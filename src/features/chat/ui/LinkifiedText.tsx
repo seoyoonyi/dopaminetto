@@ -5,13 +5,16 @@ interface LinkifiedTextProps {
 }
 
 export function LinkifiedText({ text }: LinkifiedTextProps) {
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
-  const parts = text.split(urlRegex);
+  const urlRegex =
+    /(https?:\/\/[^\s]+?)(?=[.,;:!?)\]]*(?:\s|$))|((www\.[^\s]+?)(?=[.,;:!?)\]]*(?:\s|$)))/g;
+  const parts = text.split(urlRegex).filter(Boolean);
 
   return (
     <>
       {parts.map((part, i) => {
-        const isUrl = /^(https?:\/\/[^\s]+|www\.[^\s]+)$/.test(part);
+        if (!part) return null;
+
+        const isUrl = /^(https?:\/\/|www\.)/i.test(part);
 
         if (isUrl) {
           const href = part.startsWith("www.") ? `https://${part}` : part;

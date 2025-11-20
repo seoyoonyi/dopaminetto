@@ -16,7 +16,6 @@ export function DateDivider({ timestamp }: DateDividerProps) {
         {label}
       </span>
       <div className="h-px flex-1 bg-gray-300" />
-      <div className="h-px flex-1 bg-gray-300" />
     </div>
   );
 }

@@ -10,7 +10,10 @@ import { UsersPanel } from "@/widgets/usersPanel";
 
 import { useEffect } from "react";
 
+import { useRouter } from "next/navigation";
+
 export default function TownPage() {
+  const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
   const { setUserNickname } = useUserStore();
@@ -23,13 +26,19 @@ export default function TownPage() {
     }
   }, [setUserNickname, userNickname]);
 
+  useEffect(() => {
+    if (!isLoading && !userNickname) {
+      router.push("/");
+    }
+  }, [isLoading, userNickname, router]);
+
   const nicknameFallback = (
     <div className="flex h-full items-center justify-center text-gray-500">
       닉네임을 설정해주세요.
     </div>
   );
 
-  if (isLoading) {
+  if (isLoading || !userNickname) {
     return (
       <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
         <p>사용자 정보를 불러오는 중...</p>

@@ -1,45 +1,71 @@
 "use client";
 
-import { ChatHistory } from "@/features/chat";
-import { MessageField } from "@/features/chat";
-import { useUserStore } from "@/shared/store";
+import { useTownPanelToggleStore } from "@/features/panelToggle";
+import { useTownPresence } from "@/features/presence";
+import { useUserInfo } from "@/shared/hooks";
+import { useUserStore } from "@/shared/store/useUserStore";
+import { ChatPanel } from "@/widgets/chatPanel";
+import { TownToolbar } from "@/widgets/townToolbar";
+import { UsersPanel } from "@/widgets/usersPanel";
 
-import { useState } from "react";
+import { useEffect } from "react";
 
-interface MessageState {
-  user: string;
-  text: string;
-}
+import { useRouter } from "next/navigation";
 
 export default function TownPage() {
-  const { userNickname } = useUserStore();
-  const [messages, setMessages] = useState<MessageState[]>([]);
+  const router = useRouter();
+  const { data: user, isLoading } = useUserInfo();
+  const userNickname = user?.user_metadata?.nickname;
+  const { setUserNickname } = useUserStore();
+  const activePanel = useTownPanelToggleStore((state) => state.activePanel);
+  useTownPresence();
 
-  const handleMessageSend = (message: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        user: userNickname,
-        text: message,
-      },
-    ]);
+  useEffect(() => {
+    if (userNickname) {
+      setUserNickname(userNickname);
+    }
+  }, [setUserNickname, userNickname]);
+
+  useEffect(() => {
+    if (!isLoading && !userNickname) {
+      router.push("/");
+    }
+  }, [isLoading, userNickname, router]);
+
+  const nicknameFallback = (
+    <div className="flex h-full items-center justify-center text-gray-500">
+      닉네임을 설정해주세요.
+    </div>
+  );
+
+  if (isLoading || !userNickname) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
+        <p>사용자 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
+
+  const renderPanel = () => {
+    if (activePanel === "users") {
+      return <UsersPanel />;
+    }
+
+    if (!userNickname) {
+      return nicknameFallback;
+    }
+
+    return <ChatPanel />;
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
-      {/* 메인 콘텐츠 영역 */}
-      <div className="flex flex-1 min-h-0">
-        {/* Map 컴포넌트가 들어올 예정 */}
-        <div className="flex-1"></div>
-
-        <div className="flex flex-col w-96 h-full">
-          <ChatHistory userNickname={userNickname} messages={messages} />
-          <MessageField channelType="public" onMessageSend={handleMessageSend} />
-        </div>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1">
+        <div className="flex-1" />
+        <div className="flex h-full w-96 flex-col">{renderPanel()}</div>
       </div>
 
-      {/* 하단 바 컴포넌트가 들어올 예정 */}
-      <div className="w-full h-10 bg-gray-100"></div>
+      <TownToolbar />
     </div>
   );
 }

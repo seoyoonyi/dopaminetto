@@ -1,10 +1,13 @@
 "use client";
 
+import { Textarea } from "@/shared/ui/textarea";
+
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
 
 interface MessageFieldProps {
   channelType: "public" | "private";
   onMessageSend?: (message: string) => void;
+  isConnected: boolean;
 }
 
 const ERROR_MESSAGES = {
@@ -14,16 +17,24 @@ const ERROR_MESSAGES = {
 
 const PLACEHOLDER_TEXT = "메시지를 입력해 주세요.";
 
-export default function MessageField({ channelType, onMessageSend }: MessageFieldProps) {
+export default function MessageField({
+  channelType,
+  onMessageSend,
+  isConnected,
+}: MessageFieldProps) {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isPrivateChannel = channelType === "private";
-  const isButtonDisabled = isPrivateChannel || !message.trim();
+  const isButtonDisabled = isPrivateChannel || !message.trim() || !isConnected;
 
   const isValidMessage = (trimmed: string) => {
     if (isPrivateChannel) {
       console.warn(ERROR_MESSAGES.PRIVATE_CHANNEL);
+      return false;
+    }
+    if (!isConnected) {
+      console.warn("메시지 전송 시도: 채널이 연결되지 않았습니다.");
       return false;
     }
     return trimmed.length > 0;
@@ -42,7 +53,7 @@ export default function MessageField({ channelType, onMessageSend }: MessageFiel
   };
 
   const handleEnterKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage();
     }
@@ -55,7 +66,7 @@ export default function MessageField({ channelType, onMessageSend }: MessageFiel
 
   return (
     <div className="border-t p-3 flex gap-2 items-end">
-      <textarea
+      <Textarea
         ref={textareaRef}
         value={message}
         onChange={updateMessage}

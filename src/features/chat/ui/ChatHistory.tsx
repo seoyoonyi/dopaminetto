@@ -1,27 +1,79 @@
 "use client";
 
-interface Message {
-  user: string;
-  text: string;
-}
+import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
+import { hasMultipleDates, isSameDay } from "@/shared/lib";
+
+import { useEffect, useRef } from "react";
+
+import { Message, SystemMessage } from "../types";
+import { ChatMessageItem } from "./ChatMessageItem";
+import { DateDivider } from "./DateDivider";
+import { SystemMessageItem } from "./SystemMessageItem";
+
 interface ChatHistoryProps {
-  userNickname: string;
   messages: Message[];
 }
 
-export default function ChatHistory({ userNickname, messages }: ChatHistoryProps) {
+type TimelineItem = { type: "message"; data: Message } | { type: "system"; data: SystemMessage };
+
+export default function ChatHistory({ messages }: ChatHistoryProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const systemMessages = useTownPresenceStore((state) => state.systemMessages);
+
+  const shouldShowDateDividers = hasMultipleDates(messages);
+
+  const mergedItems: TimelineItem[] = [
+    ...messages.map<TimelineItem>((msg) => ({ type: "message", data: msg })),
+    ...systemMessages.map<TimelineItem>((sys) => ({ type: "system", data: sys })),
+  ];
+
+  const allItems = mergedItems.sort(
+    (a, b) => new Date(a.data.timestamp).getTime() - new Date(b.data.timestamp).getTime(),
+  );
+
+  useEffect(() => {
+    const container = messagesEndRef.current?.parentElement;
+    if (!container) return;
+
+    const AUTO_SCROLL_THRESHOLD_PX = 80;
+    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    const isNearBottom = distanceToBottom < AUTO_SCROLL_THRESHOLD_PX;
+
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, systemMessages]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b px-3 py-2 text-sm font-semibold">채팅</div>
-      <div className="flex-1 overflow-y-auto p-3 text-sm flex flex-col">
-        <div className="mb-2 text-gray-500">{userNickname} 입장했습니다.</div>
-        {/*   TODO: 새 메시지 시 자동 스크롤 구현 */}
-        {messages.map((msg, idx) => (
-          <div key={`${msg.user}-${idx}`} className="mb-1">
-            <span className="font-medium">{msg.user}</span>: {msg.text}
-          </div>
-        ))}
-        <div className="flex-1" />
+
+      <div className="flex flex-col flex-1 overflow-y-auto p-3 text-sm">
+        {allItems.map((item, index) => {
+          const prevItem = index > 0 ? allItems[index - 1] : undefined;
+
+          const showDateDivider =
+            shouldShowDateDividers &&
+            (index === 0 || (prevItem && !isSameDay(prevItem.data.timestamp, item.data.timestamp)));
+
+          const prevMsg = prevItem?.type === "message" ? (prevItem.data as Message) : undefined;
+
+          return (
+            <div key={`${item.type}-${item.data.timestamp}-${index}`}>
+              {showDateDivider && <DateDivider timestamp={item.data.timestamp} />}
+
+              {item.type === "system" ? (
+                <SystemMessageItem message={item.data as SystemMessage} />
+              ) : (
+                <ChatMessageItem message={item.data as Message} previousMessage={prevMsg} />
+              )}
+            </div>
+          );
+        })}
+
+        <div ref={messagesEndRef} />
       </div>
     </div>
   );

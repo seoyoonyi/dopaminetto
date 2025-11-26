@@ -1,7 +1,7 @@
 "use client";
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
-import { Message } from "@/features/chat/types";
+import { ChatMessage } from "@/features/chat";
 import { CHAT_CHANNEL_NAME } from "@/shared/config";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimeChannel } from "@supabase/supabase-js";
@@ -10,10 +10,10 @@ import { useEffect, useState } from "react";
 
 export function useChatPanel() {
   const supabase = useSupabase();
-  const { userNickname } = useUserStore();
+  const { userId, userNickname } = useUserStore();
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
     if (!userNickname || !supabase) return;
@@ -31,11 +31,7 @@ export function useChatPanel() {
         setChannel(chatChannel);
 
         chatChannel.on("broadcast", { event: "chat-message" }, (payload) => {
-          const newMsg: Message = {
-            user: payload.payload.nickname,
-            text: payload.payload.message,
-            timestamp: payload.payload.timestamp,
-          };
+          const newMsg = payload.payload as ChatMessage;
           setMessages((prev) => [...prev, newMsg]);
         });
       }
@@ -47,12 +43,14 @@ export function useChatPanel() {
   }, [userNickname, supabase]);
 
   const handleMessageSend = (messageText: string) => {
-    if (!channel || !messageText || !userNickname) return;
+    if (!channel || !messageText || !userNickname || !userId) return;
 
-    const messagePayload = {
+    const messagePayload: ChatMessage = {
+      user_id: userId,
+      room_id: "town",
       nickname: userNickname,
       message: messageText,
-      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
     channel.send({

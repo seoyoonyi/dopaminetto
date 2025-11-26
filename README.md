@@ -59,6 +59,7 @@ npm run dev
 - 회원가입 없이 UUID 기반 사용자 식별
 - 로컬 스토리지를 통한 세션 유지
 - 임시 닉네임 유저가 생성
+- Supabase `user.id`를 우선 사용하되, 아직 값이 없을 때는 클라이언트(`user-storage` 스토어)가 `uuid`로 임시 `userId`를 생성해 동일 브라우저/탭에서 일관된 식별자를 유지합니다.
 
 ### Supabase 익명 인증 활성화
 
@@ -197,6 +198,7 @@ npm run dev
 | `@tanstack/react-query`          | 서버 상태 관리 및 캐싱                |
 | `@tanstack/react-query-devtools` | React Query 개발 도구 (DevDependency) |
 | `phaser`                         | 2D 게임 엔진 (WebGL/Canvas 렌더링)    |
+| `uuid`                           | 익명 사용자 고유 식별자 생성          |
 | `tailwind-merge`                 | Tailwind CSS 클래스 병합 유틸리티     |
 | `@slick-carousel`                | 반응형 캐러셀 컴포넌트                |
 | `lucide-react`                   | 아이콘 라이브러리                     |

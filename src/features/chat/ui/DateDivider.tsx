@@ -3,11 +3,11 @@
 import { formatDate } from "@/shared/lib";
 
 interface DateDividerProps {
-  timestamp: string;
+  created_at: string;
 }
 
-export function DateDivider({ timestamp }: DateDividerProps) {
-  const label = formatDate(timestamp);
+export function DateDivider({ created_at }: DateDividerProps) {
+  const label = formatDate(created_at);
 
   return (
     <div role="separator" aria-label={`날짜: ${label}`} className="my-4 flex items-center gap-3">

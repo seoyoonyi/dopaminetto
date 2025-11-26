@@ -39,7 +39,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
           id: `join-${currentUserNickname}-${Date.now()}`,
           type: "join",
           nickname: currentUserNickname,
-          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
         },
       ];
 
@@ -82,13 +82,13 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
             id: `join-${nickname}-${Date.now()}`,
             type: "join",
             nickname,
-            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString(),
           })),
           ...leaves.map<SystemMessage>((nickname) => ({
             id: `leave-${nickname}-${Date.now()}`,
             type: "leave",
             nickname,
-            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString(),
           })),
         ];
       }

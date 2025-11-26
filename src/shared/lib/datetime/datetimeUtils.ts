@@ -11,13 +11,13 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   weekday: "long",
 });
 
-export const toDate = (timestamp: string): Date => {
-  return new Date(timestamp);
+export const toDate = (created_at: string): Date => {
+  return new Date(created_at);
 };
 
-export const isSameDay = (timestamp1: string, timestamp2: string): boolean => {
-  const date1 = toDate(timestamp1);
-  const date2 = toDate(timestamp2);
+export const isSameDay = (created_at1: string, created_at2: string): boolean => {
+  const date1 = toDate(created_at1);
+  const date2 = toDate(created_at2);
   return (
     date1.getFullYear() === date2.getFullYear() &&
     date1.getMonth() === date2.getMonth() &&
@@ -25,12 +25,12 @@ export const isSameDay = (timestamp1: string, timestamp2: string): boolean => {
   );
 };
 
-export const formatTime = (timestamp: string): string => {
-  return timeFormatter.format(toDate(timestamp));
+export const formatTime = (created_at: string): string => {
+  return timeFormatter.format(toDate(created_at));
 };
 
-export const formatDate = (timestamp: string): string => {
-  return dateFormatter.format(toDate(timestamp));
+export const formatDate = (created_at: string): string => {
+  return dateFormatter.format(toDate(created_at));
 };
 
 export const formatJoinedTime = (joinedAt?: string): string => {

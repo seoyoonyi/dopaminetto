@@ -5,16 +5,18 @@ import { hasMultipleDates, isSameDay } from "@/shared/lib";
 
 import { useEffect, useRef } from "react";
 
-import { Message, SystemMessage } from "../types";
+import { ChatMessage, SystemMessage } from "../types";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";
 import { SystemMessageItem } from "./SystemMessageItem";
 
 interface ChatHistoryProps {
-  messages: Message[];
+  messages: ChatMessage[];
 }
 
-type TimelineItem = { type: "message"; data: Message } | { type: "system"; data: SystemMessage };
+type TimelineItem =
+  | { type: "message"; data: ChatMessage }
+  | { type: "system"; data: SystemMessage };
 
 export default function ChatHistory({ messages }: ChatHistoryProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -29,7 +31,7 @@ export default function ChatHistory({ messages }: ChatHistoryProps) {
   ];
 
   const allItems = mergedItems.sort(
-    (a, b) => new Date(a.data.timestamp).getTime() - new Date(b.data.timestamp).getTime(),
+    (a, b) => new Date(a.data.created_at).getTime() - new Date(b.data.created_at).getTime(),
   );
 
   useEffect(() => {
@@ -56,18 +58,19 @@ export default function ChatHistory({ messages }: ChatHistoryProps) {
 
           const showDateDivider =
             shouldShowDateDividers &&
-            (index === 0 || (prevItem && !isSameDay(prevItem.data.timestamp, item.data.timestamp)));
+            (index === 0 ||
+              (prevItem && !isSameDay(prevItem.data.created_at, item.data.created_at)));
 
-          const prevMsg = prevItem?.type === "message" ? (prevItem.data as Message) : undefined;
+          const prevMsg = prevItem?.type === "message" ? (prevItem.data as ChatMessage) : undefined;
 
           return (
-            <div key={`${item.type}-${item.data.timestamp}-${index}`}>
-              {showDateDivider && <DateDivider timestamp={item.data.timestamp} />}
+            <div key={`${item.type}-${item.data.created_at}-${index}`}>
+              {showDateDivider && <DateDivider created_at={item.data.created_at} />}
 
               {item.type === "system" ? (
                 <SystemMessageItem message={item.data as SystemMessage} />
               ) : (
-                <ChatMessageItem message={item.data as Message} previousMessage={prevMsg} />
+                <ChatMessageItem message={item.data as ChatMessage} previousMessage={prevMsg} />
               )}
             </div>
           );

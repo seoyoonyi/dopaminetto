@@ -6,5 +6,3 @@ export interface Message {
   created_at: string;
   nickname: string;
 }
-
-export type ChatMessage = Omit<Message, "id">;

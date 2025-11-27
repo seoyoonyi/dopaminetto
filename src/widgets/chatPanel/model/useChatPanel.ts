@@ -25,6 +25,11 @@ export function useChatPanel() {
         .eq("room_id", "town")
         .order("created_at", { ascending: true });
 
+      if (error) {
+        console.error("메시지 로딩 실패:", error);
+        return;
+      }
+
       if (data) setMessages(data);
     };
 
@@ -47,7 +52,26 @@ export function useChatPanel() {
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
+
+          setMessages((prev) => {
+            const exists = prev.some((msg) => msg.id === newMsg.id);
+            if (exists) return prev;
+
+            const hasTemp = prev.some(
+              (msg) =>
+                msg.id < 0 && msg.user_id === newMsg.user_id && msg.message === newMsg.message,
+            );
+
+            if (hasTemp) {
+              return prev.map((msg) =>
+                msg.id < 0 && msg.user_id === newMsg.user_id && msg.message === newMsg.message
+                  ? newMsg
+                  : msg,
+              );
+            }
+
+            return [...prev, newMsg];
+          });
         },
       )
       .subscribe((status) => {
@@ -61,15 +85,34 @@ export function useChatPanel() {
     };
   }, [userNickname, supabase]);
 
-  const handleMessageSend = async (messageText: string) => {
-    if (!messageText || !userNickname || !userId) return;
+  const handleMessageSend = async (messageText: string): Promise<{ error?: string }> => {
+    if (!messageText || !userNickname || !userId) return {};
 
-    await supabase.from(CHAT_TABLE_NAME).insert({
+    const tempId = -Date.now();
+    const tempMessage: Message = {
+      id: tempId,
+      user_id: userId,
+      room_id: "town",
+      nickname: userNickname,
+      message: messageText,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempMessage]);
+
+    const { error } = await supabase.from(CHAT_TABLE_NAME).insert({
       user_id: userId,
       room_id: "town",
       nickname: userNickname,
       message: messageText,
     });
+
+    if (error) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      console.error("메시지 전송 실패:", error);
+      return { error: error.message };
+    }
+
+    return {};
   };
 
   return {

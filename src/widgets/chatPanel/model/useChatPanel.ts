@@ -1,8 +1,8 @@
 "use client";
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
-import { ChatMessage } from "@/features/chat";
-import { CHAT_CHANNEL_NAME } from "@/shared/config";
+import { Message } from "@/features/chat";
+import { CHAT_CHANNEL_NAME, CHAT_TABLE_NAME } from "@/shared/config";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -13,50 +13,62 @@ export function useChatPanel() {
   const { userId, userNickname } = useUserStore();
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from(CHAT_TABLE_NAME)
+        .select("*")
+        .eq("room_id", "town")
+        .order("created_at", { ascending: true });
+
+      if (data) setMessages(data);
+    };
+
+    fetchMessages();
+  }, [supabase]);
 
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    const chatChannel = supabase.channel(CHAT_CHANNEL_NAME, {
-      config: {
-        broadcast: {
-          self: true,
+    const chatChannel = supabase.channel(CHAT_CHANNEL_NAME);
+
+    chatChannel
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: CHAT_TABLE_NAME,
+          filter: "room_id=eq.town",
         },
-      },
-    });
-
-    chatChannel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        setChannel(chatChannel);
-
-        chatChannel.on("broadcast", { event: "chat-message" }, (payload) => {
-          const newMsg = payload.payload as ChatMessage;
+        (payload) => {
+          const newMsg = payload.new as Message;
           setMessages((prev) => [...prev, newMsg]);
-        });
-      }
-    });
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setChannel(chatChannel);
+        }
+      });
 
     return () => {
       supabase.removeChannel(chatChannel);
     };
   }, [userNickname, supabase]);
 
-  const handleMessageSend = (messageText: string) => {
-    if (!channel || !messageText || !userNickname || !userId) return;
+  const handleMessageSend = async (messageText: string) => {
+    if (!messageText || !userNickname || !userId) return;
 
-    const messagePayload: ChatMessage = {
+    await supabase.from(CHAT_TABLE_NAME).insert({
       user_id: userId,
       room_id: "town",
       nickname: userNickname,
       message: messageText,
-      created_at: new Date().toISOString(),
-    };
-
-    channel.send({
-      type: "broadcast",
-      event: "chat-message",
-      payload: messagePayload,
     });
   };
 

@@ -14,25 +14,43 @@ interface ChatHistoryProps {
 
 export default function ChatHistory({ messages }: ChatHistoryProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
   const shouldShowDateDividers = hasMultipleDates(messages);
 
-  const sortedMessages = [...messages].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+  const sortedMessages = [...messages].sort((a, b) => {
+    if (a.id < 0 && b.id >= 0) return 1;
+    if (a.id >= 0 && b.id < 0) return -1;
+
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
 
   useEffect(() => {
+    if (!isFirstRender.current) return;
+    if (sortedMessages.length === 0) return;
+
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    isFirstRender.current = false;
+  }, [sortedMessages]);
+
+  useEffect(() => {
+    if (isFirstRender.current) return;
+
     const container = messagesEndRef.current?.parentElement;
     if (!container) return;
 
+    const lastMessage = sortedMessages[sortedMessages.length - 1];
+    const isTempMessage = lastMessage?.id < 0;
+
     const AUTO_SCROLL_THRESHOLD_PX = 80;
     const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-
     const isNearBottom = distanceToBottom < AUTO_SCROLL_THRESHOLD_PX;
 
-    if (isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
+    const shouldAutoScroll = isTempMessage || isNearBottom;
+    if (!shouldAutoScroll) return;
+
+    const scrollBehavior = isTempMessage ? "instant" : "smooth";
+    messagesEndRef.current?.scrollIntoView({ behavior: scrollBehavior });
+  }, [sortedMessages]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

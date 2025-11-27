@@ -54,20 +54,24 @@ export function useChatPanel() {
           const newMsg = payload.new as Message;
 
           setMessages((prev) => {
-            const exists = prev.some((msg) => msg.id === newMsg.id);
-            if (exists) return prev;
+            const alreadyExists = prev.some((msg) => msg.id === newMsg.id);
+            if (alreadyExists) return prev;
+            /**
+             * 임시 메시지 찾기 (Optimistic UI)
+             * - id < 0: 서버 응답 전 생성한 임시 메시지
+             * - 같은 유저 + 같은 내용이면 매칭
+             * - 동일 메시지 연속 전송 시 첫 번째 임시 메시지와 매칭됨
+             */
+            const isTempMessage = (msg: Message) => msg.id < 0;
+            const isSameUser = (msg: Message) => msg.user_id === newMsg.user_id;
+            const isSameContent = (msg: Message) => msg.message === newMsg.message;
 
-            const hasTemp = prev.some(
-              (msg) =>
-                msg.id < 0 && msg.user_id === newMsg.user_id && msg.message === newMsg.message,
+            const matchingTempMessage = prev.find(
+              (msg) => isTempMessage(msg) && isSameUser(msg) && isSameContent(msg),
             );
 
-            if (hasTemp) {
-              return prev.map((msg) =>
-                msg.id < 0 && msg.user_id === newMsg.user_id && msg.message === newMsg.message
-                  ? newMsg
-                  : msg,
-              );
+            if (matchingTempMessage) {
+              return prev.map((msg) => (msg.id === matchingTempMessage.id ? newMsg : msg));
             }
 
             return [...prev, newMsg];

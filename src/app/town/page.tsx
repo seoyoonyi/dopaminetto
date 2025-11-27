@@ -4,6 +4,7 @@ import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
+import { Toaster } from "@/shared/ui/sonner";
 import { ChatPanel } from "@/widgets/chatPanel";
 import { TownToolbar } from "@/widgets/townToolbar";
 import { UsersPanel } from "@/widgets/usersPanel";
@@ -66,6 +67,7 @@ export default function TownPage() {
       </div>
 
       <TownToolbar />
+      <Toaster position="top-left" />
     </div>
   );
 }

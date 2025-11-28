@@ -12,6 +12,7 @@ interface ChatMessageItemProps {
 
 export function ChatMessageItem({ message, previousMessage }: ChatMessageItemProps) {
   const isContinuous = isSameUserContinuous(message, previousMessage);
+  const isTemp = message.id < 0;
 
   return (
     <div className={`flex gap-2 ${isContinuous ? "mb-1" : "mb-3"}`}>
@@ -20,9 +21,9 @@ export function ChatMessageItem({ message, previousMessage }: ChatMessageItemPro
           <div
             className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-300 text-xs font-semibold text-gray-600"
             role="img"
-            aria-label={`${message.user}의 프로필`}
+            aria-label={`${message.nickname}의 프로필`}
           >
-            {message.user.charAt(0)}
+            {message.nickname.charAt(0)}
           </div>
         ) : (
           <div className="h-8 w-8" />
@@ -32,12 +33,14 @@ export function ChatMessageItem({ message, previousMessage }: ChatMessageItemPro
       <div className="min-w-0 flex-1">
         {!isContinuous && (
           <div className="mb-1 flex items-baseline gap-2">
-            <span className="text-sm font-medium text-gray-900">{message.user}</span>
-            <span className="text-xs text-gray-400">{formatTime(message.timestamp)}</span>
+            <span className="text-sm font-medium text-gray-900">{message.nickname}</span>
+            <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
           </div>
         )}
-        <div className="whitespace-pre-wrap break-words text-sm text-gray-800">
-          <LinkifiedText text={message.text} />
+        <div
+          className={`whitespace-pre-wrap break-words text-sm text-gray-800 ${isTemp ? "opacity-50" : ""}`}
+        >
+          <LinkifiedText text={message.message} />
         </div>
       </div>
     </div>

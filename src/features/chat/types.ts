@@ -1,12 +1,8 @@
 export interface Message {
-  user: string;
-  text: string;
-  timestamp: string;
-}
-
-export interface SystemMessage {
-  id: string;
-  type: "join" | "leave";
+  id: number;
+  message: string;
+  user_id: string;
+  room_id: string;
+  created_at: string;
   nickname: string;
-  timestamp: string;
 }

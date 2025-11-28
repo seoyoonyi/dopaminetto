@@ -6,12 +6,3 @@ export interface Message {
   created_at: string;
   nickname: string;
 }
-
-export type ChatMessage = Omit<Message, "id">;
-
-export interface SystemMessage {
-  id: string;
-  type: "join" | "leave";
-  nickname: string;
-  created_at: string;
-}

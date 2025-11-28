@@ -2,16 +2,17 @@
 
 import { formatTime, isSameUserContinuous } from "@/shared/lib";
 
-import { ChatMessage } from "../types";
+import { Message } from "../types";
 import { LinkifiedText } from "./LinkifiedText";
 
 interface ChatMessageItemProps {
-  message: ChatMessage;
-  previousMessage?: ChatMessage;
+  message: Message;
+  previousMessage?: Message;
 }
 
 export function ChatMessageItem({ message, previousMessage }: ChatMessageItemProps) {
   const isContinuous = isSameUserContinuous(message, previousMessage);
+  const isTemp = message.id < 0;
 
   return (
     <div className={`flex gap-2 ${isContinuous ? "mb-1" : "mb-3"}`}>
@@ -36,7 +37,9 @@ export function ChatMessageItem({ message, previousMessage }: ChatMessageItemPro
             <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
           </div>
         )}
-        <div className="whitespace-pre-wrap break-words text-sm text-gray-800">
+        <div
+          className={`whitespace-pre-wrap break-words text-sm text-gray-800 ${isTemp ? "opacity-50" : ""}`}
+        >
           <LinkifiedText text={message.message} />
         </div>
       </div>

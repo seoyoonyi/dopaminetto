@@ -1,3 +1,5 @@
+import { Toaster } from "@/shared/ui/sonner";
+
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 
@@ -30,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" className={`${pretendard.variable} ${galmuri9.variable}`}>
       <body className="antialiased font-sans">
         <AppProviders>{children}</AppProviders>
+        <Toaster position="top-left" />
       </body>
     </html>
   );

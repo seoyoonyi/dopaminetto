@@ -23,8 +23,23 @@ const galmuri9 = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Dopaminetto(Coming soon)",
-  description: "Dopaminetto Side Project",
+  title: {
+    template: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간 | %s",
+    default: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간",
+  },
+  description:
+    "글또에서 이어진 도파민또는 개발자 글쓰기와 성장을 위한 온라인 공간입니다. 지식과 경험을 나누며, 공감을 통해 배우고 즐겁게 성장할 수 있는 글쓰기 경험을 제공합니다.",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  openGraph: {
+    title: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간",
+    description:
+      "글또에서 이어진 도파민또는 개발자 글쓰기와 성장을 위한 온라인 공간입니다. 지식과 경험을 나누며, 공감을 통해 배우고 즐겁게 성장할 수 있는 글쓰기 경험을 제공합니다.",
+    siteName: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간",
+    url: "https://dopamine-tto.vercel.app",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

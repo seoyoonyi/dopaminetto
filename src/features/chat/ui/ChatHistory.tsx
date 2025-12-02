@@ -35,6 +35,7 @@ export default function ChatHistory({
   const prevScrollTop = useRef<number>(0);
 
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const sortedMessages = [...messages].sort((a, b) => {
     if (a.id < 0 && b.id >= 0) return 1;
@@ -61,6 +62,34 @@ export default function ChatHistory({
   });
 
   useEffect(() => {
+    if (!isFirstRender.current) return;
+    if (sortedMessages.length === 0) return;
+
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    isFirstRender.current = false;
+  }, [sortedMessages]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 5;
+      setIsAtBottom(atBottom);
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    handleScroll();
+
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!isAtBottom) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isAtBottom]);
+
+  useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
@@ -76,14 +105,6 @@ export default function ChatHistory({
 
     return () => resizeObserver.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (!isFirstRender.current) return;
-    if (sortedMessages.length === 0) return;
-
-    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-    isFirstRender.current = false;
-  }, [sortedMessages]);
 
   useEffect(() => {
     const container = containerRef.current;

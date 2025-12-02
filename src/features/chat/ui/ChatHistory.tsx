@@ -106,6 +106,10 @@ export default function ChatHistory({
       <div ref={containerRef} className="flex flex-1 flex-col overflow-y-auto p-3 text-sm">
         {isLoading ? (
           <ChatMessageSkeletonList count={skeletonCount} />
+        ) : sortedMessages.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center text-gray-500">
+            대화를 시작해보세요!
+          </div>
         ) : (
           <>
             {hasMore && <div ref={topObserverRef} className="h-1" />}

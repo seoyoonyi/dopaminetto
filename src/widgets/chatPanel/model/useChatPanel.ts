@@ -1,40 +1,32 @@
 "use client";
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
-import { Message } from "@/features/chat";
+import { Message, MessagesPage } from "@/features/chat";
+import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
 import { CHAT_CHANNEL_NAME, CHAT_TABLE_NAME } from "@/shared/config";
+import { addMessageToCache, removeMatchingTempMessage } from "@/shared/lib";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimeChannel } from "@supabase/supabase-js";
+import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export function useChatPanel() {
   const supabase = useSupabase();
+  const queryClient = useQueryClient();
   const { userId, userNickname } = useUserStore();
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
-  useEffect(() => {
-    if (!supabase) return;
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useMessagesQuery("town");
 
-    const fetchMessages = async () => {
-      const { data, error } = await supabase
-        .from(CHAT_TABLE_NAME)
-        .select("*")
-        .eq("room_id", "town")
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        console.error("메시지 로딩 실패:", error);
-        return;
-      }
-
-      if (data) setMessages(data);
-    };
-
-    fetchMessages();
-  }, [supabase]);
+  const messages = useMemo(() => {
+    const fetched = data?.pages.flatMap((page) => page.messages) ?? [];
+    const reversed = [...fetched].reverse();
+    return [...reversed, ...optimisticMessages];
+  }, [data, optimisticMessages]);
 
   useEffect(() => {
     if (!userNickname || !supabase) return;
@@ -51,31 +43,12 @@ export function useChatPanel() {
           filter: "room_id=eq.town",
         },
         (payload) => {
-          const newMsg = payload.new as Message;
+          const newMessage = payload.new as Message;
 
-          setMessages((prev) => {
-            const alreadyExists = prev.some((msg) => msg.id === newMsg.id);
-            if (alreadyExists) return prev;
-            /**
-             * 임시 메시지 찾기 (Optimistic UI)
-             * - id < 0: 서버 응답 전 생성한 임시 메시지
-             * - 같은 유저 + 같은 내용이면 매칭
-             * - 동일 메시지 연속 전송 시 첫 번째 임시 메시지와 매칭됨
-             */
-            const isTempMessage = (msg: Message) => msg.id < 0;
-            const isSameUser = (msg: Message) => msg.user_id === newMsg.user_id;
-            const isSameContent = (msg: Message) => msg.message === newMsg.message;
-
-            const matchingTempMessage = prev.find(
-              (msg) => isTempMessage(msg) && isSameUser(msg) && isSameContent(msg),
-            );
-
-            if (matchingTempMessage) {
-              return prev.map((msg) => (msg.id === matchingTempMessage.id ? newMsg : msg));
-            }
-
-            return [...prev, newMsg];
-          });
+          setOptimisticMessages((prev) => removeMatchingTempMessage(prev, newMessage));
+          queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) =>
+            addMessageToCache(oldData, newMessage),
+          );
         },
       )
       .subscribe((status) => {
@@ -87,7 +60,7 @@ export function useChatPanel() {
     return () => {
       supabase.removeChannel(chatChannel);
     };
-  }, [userNickname, supabase]);
+  }, [userNickname, supabase, queryClient]);
 
   const handleMessageSend = async (messageText: string): Promise<{ error?: string }> => {
     if (!messageText || !userNickname || !userId) return {};
@@ -101,7 +74,8 @@ export function useChatPanel() {
       message: messageText,
       created_at: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, tempMessage]);
+
+    setOptimisticMessages((prev) => [...prev, tempMessage]);
 
     const { error } = await supabase.from(CHAT_TABLE_NAME).insert({
       user_id: userId,
@@ -111,7 +85,7 @@ export function useChatPanel() {
     });
 
     if (error) {
-      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      setOptimisticMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       console.error("메시지 전송 실패:", error);
       return { error: error.message };
     }
@@ -124,5 +98,9 @@ export function useChatPanel() {
     messages,
     handleMessageSend,
     isConnected: !!channel,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
   };
 }

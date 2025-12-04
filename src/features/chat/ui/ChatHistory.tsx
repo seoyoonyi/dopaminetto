@@ -46,7 +46,7 @@ export default function ChatHistory({
   const shouldShowDateDividers = hasMultipleDates(messages);
 
   const handleLoadMore = useCallback(() => {
-    if (!hasMore || isLoading) return;
+    if (!hasMore || isLoading || isFetchingNextPage) return;
 
     const container = containerRef.current;
     if (container) {
@@ -55,7 +55,7 @@ export default function ChatHistory({
     }
 
     onLoadMore?.();
-  }, [hasMore, isLoading, onLoadMore]);
+  }, [hasMore, isLoading, onLoadMore, isFetchingNextPage]);
 
   const topObserverRef = useIntersectionObserver<HTMLDivElement>(handleLoadMore, {
     rootMargin: "100px",

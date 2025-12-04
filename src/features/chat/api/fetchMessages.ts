@@ -23,7 +23,7 @@ export async function fetchMessages(supabase: SupabaseClient, roomId: string, cu
   const lastMessage = messages[messages.length - 1];
 
   const hasMore = messages.length === PAGE_SIZE;
-  const nextCursor = hasMore ? lastMessage?.created_at : undefined;
+  const nextCursor = hasMore && lastMessage ? lastMessage.created_at : null;
 
   return {
     messages,

@@ -110,7 +110,7 @@ export default function ChatHistory({
     const container = containerRef.current;
     if (!container || isFirstRender.current) return;
 
-    if (prevScrollHeight.current > 0 && !isLoading) {
+    if (prevScrollHeight.current > 0 && !isFetchingNextPage) {
       const newScrollHeight = container.scrollHeight;
       const scrollDiff = newScrollHeight - prevScrollHeight.current;
 
@@ -118,7 +118,7 @@ export default function ChatHistory({
       prevScrollHeight.current = 0;
       prevScrollTop.current = 0;
     }
-  }, [messages, isLoading]);
+  }, [messages, isFetchingNextPage]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

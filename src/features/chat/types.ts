@@ -6,3 +6,8 @@ export interface Message {
   created_at: string;
   nickname: string;
 }
+
+export interface MessagesPage {
+  messages: Message[];
+  nextCursor: string | null;
+}

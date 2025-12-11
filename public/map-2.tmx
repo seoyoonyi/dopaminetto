@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="6" nextobjectid="63">
+ <imagelayer id="3" name="floor">
+  <image source="map-illustration.png" width="1497" height="1080"/>
+ </imagelayer>
+ <objectgroup id="5" name="collision">
+  <object id="43" x="-7.05343" y="-21.1603" width="1537.65" height="141.069"/>
+  <object id="44" x="-45.8473" y="-67.0076" width="176.336" height="1174.4"/>
+  <object id="45" x="1375.42" y="54.6641" width="241.58" height="1112.68"/>
+  <object id="46" x="128.725" y="966.32" width="525.481" height="130.488"/>
+  <object id="47" x="851.702" y="971.61" width="548.404" height="171.046"/>
+  <object id="48" x="177.82" y="169.41" width="573.111" height="12.0149"/>
+  <object id="49" x="177.82" y="168.209" width="9.61192" height="599.543"/>
+  <object id="50" x="729.304" y="174.216" width="28.8358" height="186.231"/>
+  <object id="51" x="730.506" y="716.088" width="25.2313" height="67.2834"/>
+  <object id="52" x="177.82" y="754.536" width="34.8432" height="79.2983"/>
+  <object id="53" x="307.581" y="752.133" width="449.357" height="74.4924"/>
+  <object id="55" x="181.425" y="179.022" width="559.894" height="105.731"/>
+  <object id="56" x="420.521" y="384.477" width="80.4998" height="210.261"/>
+  <object id="57" x="217.47" y="400.096" width="78.0968" height="30.0372"/>
+  <object id="58" x="338.82" y="259.522" width="51.6641" height="39.6492"/>
+  <object id="59" x="219.873" y="300.372" width="72.0894" height="21.6268"/>
+  <object id="60" x="533.461" y="276.343" width="50.4626" height="30.0372"/>
+  <object id="61" x="266.731" y="537.066" width="44.4551" height="36.0447">
+   <ellipse/>
+  </object>
+ </objectgroup>
+</map>

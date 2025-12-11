@@ -10,7 +10,15 @@ import { UsersPanel } from "@/widgets/usersPanel";
 
 import { useEffect } from "react";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+
+const GameCanvas = dynamic(
+  () => import("@/widgets/gameCanvas").then((mod) => ({ default: mod.GameCanvas })),
+  {
+    ssr: false,
+  },
+);
 
 export default function TownPage() {
   const router = useRouter();
@@ -61,7 +69,9 @@ export default function TownPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
-        <div className="flex-1" />
+        <div className="relative flex-1 bg-gray-900">
+          <GameCanvas />
+        </div>
         <div className="flex h-full w-96 flex-col">{renderPanel()}</div>
       </div>
 

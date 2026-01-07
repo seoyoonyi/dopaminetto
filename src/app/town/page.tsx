@@ -10,7 +10,12 @@ import { UsersPanel } from "@/widgets/usersPanel";
 
 import { useEffect } from "react";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+
+const TownEngine = dynamic(() => import("@/features/movement").then((mod) => mod.TownEngine), {
+  ssr: false,
+});
 
 export default function TownPage() {
   const router = useRouter();
@@ -61,7 +66,9 @@ export default function TownPage() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
-        <div className="flex-1" />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <TownEngine />
+        </div>
         <div className="flex h-full w-96 flex-col">{renderPanel()}</div>
       </div>
 

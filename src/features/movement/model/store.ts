@@ -1,5 +1,6 @@
 import { VillageId } from "@/entities/village";
 import { validateMovement } from "@/features/movement/lib/validateMovement";
+import { INITIAL_POSITION } from "@/features/movement/model/config";
 import { MOVEMENT_EVENT_TYPES, MovementState, Position } from "@/features/movement/model/types";
 import { create } from "zustand";
 
@@ -10,7 +11,7 @@ interface MovementStore extends MovementState {
 }
 
 export const useMovementStore = create<MovementStore>((set, get) => ({
-  position: { x: 400, y: 300 },
+  position: INITIAL_POSITION,
   villageId: "village-a",
 
   setPosition: (position) => set({ position }),

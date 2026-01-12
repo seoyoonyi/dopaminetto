@@ -1,6 +1,7 @@
 "use client";
 
 import { TownScene } from "@/features/movement/lib/TownScene";
+import { GAME_CONFIG } from "@/features/movement/model/config";
 import * as Phaser from "phaser";
 
 import React, { useEffect, useRef } from "react";
@@ -19,8 +20,8 @@ export const TownEngine = () => {
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
-      width: 800,
-      height: 600,
+      width: GAME_CONFIG.WIDTH,
+      height: GAME_CONFIG.HEIGHT,
       parent: gameContainerRef.current,
       scene: TownScene,
       backgroundColor: "#222",

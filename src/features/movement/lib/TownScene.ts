@@ -56,6 +56,9 @@ export class TownScene extends Phaser.Scene {
       }
     });
 
+    // 카메라가 플레이어를 화면 중앙에 오도록 고정
+    this.cameras.main.startFollow(this.player, true, 1, 1);
+
     // Scene 종료 시 구독 해제 설정
     this.events.once("shutdown", () => {
       if (this.unsubscribeStore) this.unsubscribeStore();
@@ -105,9 +108,5 @@ export class TownScene extends Phaser.Scene {
       // 위치 업데이트 요청 (검증 로직은 스토어 내부에서 실행됨)
       useMovementStore.getState().updatePosition({ x: dx, y: dy });
     }
-
-    // 카메라가 플레이어를 부드럽게 따라가도록 설정 (Phaser 기본 좌표 기준)
-    this.cameras.main.scrollX = this.player.x - 400;
-    this.cameras.main.scrollY = this.player.y - 300;
   };
 }

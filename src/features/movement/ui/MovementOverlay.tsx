@@ -2,12 +2,17 @@
 
 import { VILLAGES } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/store";
+import { useShallow } from "zustand/react/shallow";
 
 import React from "react";
 
 export const MovementOverlay = () => {
-  const position = useMovementStore((state) => state.position);
-  const villageId = useMovementStore((state) => state.villageId);
+  const { position, villageId } = useMovementStore(
+    useShallow((state) => ({
+      position: state.position,
+      villageId: state.villageId,
+    })),
+  );
 
   return (
     <>

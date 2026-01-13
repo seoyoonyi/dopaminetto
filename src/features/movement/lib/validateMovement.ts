@@ -52,7 +52,10 @@ export const validateMovement = (
 
   if (transition) {
     return {
-      nextPosition: transition.spawnPosition,
+      nextPosition: {
+        x: transition.spawnPosition.x,
+        y: clampedPosition.y,
+      },
       nextVillageId: transition.toVillageId,
       event: {
         type: MOVEMENT_EVENT_TYPES.VILLAGE_CHANGE,

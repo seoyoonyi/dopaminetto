@@ -60,6 +60,7 @@ export const addMessageToCache = (
     newPages = runGarbageCollection(newPages, {
       maxPages: CHAT_GC_CONFIG.MAX_PAGES,
       minVisiblePages: CHAT_GC_CONFIG.MIN_VISIBLE_PAGES,
+      protectedTimeMs: CHAT_GC_CONFIG.PROTECTED_TIME_MS,
     });
   }
 
@@ -92,43 +93,37 @@ export const updatePageTimestamp = (page: MessagesPage): MessagesPage => {
  */
 export const runGarbageCollection = (
   pages: MessagesPage[],
-  config: { maxPages: number; minVisiblePages: number },
+  config: { maxPages: number; minVisiblePages: number; protectedTimeMs: number },
 ): MessagesPage[] => {
-  const { maxPages, minVisiblePages } = config;
+  const { maxPages, minVisiblePages, protectedTimeMs } = config;
 
   if (pages.length <= maxPages) {
     return pages;
   }
 
-  // 1. Safe Zone (최신 페이지들) 분리
-  // 0 ~ minVisiblePages-1 인덱스
+  // 1. Safe Zone (최신 페이지들) - 0 ~ minVisiblePages-1 인덱스
+  const safeZone = pages.slice(0, minVisiblePages);
 
-  // 2. GC Candidates (오래된 페이지들)
-  // minVisiblePages ~ 끝
+  // 2. GC Candidates (오래된 페이지들) - minVisiblePages ~ 끝
+  const gcCandidates = pages.slice(minVisiblePages);
 
-  // 제거해야 할 개수
-  const deleteCount = pages.length - maxPages;
-  if (deleteCount <= 0) return pages;
-
-  const newPages = [...pages];
+  // 3. GC Candidates에서만 제거 수행
+  const now = Date.now();
 
   // 뒤에서부터 검사 (가장 오래된 페이지부터)
-  while (newPages.length > maxPages) {
-    const lastPage = newPages[newPages.length - 1];
+  while (safeZone.length + gcCandidates.length > maxPages && gcCandidates.length > 0) {
+    const lastPage = gcCandidates[gcCandidates.length - 1];
+    const timeSinceAccess = now - (lastPage.lastAccessed ?? 0);
 
-    // 보호 조건 체크: 1분 이내 접근 기록 있으면 보호
-    // Tail Truncation with View Protection 전략
-    const PROTECTED_TIME_MS = 60 * 1000;
-    const timeSinceAccess = Date.now() - (lastPage.lastAccessed ?? 0);
-
-    if (timeSinceAccess < PROTECTED_TIME_MS) {
+    // 보호 조건 체크: protectedTimeMs 이내 접근 기록 있으면 보호
+    if (timeSinceAccess < protectedTimeMs) {
       // 마지막 페이지를 보고 있는 중임. 더 이상 자르지 않고 종료.
       break;
     }
 
     // 자름
-    newPages.pop();
+    gcCandidates.pop();
   }
 
-  return newPages;
+  return [...safeZone, ...gcCandidates];
 };

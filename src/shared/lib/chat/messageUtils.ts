@@ -56,3 +56,67 @@ export const addMessageToCache = (
     pages: [updatedFirstPage, ...restPages],
   };
 };
+
+/**
+ * 페이지의 lastAccessed 타임스탬프를 현재 시간으로 갱신합니다.
+ */
+export const updatePageTimestamp = (page: MessagesPage): MessagesPage => {
+  return {
+    ...page,
+    lastAccessed: Date.now(),
+  };
+};
+
+/**
+ * [Pure Function] 페이지 목록에 대해 Garbage Collection을 수행합니다.
+ *
+ * 정책:
+ * 1. MAX_PAGES 이하이면 그대로 반환
+ * 2. 최신순 MIN_VISIBLE_PAGES 개수는 무조건 보존 (Safe Zone)
+ * 3. 나머지(오래된 페이지) 중에서 lastAccessed가 가장 예전인 순서대로 제거
+ * 4. 제거 후 MAX_PAGES 개수 유지
+ *
+ * 참고: pages[0]이 최신 페이지라고 가정합니다. (Dopaminetto 구조 상 reverse로 렌더링되지만 데이터 구조상 0이 최신)
+ */
+export const runGarbageCollection = (
+  pages: MessagesPage[],
+  config: { maxPages: number; minVisiblePages: number },
+): MessagesPage[] => {
+  const { maxPages, minVisiblePages } = config;
+
+  if (pages.length <= maxPages) {
+    return pages;
+  }
+
+  // 1. Safe Zone (최신 페이지들) 분리
+  // 0 ~ minVisiblePages-1 인덱스
+
+  // 2. GC Candidates (오래된 페이지들)
+  // minVisiblePages ~ 끝
+
+  // 제거해야 할 개수
+  const deleteCount = pages.length - maxPages;
+  if (deleteCount <= 0) return pages;
+
+  const newPages = [...pages];
+
+  // 뒤에서부터 검사 (가장 오래된 페이지부터)
+  while (newPages.length > maxPages) {
+    const lastPage = newPages[newPages.length - 1];
+
+    // 보호 조건 체크: 1분 이내 접근 기록 있으면 보호
+    // Tail Truncation with View Protection 전략
+    const PROTECTED_TIME_MS = 60 * 1000;
+    const timeSinceAccess = Date.now() - (lastPage.lastAccessed ?? 0);
+
+    if (timeSinceAccess < PROTECTED_TIME_MS) {
+      // 마지막 페이지를 보고 있는 중임. 더 이상 자르지 않고 종료.
+      break;
+    }
+
+    // 자름
+    newPages.pop();
+  }
+
+  return newPages;
+};

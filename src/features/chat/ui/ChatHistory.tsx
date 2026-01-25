@@ -2,20 +2,24 @@
 
 import { ChatMessageSkeletonList } from "@/features/chat/ui/ChatMessageSkeletonList";
 import { useIntersectionObserver } from "@/shared/hooks/useIntersectionObserver";
+import { useVisiblePageTracking } from "@/shared/hooks/useVisiblePageTracking";
 import { hasMultipleDates, isSameDay } from "@/shared/lib";
+import { InfiniteData } from "@tanstack/react-query";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Message } from "../types";
+import { Message, MessagesPage } from "../types";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";
 
 interface ChatHistoryProps {
   messages: Message[];
+  data?: InfiniteData<MessagesPage>;
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoading?: boolean;
   isFetchingNextPage?: boolean;
+  onVisiblePagesUpdate?: (pageIndices: Set<number>) => void;
 }
 
 const MESSAGE_HEIGHT = 60;
@@ -23,10 +27,12 @@ const DEFAULT_SKELETON_COUNT = 10;
 
 export default function ChatHistory({
   messages,
+  data,
   onLoadMore,
   hasMore,
   isLoading,
   isFetchingNextPage,
+  onVisiblePagesUpdate,
 }: ChatHistoryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,7 +49,29 @@ export default function ChatHistory({
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
+  // 각 메시지가 속한 페이지 인덱스 계산
+  const messagesWithPageIndex = useMemo(() => {
+    if (!data?.pages) {
+      return sortedMessages.map((msg) => ({ ...msg, pageIndex: -1 }));
+    }
+
+    return sortedMessages.map((msg) => {
+      const pageIndex = data.pages.findIndex((page) => page.messages.some((m) => m.id === msg.id));
+      return { ...msg, pageIndex };
+    });
+  }, [data, sortedMessages]);
+
   const shouldShowDateDividers = hasMultipleDates(messages);
+
+  // 보이는 페이지 추적
+  const handleVisiblePagesChange = useCallback(
+    (pageIndices: Set<number>) => {
+      onVisiblePagesUpdate?.(pageIndices);
+    },
+    [onVisiblePagesUpdate],
+  );
+
+  const observerRef = useVisiblePageTracking(handleVisiblePagesChange);
 
   const handleLoadMore = useCallback(() => {
     if (!hasMore || isLoading || isFetchingNextPage) return;
@@ -135,8 +163,8 @@ export default function ChatHistory({
           <>
             {hasMore && <div ref={topObserverRef} className="h-1" />}
             {isFetchingNextPage && <ChatMessageSkeletonList count={skeletonCount} />}
-            {sortedMessages.map((message, index) => {
-              const prevMessage = index > 0 ? sortedMessages[index - 1] : undefined;
+            {messagesWithPageIndex.map((message, index) => {
+              const prevMessage = index > 0 ? messagesWithPageIndex[index - 1] : undefined;
               const isFirstMessage = index === 0;
               const isDifferentDay =
                 prevMessage && !isSameDay(prevMessage.created_at, message.created_at);
@@ -145,7 +173,15 @@ export default function ChatHistory({
                 shouldShowDateDividers && ((isFirstMessage && !isLoading) || isDifferentDay);
 
               return (
-                <div key={`message-${message.id}`}>
+                <div
+                  key={`message-${message.id}`}
+                  ref={(node) => {
+                    if (node && message.pageIndex >= 0) {
+                      observerRef.current?.observe(node);
+                    }
+                  }}
+                  data-page-index={message.pageIndex}
+                >
                   {showDateDivider && <DateDivider created_at={message.created_at} />}
                   <ChatMessageItem message={message} previousMessage={prevMessage} />
                 </div>

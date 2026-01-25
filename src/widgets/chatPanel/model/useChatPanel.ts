@@ -9,7 +9,7 @@ import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function useChatPanel() {
   const supabase = useSupabase();
@@ -27,6 +27,33 @@ export function useChatPanel() {
     const reversed = [...fetched].reverse();
     return [...reversed, ...optimisticMessages];
   }, [data, optimisticMessages]);
+
+  // 보이는 페이지의 타임스탬프를 갱신하는 함수 (throttled)
+  const lastUpdateTimeRef = useRef<number>(0);
+  const updateVisiblePagesTimestamp = useCallback(
+    (pageIndices: Set<number>) => {
+      if (pageIndices.size === 0) return;
+
+      const now = Date.now();
+      // 2초 throttle
+      if (now - lastUpdateTimeRef.current < 2000) return;
+      lastUpdateTimeRef.current = now;
+
+      queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) => {
+        if (!oldData) return oldData;
+
+        const newPages = oldData.pages.map((page, index) => {
+          if (pageIndices.has(index)) {
+            return { ...page, lastAccessed: now };
+          }
+          return page;
+        });
+
+        return { ...oldData, pages: newPages };
+      });
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     if (!userNickname || !supabase) return;
@@ -96,11 +123,13 @@ export function useChatPanel() {
   return {
     userNickname,
     messages,
+    data,
     handleMessageSend,
     isConnected: !!channel,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isLoading,
+    onVisiblePagesUpdate: updateVisiblePagesTimestamp,
   };
 }

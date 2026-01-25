@@ -1,4 +1,5 @@
 import { Message, MessagesPage } from "@/features/chat";
+import { CHAT_GC_CONFIG } from "@/shared/config";
 import { isSameDay, toDate } from "@/shared/lib/datetime";
 import { InfiniteData } from "@tanstack/react-query";
 
@@ -49,11 +50,22 @@ export const addMessageToCache = (
   const updatedFirstPage = {
     ...firstPage,
     messages: [newMessage, ...firstPage.messages],
+    lastAccessed: Date.now(),
   };
+
+  let newPages = [updatedFirstPage, ...restPages];
+
+  // GC 실행 (Feature Flag 확인)
+  if (CHAT_GC_CONFIG.ENABLED) {
+    newPages = runGarbageCollection(newPages, {
+      maxPages: CHAT_GC_CONFIG.MAX_PAGES,
+      minVisiblePages: CHAT_GC_CONFIG.MIN_VISIBLE_PAGES,
+    });
+  }
 
   return {
     ...oldData,
-    pages: [updatedFirstPage, ...restPages],
+    pages: newPages,
   };
 };
 

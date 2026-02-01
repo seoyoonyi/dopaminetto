@@ -49,16 +49,32 @@ export default function ChatHistory({
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
-  // 각 메시지가 속한 페이지 인덱스 계산
+  /**
+   * 각 메시지가 속한 페이지 인덱스를 계산합니다.
+   *
+   * 최적화 설명:
+   * 1. 알고리즘 최적화 (Map): 기존의 이중 반복문을 제거하고, Map을 생성하여 메시지 개수에 비례하는 속도(O(N))로 조회하도록 변경했습니다.
+   * 2. 렌더링 최적화 (useMemo): 데이터가 변경되지 않는 한, 이 O(N) 계산 결과조차도 캐싱하여 재사용합니다. 즉, 단순 스크롤 등으로 인한 리렌더링 시에는 계산 비용이 0이 됩니다.
+   */
   const messagesWithPageIndex = useMemo(() => {
     if (!data?.pages) {
       return sortedMessages.map((msg) => ({ ...msg, pageIndex: -1 }));
     }
 
-    return sortedMessages.map((msg) => {
-      const pageIndex = data.pages.findIndex((page) => page.messages.some((m) => m.id === msg.id));
-      return { ...msg, pageIndex };
+    // 1. 메시지 ID -> Page Index 매핑 생성 (O(Messages))
+    // data.pages 구조: [Page0(messages:[...]), Page1(messages:[...])]
+    const idToPageMap = new Map<number, number>();
+    data.pages.forEach((page, pageIndex) => {
+      page.messages.forEach((msg) => {
+        idToPageMap.set(msg.id, pageIndex);
+      });
     });
+
+    // 2. 정렬된 메시지에 페이지 인덱스 매핑 (O(Messages))
+    return sortedMessages.map((msg) => ({
+      ...msg,
+      pageIndex: idToPageMap.get(msg.id) ?? -1,
+    }));
   }, [data, sortedMessages]);
 
   const shouldShowDateDividers = hasMultipleDates(messages);

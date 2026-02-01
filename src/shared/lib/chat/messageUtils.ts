@@ -147,13 +147,17 @@ export const runGarbageCollection = (
 
   // [Dev] GC Monitoring Log
   if (indicesToRemove.size > 0) {
-    console.debug(
-      `[ChatGC] Run: ${indicesToRemove.size} pages removed. (Total: ${currentPages.length} -> ${newPages.length})`,
-      {
-        removedIndices: Array.from(indicesToRemove),
-        config: { maxPages, minVisiblePages, protectedTimeMs },
-      },
-    );
+    const monitoringData = {
+      event: "GC_RUN",
+      total_pages_before: currentPages.length,
+      total_pages_after: newPages.length,
+      removed_count: indicesToRemove.size,
+      removed_indices: Array.from(indicesToRemove),
+      config: { maxPages, minVisiblePages, protectedTimeMs },
+      timestamp: new Date().toISOString(),
+    };
+
+    console.info(`[ChatGC] Cleared ${indicesToRemove.size} pages.`, monitoringData);
   }
 
   return newPages;

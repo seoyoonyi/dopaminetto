@@ -143,5 +143,18 @@ export const runGarbageCollection = (
   );
 
   // 7. 최종 재구성
-  return currentPages.filter((_, index) => !indicesToRemove.has(index));
+  const newPages = currentPages.filter((_, index) => !indicesToRemove.has(index));
+
+  // [Dev] GC Monitoring Log
+  if (indicesToRemove.size > 0) {
+    console.debug(
+      `[ChatGC] Run: ${indicesToRemove.size} pages removed. (Total: ${currentPages.length} -> ${newPages.length})`,
+      {
+        removedIndices: Array.from(indicesToRemove),
+        config: { maxPages, minVisiblePages, protectedTimeMs },
+      },
+    );
+  }
+
+  return newPages;
 };

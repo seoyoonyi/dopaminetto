@@ -107,23 +107,41 @@ export const runGarbageCollection = (
   // 2. GC Candidates (오래된 페이지들) - minVisiblePages ~ 끝
   const gcCandidates = pages.slice(minVisiblePages);
 
-  // 3. GC Candidates에서만 제거 수행
+  // 3. GC Candidates에서 제거 대상 선정
   const now = Date.now();
+  const currentPages = [...safeZone, ...gcCandidates];
 
-  // 뒤에서부터 검사 (가장 오래된 페이지부터)
-  while (safeZone.length + gcCandidates.length > maxPages && gcCandidates.length > 0) {
-    const lastPage = gcCandidates[gcCandidates.length - 1];
-    const timeSinceAccess = now - (lastPage.lastAccessed ?? 0);
+  // 제거해야 할 개수
+  const removeCount = currentPages.length - maxPages;
+  if (removeCount <= 0) return currentPages;
 
-    // 보호 조건 체크: protectedTimeMs 이내 접근 기록 있으면 보호
-    if (timeSinceAccess < protectedTimeMs) {
-      // 마지막 페이지를 보고 있는 중임. 더 이상 자르지 않고 종료.
-      break;
-    }
+  // 4. 삭제 후보군(gcCandidates) 중에서 "삭제 가능한(보호되지 않은)" 페이지 식별
+  const removableCandidates = gcCandidates
+    .map((page, index) => ({
+      page,
+      originalIndex: minVisiblePages + index, // 원래 배열에서의 인덱스
+      timeSinceAccess: now - (page.lastAccessed ?? 0),
+    }))
+    .filter((candidate) => candidate.timeSinceAccess >= protectedTimeMs); // 보호 시간 지난 것만
 
-    // 자름
-    gcCandidates.pop();
-  }
+  // 5. LRU 정책: 오랫동안 안 본 순서로 정렬 (lastAccessed 오름차순, 값 같으면 원래 인덱스 내림차순(오래된 것 우선?))
+  // 주의: 배열 뒤쪽이 '오래된 메시지(과거)'이지만, 'List'상에서는 뒤에 붙음.
+  // 하지만 여기서는 '채팅 페이지' 목록임. 0이 최신, N이 과거.
+  // 따라서 인덱스가 클수록(뒤에 있을수록) 과거 페이지임.
+  // 즉, timestamp가 같으면 index가 큰 것(과거)을 먼저 지워야 함.
+  removableCandidates.sort((a, b) => {
+    const timeA = a.page.lastAccessed ?? 0;
+    const timeB = b.page.lastAccessed ?? 0;
+    if (timeA !== timeB) return timeA - timeB;
+    // 시간 같으면 인덱스 역순 (큰 인덱스 = 과거 페이지 = 우선 삭제)
+    return b.originalIndex - a.originalIndex;
+  });
 
-  return [...safeZone, ...gcCandidates];
+  // 6. 삭제할 인덱스 선정 (최대 removeCount 개수만큼)
+  const indicesToRemove = new Set(
+    removableCandidates.slice(0, removeCount).map((c) => c.originalIndex),
+  );
+
+  // 7. 최종 재구성
+  return currentPages.filter((_, index) => !indicesToRemove.has(index));
 };

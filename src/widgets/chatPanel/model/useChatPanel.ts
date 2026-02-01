@@ -3,8 +3,8 @@
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { Message, MessagesPage } from "@/features/chat";
 import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
-import { CHAT_CHANNEL_NAME, CHAT_TABLE_NAME } from "@/shared/config";
-import { addMessageToCache, removeMatchingTempMessage } from "@/shared/lib";
+import { CHAT_CHANNEL_NAME, CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
+import { addMessageToCache, removeMatchingTempMessage, runGarbageCollection } from "@/shared/lib";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,30 @@ export function useChatPanel() {
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useMessagesQuery("town");
+
+  // GC Trigger: 페이지 수가 너무 많아지면 정리 (Infinite Scroll 등으로 인해)
+  // useMessagesQuery는 자동으로 pages를 append 하므로, 여기서 감지해서 줄여줘야 함.
+  useEffect(() => {
+    if (!data?.pages || !CHAT_GC_CONFIG.ENABLED) return;
+
+    const currentPages = data.pages;
+    if (currentPages.length <= CHAT_GC_CONFIG.MAX_PAGES) return;
+
+    // GC 실행 필요
+    const newPages = runGarbageCollection(currentPages, {
+      maxPages: CHAT_GC_CONFIG.MAX_PAGES,
+      minVisiblePages: CHAT_GC_CONFIG.MIN_VISIBLE_PAGES,
+      protectedTimeMs: CHAT_GC_CONFIG.PROTECTED_TIME_MS,
+    });
+
+    // 변경사항이 있을 때만 업데이트 (무한 루프 방지)
+    if (newPages.length !== currentPages.length) {
+      queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) => {
+        if (!oldData) return oldData;
+        return { ...oldData, pages: newPages };
+      });
+    }
+  }, [data?.pages, queryClient]);
 
   const messages = useMemo(() => {
     const fetched = data?.pages.flatMap((page) => page.messages) ?? [];

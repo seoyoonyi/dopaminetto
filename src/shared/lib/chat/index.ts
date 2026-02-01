@@ -3,4 +3,5 @@ export {
   isSameUserContinuous,
   removeMatchingTempMessage,
   addMessageToCache,
+  runGarbageCollection,
 } from "./messageUtils";

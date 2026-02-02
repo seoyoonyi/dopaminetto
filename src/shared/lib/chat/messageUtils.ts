@@ -81,15 +81,17 @@ export const updatePageTimestamp = (page: MessagesPage): MessagesPage => {
 };
 
 /**
- * [Pure Function] 페이지 목록에 대해 Garbage Collection을 수행합니다.
+ * 페이지 목록에 대해 가비지 컬렉션(GC)을 수행하는 순수 함수입니다.
  *
- * 정책:
- * 1. MAX_PAGES 이하이면 그대로 반환
- * 2. 최신순 MIN_VISIBLE_PAGES 개수는 무조건 보존 (Safe Zone)
- * 3. 나머지(오래된 페이지) 중에서 lastAccessed가 가장 예전인 순서대로 제거
- * 4. 제거 후 MAX_PAGES 개수 유지
+ * 다음 정책에 따라 오래된 페이지를 정리합니다:
+ * 1. 전체 페이지 수가 MAX_PAGES 이하이면 아무 작업도 수행하지 않습니다.
+ * 2. 최신순으로 MIN_VISIBLE_PAGES 개수는 무조건 보존합니다 (Safe Zone).
+ * 3. 나머지 오래된 페이지(Candidates) 중에서 마지막 접근 시간(lastAccessed)이 가장 오래된 순서대로 제거합니다.
+ * 4. 최종적으로 MAX_PAGES 개수를 유지하도록 합니다.
  *
- * 참고: pages[0]이 최신 페이지라고 가정합니다. (Dopaminetto 구조 상 reverse로 렌더링되지만 데이터 구조상 0이 최신)
+ * 참고:
+ * pages[0]이 가장 최신 페이지라고 가정합니다.
+ * (데이터 구조상 0이 최신, 인덱스가 커질수록 과거 데이터)
  */
 export const runGarbageCollection = (
   pages: MessagesPage[],
@@ -98,6 +100,12 @@ export const runGarbageCollection = (
   const { maxPages, minVisiblePages, protectedTimeMs } = config;
 
   if (pages.length <= maxPages) {
+    return pages;
+  }
+
+  // 설정 오류 방지: minVisiblePages가 maxPages보다 크거나 같으면 GC를 수행할 수 없음 (모두 SafeZone이 됨)
+  if (minVisiblePages >= maxPages) {
+    console.warn("[ChatGC] minVisiblePages가 maxPages보다 크거나 같아 GC를 수행하지 않습니다.");
     return pages;
   }
 

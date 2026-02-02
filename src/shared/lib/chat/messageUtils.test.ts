@@ -80,7 +80,9 @@ describe("Chat Message Utils - GC Logic", () => {
 
   it("[Infinite Scroll] 이미 꽉 찼을 때, 과거 페이지를 로딩하면 '중간의 오래된 페이지'가 삭제된다", () => {
     // 5개가 꽉 참 (0, 1, 2, 3, 4)
-    const pages = Array.from({ length: 5 }, (_, i) => createMockPage(i, 0));
+    const pages = Array.from({ length: 5 }, (_, i) =>
+      createMockPage(i, Date.now() - 1000 * 60 * 60),
+    ); // 1시간 전
 
     // 무한 스크롤로 더 과거 페이지(5)가 끝에 추가됨 (React Query Infinite 구조상)
     // 구조: [0(최신), 1, 2, 3, 4, 5(가장 과거-방금 로딩)]
@@ -101,5 +103,59 @@ describe("Chat Message Utils - GC Logic", () => {
 
     // MAX_PAGES 지켜짐
     expect(result.length).toBe(5);
+  });
+
+  it("minVisiblePages >= maxPages 설정 오류 시 페이지를 삭제하지 않는다", () => {
+    const wrongConfig = { ...TEST_CONFIG, minVisiblePages: 10, maxPages: 5 };
+    const pages = Array.from({ length: 10 }, (_, i) => createMockPage(i, 0));
+
+    // Console warn mock
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = runGarbageCollection(pages, wrongConfig);
+
+    expect(result.length).toBe(10);
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("모든 gcCandidates가 보호 시간(protectedTimeMs) 내에 있으면 삭제하지 않는다", () => {
+    // 0, 1은 SafeZone
+    // 2, 3, 4, 5, 6, 7 ... 은 Candidates
+    // maxPages=5.
+    const pages = Array.from({ length: 8 }, (_, i) => createMockPage(i, Date.now())); // 모두 방금 접근
+
+    const result = runGarbageCollection(pages, TEST_CONFIG);
+
+    // 모두 보호되므로 삭제되지 않아야 함 (MAX_PAGES를 초과하더라도 중요 페이지는 보존)
+    // * 정책 결정: ProtectedTimeMs는 강력한 보호인가? -> 코드 상 filter로 인해 removableCandidates가 비게 됨 -> 삭제 안함.
+    expect(result.length).toBe(8);
+  });
+
+  it("삭제해야 할 개수(removeCount)보다 삭제 가능한 후보(removable)가 적으면, 가능한 만큼만 삭제한다", () => {
+    // Max=5, MinVisible=2.
+    // Pages=10. RemoveCount=5.
+    // Safe: 0, 1
+    // Candidates: 2~9.
+    // 이 중 2,3,4만 오래됨(삭제가능). 5,6,7,8,9는 최근(보호).
+    // 기대: 2,3,4만 삭제되고 5,6,7,8,9는 남음.
+    // 결과 Length: Safe(2) + Protected(5) = 7. (10 -> 7로 감소)
+
+    const pages = Array.from({ length: 10 }, (_, i) => {
+      if (i >= 2 && i <= 4) return createMockPage(i, 0); // 오래됨
+      return createMockPage(i, Date.now()); // 최근
+    });
+
+    const result = runGarbageCollection(pages, TEST_CONFIG);
+
+    expect(result.length).toBe(7);
+
+    // 삭제된 것 확인 (2,3,4 가 없어야 함)
+    const remainingIds = result.map((p) => p.nextCursor);
+    expect(remainingIds).not.toContain("2");
+    expect(remainingIds).not.toContain("3");
+    expect(remainingIds).not.toContain("4");
+    expect(remainingIds).toContain("5");
   });
 });

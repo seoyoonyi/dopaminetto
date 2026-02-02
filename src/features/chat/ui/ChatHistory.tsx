@@ -43,11 +43,13 @@ export default function ChatHistory({
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
-  const sortedMessages = [...messages].sort((a, b) => {
-    if (a.id < 0 && b.id >= 0) return 1;
-    if (a.id >= 0 && b.id < 0) return -1;
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  });
+  const sortedMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      if (a.id < 0 && b.id >= 0) return 1;
+      if (a.id >= 0 && b.id < 0) return -1;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }, [messages]);
 
   /**
    * 각 메시지가 속한 페이지 인덱스를 계산합니다.
@@ -192,7 +194,7 @@ export default function ChatHistory({
                 <ObservedMessageWrapper
                   key={`message-${message.id}`}
                   pageIndex={message.pageIndex}
-                  observer={observer}
+                  observer={observer.current}
                 >
                   {showDateDivider && <DateDivider created_at={message.created_at} />}
                   <ChatMessageItem message={message} previousMessage={prevMessage} />

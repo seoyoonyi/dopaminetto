@@ -5,12 +5,22 @@ import { Message, MessagesPage } from "@/features/chat";
 import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
 import { CHAT_CHANNEL_NAME, CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
 import { addMessageToCache, removeMatchingTempMessage, runGarbageCollection } from "@/shared/lib";
-import { useUserStore } from "@/shared/store/useUserStore";
+import { useChatVisibilityActions, useUserStore, useVisiblePageIndices } from "@/shared/store";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+/**
+ * 채팅 패널의 주요 비즈니스 로직을 관리하는 커스텀 훅입니다.
+ *
+ * 주요 기능:
+ * - Supabase Realtime 구독을 통한 실시간 메시지 수신
+ * - 무한 스크롤 데이터 페칭 (React Query)
+ * - 가비지 컬렉션(GC) 로직 트리거
+ * - 메시지 전송 및 낙관적 업데이트(Optimistic Updates)
+ * - 읽은 메시지(뷰포트 내 페이지)의 타임스탬프 갱신
+ */
 export function useChatPanel() {
   const supabase = useSupabase();
   const queryClient = useQueryClient();
@@ -18,6 +28,10 @@ export function useChatPanel() {
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+
+  // Zustand 스토어 사용
+  const { setVisiblePages } = useChatVisibilityActions();
+  const visiblePageIndices = useVisiblePageIndices();
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useMessagesQuery("town");
@@ -44,7 +58,7 @@ export function useChatPanel() {
         return { ...oldData, pages: newPages };
       });
     }
-  }, [data?.pages, queryClient]);
+  }, [data?.pages?.length, queryClient]);
 
   const messages = useMemo(() => {
     const fetched = data?.pages.flatMap((page) => page.messages) ?? [];
@@ -52,22 +66,19 @@ export function useChatPanel() {
     return [...reversed, ...optimisticMessages];
   }, [data, optimisticMessages]);
 
-  // 보이는 페이지의 타임스탬프를 갱신하는 함수 (throttled)
-  const lastUpdateTimeRef = useRef<number>(0);
-  const updateVisiblePagesTimestamp = useCallback(
-    (pageIndices: Set<number>) => {
-      if (pageIndices.size === 0) return;
+  // 보이는 페이지의 타임스탬프를 갱신하는 Effect (Debounced)
+  // Zustand 상태(visiblePageIndices)가 변경될 때마다 타이머를 재설정하여,
+  // 변경이 멈춘 후 2초 뒤에 최종적으로 캐시를 업데이트합니다.
+  useEffect(() => {
+    if (visiblePageIndices.size === 0) return;
 
+    const timeoutId = setTimeout(() => {
       const now = Date.now();
-      // 2초 throttle
-      if (now - lastUpdateTimeRef.current < 2000) return;
-      lastUpdateTimeRef.current = now;
-
       queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) => {
         if (!oldData) return oldData;
 
         const newPages = oldData.pages.map((page, index) => {
-          if (pageIndices.has(index)) {
+          if (visiblePageIndices.has(index)) {
             return { ...page, lastAccessed: now };
           }
           return page;
@@ -75,8 +86,17 @@ export function useChatPanel() {
 
         return { ...oldData, pages: newPages };
       });
+    }, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, [visiblePageIndices, queryClient]);
+
+  // UI 컴포넌트에서 호출할 간단한 업데이트 함수 (Zustand 액션만 호출)
+  const updateVisiblePagesTimestamp = useCallback(
+    (pageIndices: Set<number>) => {
+      setVisiblePages(pageIndices);
     },
-    [queryClient],
+    [setVisiblePages],
   );
 
   useEffect(() => {

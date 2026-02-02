@@ -1,8 +1,7 @@
 "use client";
 
 import { ChatMessageSkeletonList } from "@/features/chat/ui/ChatMessageSkeletonList";
-import { useIntersectionObserver } from "@/shared/hooks/useIntersectionObserver";
-import { useVisiblePageTracking } from "@/shared/hooks/useVisiblePageTracking";
+import { useIntersectionObserver, useVisiblePageTracking } from "@/shared/hooks";
 import { hasMultipleDates, isSameDay } from "@/shared/lib";
 import { InfiniteData } from "@tanstack/react-query";
 
@@ -11,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Message, MessagesPage } from "../types";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";
+import { ObservedMessageWrapper } from "./ObservedMessageWrapper";
 
 interface ChatHistoryProps {
   messages: Message[];
@@ -87,7 +87,7 @@ export default function ChatHistory({
     [onVisiblePagesUpdate],
   );
 
-  const observerRef = useVisiblePageTracking(handleVisiblePagesChange);
+  const observer = useVisiblePageTracking(handleVisiblePagesChange);
 
   const handleLoadMore = useCallback(() => {
     if (!hasMore || isLoading || isFetchingNextPage) return;
@@ -189,18 +189,14 @@ export default function ChatHistory({
                 shouldShowDateDividers && ((isFirstMessage && !isLoading) || isDifferentDay);
 
               return (
-                <div
+                <ObservedMessageWrapper
                   key={`message-${message.id}`}
-                  ref={(node) => {
-                    if (node && message.pageIndex >= 0) {
-                      observerRef.current?.observe(node);
-                    }
-                  }}
-                  data-page-index={message.pageIndex}
+                  pageIndex={message.pageIndex}
+                  observer={observer}
                 >
                   {showDateDivider && <DateDivider created_at={message.created_at} />}
                   <ChatMessageItem message={message} previousMessage={prevMessage} />
-                </div>
+                </ObservedMessageWrapper>
               );
             })}
           </>

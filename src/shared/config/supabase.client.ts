@@ -8,9 +8,12 @@ export const TOWN_MAIN_CHANNEL = "town:main";
  * 채팅 관련 설정값 정의
  * - GC(Garbage Collection) 설정 포함
  */
+const CHAT_GC_ENABLED = process.env.NEXT_PUBLIC_CHAT_GC_ENABLED === "true";
+
 export const CHAT_GC_CONFIG = {
   // GC 기능 활성화 여부 (Feature Flag)
-  ENABLED: true,
+  // 환경 변수로 제어: NEXT_PUBLIC_CHAT_GC_ENABLED=true/false
+  ENABLED: CHAT_GC_ENABLED,
   // 최대 유지 페이지 수
   MAX_PAGES: 50,
   // GC 발생 시에도 제거하지 않고 유지할 최소 상단(최신) 페이지 수

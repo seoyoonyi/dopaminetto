@@ -29,10 +29,29 @@ const TEST_CONFIG = {
 };
 
 describe("Chat Message Utils - GC Logic", () => {
-  it("MAX_PAGES 이하일 때는 아무것도 삭제하지 않는다", () => {
-    const pages = Array.from({ length: 4 }, (_, i) => createMockPage(i));
+  it("MAX_PAGES 이하일 때는 아무것도 삭제하지 않는다 (모두 최근 페이지)", () => {
+    // 모두 방금 접근한 것으로 생성 -> 시간 기반 삭제 트리거 안됨
+    const pages = Array.from({ length: 4 }, (_, i) => createMockPage(i, Date.now()));
     const result = runGarbageCollection(pages, TEST_CONFIG);
     expect(result.length).toBe(4);
+  });
+
+  it("MAX_PAGES 이하라도 보호 시간이 지난 페이지는 삭제한다 (시간 기반 삭제)", () => {
+    // 0, 1: 최근 (보호됨)
+    // 2, 3: 오래됨 (삭제 대상)
+    const pages = Array.from({ length: 4 }, (_, i) => {
+      if (i >= 2) return createMockPage(i, 0); // 오래됨
+      return createMockPage(i, Date.now());
+    });
+
+    const result = runGarbageCollection(pages, TEST_CONFIG);
+
+    // 기대: SafeZone(2개) 보존.
+    // 2, 3이 삭제 대상이지만, "MAX_PAGES 이하일 경우 최소 1개 삭제" 정책에 의해
+    // 가장 오래된 1개만 삭제됨 (gradual cleanup)
+    expect(result.length).toBe(3);
+    // 3번(가장 과거)이 삭제되고, 0, 1, 2는 남아있어야 함
+    expect(result.map((p) => p.nextCursor)).toEqual(["0", "1", "2"]);
   });
 
   it("MAX_PAGES 초과 시 오래된 페이지(뒤쪽)를 삭제한다", () => {

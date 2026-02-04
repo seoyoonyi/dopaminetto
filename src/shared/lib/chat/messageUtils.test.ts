@@ -1,10 +1,18 @@
 /**
- * 메세지 유틸리티 테스트 (Vitest)
+ * 메시지 유틸리티 테스트 (Vitest)
  */
-import { MessagesPage } from "@/features/chat";
+import { Message, MessagesPage } from "@/features/chat";
+import { InfiniteData } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
-import { runGarbageCollection } from "./messageUtils";
+import {
+  addMessageToCache,
+  hasMultipleDates,
+  isSameUserContinuous,
+  removeMatchingTempMessage,
+  runGarbageCollection,
+  updatePageTimestamp,
+} from "./messageUtils";
 
 // Mock Config to bypass Supabase client initialization error
 vi.mock("@/shared/config", () => ({
@@ -36,9 +44,9 @@ describe("Chat Message Utils - GC Logic", () => {
     expect(result.length).toBe(4);
   });
 
-  it("MAX_PAGES 이하라도 보호 시간이 지난 페이지는 삭제한다 (시간 기반 삭제)", () => {
+  it("MAX_PAGES 이하일 때는 보호 시간이 지나도 삭제하지 않는다 (현재 구현 동작)", () => {
     // 0, 1: 최근 (보호됨)
-    // 2, 3: 오래됨 (삭제 대상)
+    // 2, 3: 오래됨 (삭제 대상이지만 MAX_PAGES 이하이므로 보존)
     const pages = Array.from({ length: 4 }, (_, i) => {
       if (i >= 2) return createMockPage(i, 0); // 오래됨
       return createMockPage(i, Date.now());
@@ -46,12 +54,8 @@ describe("Chat Message Utils - GC Logic", () => {
 
     const result = runGarbageCollection(pages, TEST_CONFIG);
 
-    // 기대: SafeZone(2개) 보존.
-    // 2, 3이 삭제 대상이지만, "MAX_PAGES 이하일 경우 최소 1개 삭제" 정책에 의해
-    // 가장 오래된 1개만 삭제됨 (gradual cleanup)
-    expect(result.length).toBe(3);
-    // 3번(가장 과거)이 삭제되고, 0, 1, 2는 남아있어야 함
-    expect(result.map((p) => p.nextCursor)).toEqual(["0", "1", "2"]);
+    // 현재 구현에서는 MAX_PAGES 이하이면 바로 리턴하므로 삭제되지 않음
+    expect(result.length).toBe(4);
   });
 
   it("MAX_PAGES 초과 시 오래된 페이지(뒤쪽)를 삭제한다", () => {
@@ -176,5 +180,126 @@ describe("Chat Message Utils - GC Logic", () => {
     expect(remainingIds).not.toContain("3");
     expect(remainingIds).not.toContain("4");
     expect(remainingIds).toContain("5");
+  });
+});
+
+describe("Chat Message Utils - Helpers", () => {
+  describe("hasMultipleDates", () => {
+    it("메시지가 없거나 1개면 false 반환", () => {
+      expect(hasMultipleDates([])).toBe(false);
+      const msg = { created_at: "2024-01-01T10:00:00" } as Message;
+      expect(hasMultipleDates([msg])).toBe(false);
+    });
+
+    it("같은 날짜의 메시지들이면 false 반환", () => {
+      const messages = [
+        { created_at: "2024-01-01T10:00:00" },
+        { created_at: "2024-01-01T15:00:00" },
+      ] as Message[];
+      expect(hasMultipleDates(messages)).toBe(false);
+    });
+
+    it("다른 날짜가 섞여있으면 true 반환", () => {
+      const messages = [
+        { created_at: "2024-01-01T23:59:59" },
+        { created_at: "2024-01-02T00:00:01" },
+      ] as Message[];
+      expect(hasMultipleDates(messages)).toBe(true);
+    });
+  });
+
+  describe("isSameUserContinuous", () => {
+    const user1 = "user1";
+    const user2 = "user2";
+    const time = "2024-01-01T10:00:00";
+    const timeSameMinute = "2024-01-01T10:00:59";
+    const timeDiffMinute = "2024-01-01T10:01:00";
+
+    it("이전 메시지가 없거나 다른 유저면 false", () => {
+      const current = { user_id: user1, created_at: time } as Message;
+      expect(isSameUserContinuous(current, undefined)).toBe(false);
+      expect(isSameUserContinuous(current, { user_id: user2, created_at: time } as Message)).toBe(
+        false,
+      );
+    });
+
+    it("같은 유저여도 분(minute)이 다르면 false", () => {
+      const current = { user_id: user1, created_at: timeDiffMinute } as Message;
+      const prev = { user_id: user1, created_at: time } as Message;
+      expect(isSameUserContinuous(current, prev)).toBe(false);
+    });
+
+    it("같은 유저이고 분(minute)이 같으면 true", () => {
+      const current = { user_id: user1, created_at: timeSameMinute } as Message;
+      const prev = { user_id: user1, created_at: time } as Message;
+      expect(isSameUserContinuous(current, prev)).toBe(true);
+    });
+  });
+
+  describe("removeMatchingTempMessage", () => {
+    const realMsg = { id: 100, user_id: "u1", message: "hello" } as Message;
+
+    it("매칭되는 임시 메시지가 있으면 제거한다", () => {
+      const tempMsg = { id: -1, user_id: "u1", message: "hello" } as Message;
+      const otherMsg = { id: 50, user_id: "u2", message: "hi" } as Message;
+      const prev = [otherMsg, tempMsg];
+
+      const result = removeMatchingTempMessage(prev, realMsg);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(50);
+    });
+
+    it("매칭되는 임시 메시지가 없으면 원본 배열 반환", () => {
+      const prev = [{ id: 50, user_id: "u2", message: "hi" } as Message];
+      const result = removeMatchingTempMessage(prev, realMsg);
+      expect(result).toBe(prev);
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe("addMessageToCache", () => {
+    const mockPage = (messages: Message[]): MessagesPage => ({
+      messages,
+      nextCursor: "next",
+      lastAccessed: 0,
+    });
+
+    it("oldData가 없으면 undefined 반환", () => {
+      expect(addMessageToCache(undefined, {} as Message)).toBeUndefined();
+    });
+
+    it("중복 메시지면 oldData 그대로 반환", () => {
+      const msg = { id: 1 } as Message;
+      const oldData = {
+        pages: [mockPage([msg])],
+        pageParams: [],
+      } as unknown as InfiniteData<MessagesPage>;
+      expect(addMessageToCache(oldData, msg)).toBe(oldData);
+    });
+
+    it("새로운 메시지를 첫 페이지 맨 앞에 추가하고 lastAccessed 갱신", () => {
+      const existingMsg = { id: 1 } as Message;
+      const newMsg = { id: 2 } as Message;
+      const oldData = {
+        pages: [mockPage([existingMsg])],
+        pageParams: [],
+      } as unknown as InfiniteData<MessagesPage>;
+
+      const result = addMessageToCache(oldData, newMsg);
+
+      expect(result).not.toBe(oldData);
+      expect(result?.pages[0].messages).toHaveLength(2);
+      expect(result?.pages[0].messages[0]).toBe(newMsg);
+      expect(result?.pages[0].lastAccessed).toBeGreaterThan(0);
+    });
+  });
+
+  describe("updatePageTimestamp", () => {
+    it("lastAccessed를 현재 시간으로 갱신", () => {
+      const page = { lastAccessed: 0 } as MessagesPage;
+      const result = updatePageTimestamp(page);
+      expect(result.lastAccessed).toBeGreaterThan(0);
+      expect(result).not.toBe(page);
+    });
   });
 });

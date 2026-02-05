@@ -8,7 +8,10 @@ export function useMessagesQuery(roomId: string) {
 
   return useInfiniteQuery({
     queryKey: ["messages", roomId],
-    queryFn: ({ pageParam }) => fetchMessages(supabase, roomId, pageParam),
+    queryFn: async ({ pageParam }) => {
+      const page = await fetchMessages(supabase, roomId, pageParam);
+      return { ...page, lastAccessed: Date.now() };
+    },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: undefined,
     enabled: !!supabase,

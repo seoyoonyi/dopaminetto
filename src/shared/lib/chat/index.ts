@@ -1,1 +1,7 @@
-export { hasMultipleDates, isSameUserContinuous } from "./messageUtils";
+export {
+  hasMultipleDates,
+  isSameUserContinuous,
+  removeMatchingTempMessage,
+  addMessageToCache,
+  runGarbageCollection,
+} from "./messageUtils";

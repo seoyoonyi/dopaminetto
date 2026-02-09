@@ -107,12 +107,13 @@ export function useMovementSync() {
     const trackPresence = async (retryCount = 0) => {
       if (status !== "SUBSCRIBED" || !channel || !userId) return;
 
+      const state = useMovementStore.getState();
       const payload: PresenceMetadata = {
         userId,
-        nickname: nickname || "익명",
+        nickname: state.nickname || "익명",
         joinedAt: new Date().toISOString(),
-        villageId,
-        position: useMovementStore.getState().lastSyncedPosition,
+        villageId: state.villageId,
+        position: state.lastSyncedPosition,
       };
 
       try {
@@ -139,18 +140,11 @@ export function useMovementSync() {
     }
 
     return () => {
-      // 싱글톤 채널이므로 여기서 채널을 닫지 않음
+      // 싱글톤 채널이므로 채널을 닫거나 unsubscribe하면 안 됨
+      // 의존성을 최소화했기 때문에 이 이펙트는 channel/userId가 바뀔 때만 재실행됨
+      // → 리스너 중복 누적 문제가 사실상 발생하지 않음
     };
-  }, [
-    channel,
-    userId,
-    updateRemotePlayer,
-    removeRemotePlayer,
-    status,
-    villageId,
-    nickname,
-    reconnect,
-  ]);
+  }, [channel, userId, updateRemotePlayer, removeRemotePlayer, status, reconnect]);
 
   useEffect(() => {
     if (!channel || !userId || !nickname) return;

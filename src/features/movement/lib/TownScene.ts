@@ -2,6 +2,8 @@ import { TRANSITION_ZONES, VILLAGES } from "@/entities/village";
 import { useMovementStore } from "@/features/movement";
 import * as Phaser from "phaser";
 
+const CAPTURED_KEYS = "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE";
+
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -39,6 +41,10 @@ export class TownScene extends Phaser.Scene {
       S: Phaser.Input.Keyboard.Key;
       D: Phaser.Input.Keyboard.Key;
     };
+
+    // Phaser가 WASD 및 방향키를 캡처하도록 설정
+    // 채팅창 포커스 시 update 루프에서 동적으로 제어
+    this.input.keyboard!.addCapture(CAPTURED_KEYS);
 
     this.boundsGraphics = this.add.graphics();
     this.transitionGraphics = this.add.graphics();
@@ -95,6 +101,25 @@ export class TownScene extends Phaser.Scene {
 
   update = () => {
     const speed = 4;
+
+    // 입력 필드 포커스 시:
+    // 1. removeCapture로 Phaser의 키 캡처를 해제하여 브라우저가 키 이벤트를 처리하도록 함
+    // 2. 캐릭터 이동 로직 실행 방지
+    const activeElement = document.activeElement;
+    const isInputFocused =
+      activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA");
+
+    if (this.input.keyboard) {
+      if (isInputFocused) {
+        // 채팅창 포커스 시: 키 캡처 해제하여 브라우저가 키 입력을 처리하도록 함
+        this.input.keyboard.removeCapture(CAPTURED_KEYS);
+        return;
+      } else {
+        // 게임 플레이 시: 키 캡처 활성화하여 Phaser가 키 입력을 독점하도록 함
+        this.input.keyboard.addCapture(CAPTURED_KEYS);
+      }
+    }
+
     let dx = 0;
     let dy = 0;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMovementStore } from "@/features/movement/model/store";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
 import { useUserInfo } from "@/shared/hooks";
@@ -13,9 +14,12 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 
-const TownEngine = dynamic(() => import("@/features/movement").then((mod) => mod.TownEngine), {
-  ssr: false,
-});
+const TownEngine = dynamic(
+  () => import("@/features/movement/ui/TownEngine").then((mod) => mod.TownEngine),
+  {
+    ssr: false,
+  },
+);
 
 export default function TownPage() {
   const router = useRouter();
@@ -23,7 +27,15 @@ export default function TownPage() {
   const userNickname = user?.user_metadata?.nickname;
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
+  const resetMovement = useMovementStore((state) => state.reset);
   useTownPresence();
+
+  // 페이지 언마운트 시 무브먼트 상태 초기화
+  useEffect(() => {
+    return () => {
+      resetMovement();
+    };
+  }, [resetMovement]);
 
   useEffect(() => {
     if (userNickname) {
@@ -43,7 +55,7 @@ export default function TownPage() {
     </div>
   );
 
-  if (isLoading || !userNickname) {
+  if (isLoading && !userNickname) {
     return (
       <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
         <p>사용자 정보를 불러오는 중...</p>

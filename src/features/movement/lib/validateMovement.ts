@@ -1,17 +1,27 @@
 import { TRANSITION_ZONES, VILLAGES, VillageId } from "@/entities/village";
-import { MOVEMENT_EVENT_TYPES, Position, ValidationResult } from "@/features/movement/model/types";
+import {
+  MOVEMENT_EVENT_TYPES,
+  Position,
+  RemotePlayer,
+  ValidationResult,
+} from "@/features/movement/model/types";
 
 /**
  * 플레이어의 좌표가 마을을 벗어나지 않도록 경계값 내로 제한(Clamping)합니다.
  */
 const clampPositionToVillage = (position: Position, villageId: VillageId): Position => {
   const config = VILLAGES[villageId];
-  if (!config) return position;
+  if (config) {
+    const { x1, y1, x2, y2 } = config.boundary;
+    return {
+      x: Math.max(x1, Math.min(x2, position.x)),
+      y: Math.max(y1, Math.min(y2, position.y)),
+    };
+  }
 
-  const { x1, y1, x2, y2 } = config.boundary;
   return {
-    x: Math.max(x1, Math.min(x2, position.x)),
-    y: Math.max(y1, Math.min(y2, position.y)),
+    x: Math.max(0, Math.min(800, position.x)),
+    y: Math.max(0, Math.min(600, position.y)),
   };
 };
 
@@ -44,17 +54,20 @@ export const validateMovement = (
     y: currentPosition.y + delta.y,
   };
 
-  // 1. 경계 확인 및 고정
   const clampedPosition = clampPositionToVillage(rawNextPosition, currentVillageId);
 
-  // 2. 이동 구역 확인
   const transition = detectVillageTransition(clampedPosition, currentVillageId);
 
   if (transition) {
+    const targetVillageClamp = clampPositionToVillage(
+      { x: transition.spawnPosition.x, y: clampedPosition.y },
+      transition.toVillageId,
+    );
+
     return {
       nextPosition: {
         x: transition.spawnPosition.x,
-        y: clampedPosition.y,
+        y: targetVillageClamp.y,
       },
       nextVillageId: transition.toVillageId,
       event: {
@@ -70,4 +83,42 @@ export const validateMovement = (
     nextVillageId: currentVillageId,
     event: { type: MOVEMENT_EVENT_TYPES.NONE },
   };
+};
+
+/**
+ * 입장 시 다른 플레이어와 겹치지 않도록 일렬(Linear)로 배치합니다.
+ * - 동일한 마을에 있는 플레이어들만 체크합니다.
+ * - 이미 자리가 있다면 오른쪽으로 40px씩 이동하며 비어있는 자리를 찾습니다.
+ */
+export const findSafeSpawnPosition = (
+  targetPosition: Position,
+  remotePlayers: Record<string, RemotePlayer> = {},
+  currentVillageId: VillageId,
+): Position => {
+  const players = Object.values(remotePlayers).filter((p) => p.villageId === currentVillageId);
+
+  if (players.length === 0) return targetPosition;
+
+  let safeX = targetPosition.x;
+  const safeY = targetPosition.y;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 20;
+  const OFFSET_X = 40;
+  const OCCUPANCY_THRESHOLD = 30;
+
+  while (attempts < MAX_ATTEMPTS) {
+    const isOccupied = players.some((p) => {
+      const dx = p.position.x - safeX;
+      const dy = p.position.y - safeY;
+      return Math.sqrt(dx * dx + dy * dy) < OCCUPANCY_THRESHOLD;
+    });
+
+    if (!isOccupied) break;
+
+    safeX += OFFSET_X;
+    attempts++;
+  }
+
+  const finalPosition = { x: safeX, y: safeY };
+  return clampPositionToVillage(finalPosition, currentVillageId);
 };

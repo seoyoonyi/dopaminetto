@@ -25,12 +25,12 @@ export const TRANSITION_ZONES = [
     fromVillageId: "village-a" as VillageId,
     toVillageId: "village-b" as VillageId,
     triggerZone: { x1: 795, y1: 0, x2: 800, y2: 600 },
-    spawnPosition: { x: 805, y: 300 },
+    spawnPosition: { x: 820, y: 300 },
   },
   {
     fromVillageId: "village-b" as VillageId,
     toVillageId: "village-a" as VillageId,
     triggerZone: { x1: 800, y1: 0, x2: 805, y2: 600 },
-    spawnPosition: { x: 795, y: 300 },
+    spawnPosition: { x: 780, y: 300 },
   },
 ] as const;

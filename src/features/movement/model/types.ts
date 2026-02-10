@@ -15,6 +15,42 @@ export interface Position {
 export interface MovementState {
   position: Position;
   villageId: VillageId;
+  nickname: string;
+  userId: string;
+  remotePlayers: Record<string, RemotePlayer>;
+}
+
+export interface RemotePlayer {
+  userId: string;
+  nickname: string;
+  position: Position;
+  villageId: VillageId;
+  lastUpdatedAt: number;
+}
+
+/**
+ * Presence 메타데이터 구조 (RemotePlayer와 호환)
+ */
+export interface PresenceMetadata {
+  userId: string;
+  nickname: string;
+  position: Position;
+  villageId: VillageId;
+  joinedAt: string;
+}
+
+/**
+ * Broadcast 페이로드 정의
+ */
+export interface SyncPositionPayload {
+  userId: string;
+  nickname: string;
+  position: Position;
+  villageId: VillageId;
+}
+
+export interface SyncLeavePayload {
+  userId: string;
 }
 
 /**

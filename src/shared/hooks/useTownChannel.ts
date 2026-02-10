@@ -8,9 +8,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useUserInfo } from "./useUserInfo";
 
+const MAX_AUTO_RECONNECT = 5;
+const RECONNECT_BACKOFF_MS = [1000, 2000, 4000, 8000, 16000];
+
 // 채널 인스턴스와 상태를 관리하는 맵
 const globalChannels = new Map<string, RealtimeChannel>();
 const globalStatuses = new Map<string, string>();
+const globalReconnectCounts = new Map<string, number>();
 const channelObservers = new Map<string, Set<(status: string) => void>>();
 const presenceObservers = new Map<string, Set<(event: string, payload?: unknown) => void>>();
 const channelSubscribersCount = new Map<string, number>();
@@ -94,8 +98,13 @@ export const useTownChannel = (channelNameInput?: string | null) => {
   useEffect(() => {
     if (!supabase || !userId) return;
 
-    let channel = globalChannels.get(channelName);
     const currentStatus = globalStatuses.get(channelName);
+    const channel = globalChannels.get(channelName);
+
+    if (currentStatus === "SUBSCRIBED") {
+      globalReconnectCounts.set(channelName, 0);
+      return;
+    }
 
     if (
       !channel ||
@@ -103,30 +112,43 @@ export const useTownChannel = (channelNameInput?: string | null) => {
       currentStatus === "CHANNEL_ERROR" ||
       currentStatus === "TIMED_OUT"
     ) {
-      if (channel) {
-        supabase.removeChannel(channel);
-        globalChannels.delete(channelName);
+      const count = globalReconnectCounts.get(channelName) || 0;
+      if (count >= MAX_AUTO_RECONNECT) {
+        console.warn(`[useTownChannel] Max reconnect attempts reached for ${channelName}`);
+        return;
       }
 
-      channel = supabase.channel(channelName, {
-        config: {
-          presence: { key: userId },
-          broadcast: { self: false },
-        },
-      });
-      globalChannels.set(channelName, channel);
+      const waitTime = RECONNECT_BACKOFF_MS[count] || 16000;
 
-      channel
-        .on("presence", { event: "sync" }, () => notifyPresenceObservers(channelName, "sync"))
-        .on("presence", { event: "join" }, (payload) =>
-          notifyPresenceObservers(channelName, "join", payload),
-        )
-        .on("presence", { event: "leave" }, (payload) =>
-          notifyPresenceObservers(channelName, "leave", payload),
-        )
-        .subscribe((newStatus) => {
-          notifyObservers(channelName, newStatus);
+      const timer = setTimeout(() => {
+        if (channel) {
+          supabase.removeChannel(channel);
+          globalChannels.delete(channelName);
+        }
+
+        const newChannel = supabase.channel(channelName, {
+          config: {
+            presence: { key: userId },
+            broadcast: { self: false },
+          },
         });
+        globalChannels.set(channelName, newChannel);
+        globalReconnectCounts.set(channelName, count + 1);
+
+        newChannel
+          .on("presence", { event: "sync" }, () => notifyPresenceObservers(channelName, "sync"))
+          .on("presence", { event: "join" }, (payload) =>
+            notifyPresenceObservers(channelName, "join", payload),
+          )
+          .on("presence", { event: "leave" }, (payload) =>
+            notifyPresenceObservers(channelName, "leave", payload),
+          )
+          .subscribe((newStatus) => {
+            notifyObservers(channelName, newStatus);
+          });
+      }, waitTime);
+
+      return () => clearTimeout(timer);
     }
   }, [channelName, supabase, userId, status]);
 

@@ -2,9 +2,6 @@ import { createBrowserClient } from "@supabase/ssr";
 
 export const CHAT_CHANNEL_NAME = "public:chat-room";
 export const CHAT_TABLE_NAME = "chat";
-export const TOWN_MAIN_CHANNEL = "town:main";
-export const getVillageChannelName = (villageId?: string | null) =>
-  villageId ? `village:${villageId}` : TOWN_MAIN_CHANNEL;
 
 /**
  * 채팅 관련 설정값 정의

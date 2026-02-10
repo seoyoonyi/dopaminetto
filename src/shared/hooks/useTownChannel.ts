@@ -1,7 +1,7 @@
 "use client";
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
-import { TOWN_MAIN_CHANNEL } from "@/shared/config/supabase.client";
+import { getVillageChannelName } from "@/shared/lib/realtime";
 import { RealtimeChannel } from "@supabase/supabase-js";
 
 import { useCallback, useEffect, useState } from "react";
@@ -61,8 +61,8 @@ const notifyPresenceObservers = (channelName: string, event: string, payload?: u
  * 채널을 관리하는 훅.
  * - channelName: 접속할 채널 이름 (예: "town:main", "village:a")
  */
-export const useTownChannel = (channelNameInput?: string | null) => {
-  const channelName = channelNameInput || TOWN_MAIN_CHANNEL;
+export const useTownChannel = (villageId?: string | null) => {
+  const channelName = getVillageChannelName(villageId);
 
   const supabase = useSupabase();
   const { data: user } = useUserInfo();

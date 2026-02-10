@@ -35,10 +35,12 @@ export const useMovementStore = create<MovementStore>()(
     let isSyncing = false;
     let flushTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const initialJitter: Position = {
+    const createJitter = (): Position => ({
       x: INITIAL_POSITION.x + (Math.random() - 0.5) * 60,
       y: INITIAL_POSITION.y + (Math.random() - 0.5) * 60,
-    };
+    });
+
+    const initialJitter = createJitter();
 
     return {
       position: initialJitter,
@@ -197,19 +199,21 @@ export const useMovementStore = create<MovementStore>()(
           set({ isValidating: false });
         }
       },
-      reset: () =>
+      reset: () => {
+        const newJitter = createJitter();
         set({
-          position: initialJitter,
+          position: newJitter,
           villageId: "village-a",
           nickname: "익명",
           userId: "",
-          lastSyncedPosition: initialJitter,
+          lastSyncedPosition: newJitter,
           lastSyncedVillageId: "village-a",
           remotePlayers: {},
           isValidating: false,
           validationLatency: 0,
           pendingDelta: { x: 0, y: 0 },
-        }),
+        });
+      },
     };
   }),
 );

@@ -6,6 +6,7 @@ import * as Phaser from "phaser";
 
 import React, { useEffect, useRef } from "react";
 
+import { useMovementSync } from "../hooks/useMovementSync";
 import { MovementOverlay } from "./MovementOverlay";
 
 /**
@@ -14,6 +15,8 @@ import { MovementOverlay } from "./MovementOverlay";
 export const TownEngine = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+
+  useMovementSync();
 
   useEffect(() => {
     if (!gameContainerRef.current || gameRef.current) return;

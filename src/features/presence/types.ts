@@ -3,4 +3,5 @@ export interface PresenceParticipant {
   nickname: string;
   joinedAt?: string;
   presenceRef: string;
+  villageId?: string;
 }

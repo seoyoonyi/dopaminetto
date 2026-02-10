@@ -7,10 +7,15 @@ interface TownPresenceState {
   participants: PresenceParticipant[];
   isConnected: boolean;
   lastSyncedAt?: string;
+  localJoinedAt: string;
   previousUserIds: Set<string>;
   hasInitialized: boolean;
 
-  setParticipants: (participants: PresenceParticipant[], currentUserNickname: string) => void;
+  setParticipants: (
+    participants: PresenceParticipant[],
+    currentUserNickname: string,
+    currentUserId: string,
+  ) => void;
   setConnectionState: (isConnected: boolean) => void;
   reset: () => void;
 }
@@ -19,18 +24,20 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   participants: [],
   isConnected: false,
   lastSyncedAt: undefined,
+  localJoinedAt: new Date().toISOString(),
   previousUserIds: new Set(),
   hasInitialized: true,
 
-  setParticipants: (participants, currentUserNickname) => {
+  setParticipants: (participants, currentUserNickname, currentUserId) => {
     const state = get();
     const currentUserIds = participants.map((p) => p.userId);
     const currentUserIdSet = new Set(currentUserIds);
 
-    const currentUser = participants.find((p) => p.nickname === currentUserNickname);
+    // 닉네임 대신 userId로 정확하게 자신을 식별 (유저 제안 사항)
+    const me = participants.find((p) => p.userId === currentUserId);
 
-    if (state.hasInitialized && currentUser) {
-      toast(`${currentUserNickname} 입장했습니다.`, { duration: 3000 });
+    if (state.hasInitialized && me) {
+      toast(`${me.nickname} 입장했습니다.`, { duration: 3000 });
 
       set({
         participants,

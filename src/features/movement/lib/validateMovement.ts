@@ -33,9 +33,9 @@ const detectVillageTransition = (position: Position, villageId: VillageId) => {
     (tz) =>
       tz.fromVillageId === villageId &&
       position.x >= tz.triggerZone.x1 &&
-      position.x < tz.triggerZone.x2 &&
+      position.x <= tz.triggerZone.x2 &&
       position.y >= tz.triggerZone.y1 &&
-      position.y < tz.triggerZone.y2,
+      position.y <= tz.triggerZone.y2,
   );
 };
 

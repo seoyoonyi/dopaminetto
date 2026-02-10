@@ -11,25 +11,47 @@ import { useUserInfo } from "./useUserInfo";
 const MAX_AUTO_RECONNECT = 5;
 const RECONNECT_BACKOFF_MS = [1000, 2000, 4000, 8000, 16000];
 
-// 채널 인스턴스와 상태를 관리하는 맵
-const globalChannels = new Map<string, RealtimeChannel>();
-const globalStatuses = new Map<string, string>();
-const globalReconnectCounts = new Map<string, number>();
-const channelObservers = new Map<string, Set<(status: string) => void>>();
-const presenceObservers = new Map<string, Set<(event: string, payload?: unknown) => void>>();
-const channelSubscribersCount = new Map<string, number>();
-const channelCleanupTimeouts = new Map<string, NodeJS.Timeout>();
+// globalThis를 사용하여 HMR에서도 참조 유지
+const GLOBAL_KEY = "__townChannelState";
+
+interface TownChannelGlobalState {
+  channels: Map<string, RealtimeChannel>;
+  statuses: Map<string, string>;
+  reconnectCounts: Map<string, number>;
+  channelObservers: Map<string, Set<(status: string) => void>>;
+  presenceObservers: Map<string, Set<(event: string, payload?: unknown) => void>>;
+  subscribersCount: Map<string, number>;
+  cleanupTimeouts: Map<string, NodeJS.Timeout>;
+}
+
+function getGlobals(): TownChannelGlobalState {
+  const globalWithChannelState = globalThis as unknown as Record<string, TownChannelGlobalState>;
+  if (!globalWithChannelState[GLOBAL_KEY]) {
+    globalWithChannelState[GLOBAL_KEY] = {
+      channels: new Map(),
+      statuses: new Map(),
+      reconnectCounts: new Map(),
+      channelObservers: new Map(),
+      presenceObservers: new Map(),
+      subscribersCount: new Map(),
+      cleanupTimeouts: new Map(),
+    };
+  }
+  return globalWithChannelState[GLOBAL_KEY];
+}
+
+const globals = getGlobals();
 
 const notifyObservers = (channelName: string, status: string) => {
-  globalStatuses.set(channelName, status);
-  const observers = channelObservers.get(channelName);
+  globals.statuses.set(channelName, status);
+  const observers = globals.channelObservers.get(channelName);
   if (observers) {
     observers.forEach((callback) => callback(status));
   }
 };
 
 const notifyPresenceObservers = (channelName: string, event: string, payload?: unknown) => {
-  const observers = presenceObservers.get(channelName);
+  const observers = globals.presenceObservers.get(channelName);
   if (observers) {
     observers.forEach((callback) => callback(event, payload));
   }
@@ -46,13 +68,15 @@ export const useTownChannel = (channelNameInput?: string | null) => {
   const { data: user } = useUserInfo();
   const userId = user?.id;
 
-  const [status, setStatus] = useState<string>(() => globalStatuses.get(channelName) || "INITIAL");
+  const [status, setStatus] = useState<string>(
+    () => globals.statuses.get(channelName) || "INITIAL",
+  );
 
   useEffect(() => {
-    if (!channelObservers.has(channelName)) {
-      channelObservers.set(channelName, new Set());
+    if (!globals.channelObservers.has(channelName)) {
+      globals.channelObservers.set(channelName, new Set());
     }
-    const observers = channelObservers.get(channelName)!;
+    const observers = globals.channelObservers.get(channelName)!;
 
     const callback = (newStatus: string) => setStatus(newStatus);
     observers.add(callback);
@@ -63,34 +87,34 @@ export const useTownChannel = (channelNameInput?: string | null) => {
   }, [channelName]);
 
   useEffect(() => {
-    const currentCount = channelSubscribersCount.get(channelName) || 0;
-    channelSubscribersCount.set(channelName, currentCount + 1);
+    const currentCount = globals.subscribersCount.get(channelName) || 0;
+    globals.subscribersCount.set(channelName, currentCount + 1);
 
-    const timeout = channelCleanupTimeouts.get(channelName);
+    const timeout = globals.cleanupTimeouts.get(channelName);
     if (timeout) {
       clearTimeout(timeout);
-      channelCleanupTimeouts.delete(channelName);
+      globals.cleanupTimeouts.delete(channelName);
     }
 
     return () => {
-      const remaining = (channelSubscribersCount.get(channelName) || 1) - 1;
-      channelSubscribersCount.set(channelName, remaining);
+      const remaining = (globals.subscribersCount.get(channelName) || 1) - 1;
+      globals.subscribersCount.set(channelName, remaining);
 
       if (remaining === 0) {
         const t = setTimeout(() => {
-          const checkCount = channelSubscribersCount.get(channelName) || 0;
+          const checkCount = globals.subscribersCount.get(channelName) || 0;
           if (checkCount === 0) {
-            const channel = globalChannels.get(channelName);
+            const channel = globals.channels.get(channelName);
             if (channel) {
               supabase.removeChannel(channel);
-              globalChannels.delete(channelName);
+              globals.channels.delete(channelName);
               notifyObservers(channelName, "CLOSED");
 
-              presenceObservers.delete(channelName);
+              globals.presenceObservers.delete(channelName);
             }
           }
         }, 3000);
-        channelCleanupTimeouts.set(channelName, t);
+        globals.cleanupTimeouts.set(channelName, t);
       }
     };
   }, [channelName, supabase]);
@@ -98,11 +122,11 @@ export const useTownChannel = (channelNameInput?: string | null) => {
   useEffect(() => {
     if (!supabase || !userId) return;
 
-    const currentStatus = globalStatuses.get(channelName);
-    const channel = globalChannels.get(channelName);
+    const currentStatus = globals.statuses.get(channelName);
+    const channel = globals.channels.get(channelName);
 
     if (currentStatus === "SUBSCRIBED") {
-      globalReconnectCounts.set(channelName, 0);
+      globals.reconnectCounts.set(channelName, 0);
       return;
     }
 
@@ -112,7 +136,7 @@ export const useTownChannel = (channelNameInput?: string | null) => {
       currentStatus === "CHANNEL_ERROR" ||
       currentStatus === "TIMED_OUT"
     ) {
-      const count = globalReconnectCounts.get(channelName) || 0;
+      const count = globals.reconnectCounts.get(channelName) || 0;
       if (count >= MAX_AUTO_RECONNECT) {
         console.warn(`[useTownChannel] Max reconnect attempts reached for ${channelName}`);
         return;
@@ -123,7 +147,7 @@ export const useTownChannel = (channelNameInput?: string | null) => {
       const timer = setTimeout(() => {
         if (channel) {
           supabase.removeChannel(channel);
-          globalChannels.delete(channelName);
+          globals.channels.delete(channelName);
         }
 
         const newChannel = supabase.channel(channelName, {
@@ -132,8 +156,8 @@ export const useTownChannel = (channelNameInput?: string | null) => {
             broadcast: { self: false },
           },
         });
-        globalChannels.set(channelName, newChannel);
-        globalReconnectCounts.set(channelName, count + 1);
+        globals.channels.set(channelName, newChannel);
+        globals.reconnectCounts.set(channelName, count + 1);
 
         newChannel
           .on("presence", { event: "sync" }, () => notifyPresenceObservers(channelName, "sync"))
@@ -153,7 +177,7 @@ export const useTownChannel = (channelNameInput?: string | null) => {
   }, [channelName, supabase, userId, status]);
 
   return {
-    channel: globalChannels.get(channelName) || null,
+    channel: globals.channels.get(channelName) || null,
     status,
     isConnected: status === "SUBSCRIBED",
     reconnect: useCallback(() => {
@@ -161,10 +185,10 @@ export const useTownChannel = (channelNameInput?: string | null) => {
     }, [channelName]),
     subscribeToPresence: useCallback(
       (callback: (event: string, payload?: unknown) => void) => {
-        if (!presenceObservers.has(channelName)) {
-          presenceObservers.set(channelName, new Set());
+        if (!globals.presenceObservers.has(channelName)) {
+          globals.presenceObservers.set(channelName, new Set());
         }
-        const observers = presenceObservers.get(channelName)!;
+        const observers = globals.presenceObservers.get(channelName)!;
         observers.add(callback);
         return () => observers.delete(callback);
       },

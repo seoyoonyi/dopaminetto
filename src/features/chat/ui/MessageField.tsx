@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { useAutoResizeTextarea } from "@/shared/hooks";
 import { Textarea } from "@/shared/ui/textarea";
 
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
@@ -17,6 +19,7 @@ const ERROR_MESSAGES = {
 } as const;
 
 const PLACEHOLDER_TEXT = "메시지를 입력해 주세요.";
+const MAX_LENGTH = 1000;
 
 export default function MessageField({
   channelType,
@@ -25,10 +28,19 @@ export default function MessageField({
 }: MessageFieldProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const { textareaRef, wrapperRef, isScrollable } = useAutoResizeTextarea(message, {
+    maxHeight: 96,
+    minHeight: 48,
+  });
 
   const isPrivateChannel = channelType === "private";
   const isButtonDisabled = isPrivateChannel || !message.trim() || !isConnected;
+
+  // 글자수 상태
+  const charCount = message.length;
+  const isNearLimit = charCount >= MAX_LENGTH * 0.9;
+  const isAtLimit = charCount >= MAX_LENGTH;
 
   const isValidMessage = (trimmed: string) => {
     if (isPrivateChannel) {
@@ -70,7 +82,12 @@ export default function MessageField({
   };
 
   const updateMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+    const newValue = e.target.value;
+
+    if (newValue.length <= MAX_LENGTH) {
+      setMessage(newValue);
+    }
+
     if (error) setError(null); // 입력 시 에러 초기화
   };
 
@@ -78,18 +95,44 @@ export default function MessageField({
     <div className="border-t p-3">
       {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
       <div className="flex gap-2 items-end">
-        <Textarea
-          ref={textareaRef}
-          value={message}
-          onChange={updateMessage}
-          onKeyDown={handleEnterKey}
-          placeholder={PLACEHOLDER_TEXT}
-          rows={1}
-          disabled={isPrivateChannel}
-          className={`flex-1 p-2 border rounded resize-none disabled:bg-gray-100 ${
-            error ? "border-red-500" : ""
-          }`}
-        />
+        {/* wrapper에 padding을 부여 */}
+        <div
+          ref={wrapperRef}
+          className={cn(
+            "flex-1 relative min-h-[48px] overflow-hidden rounded-md border py-3 px-3",
+            error ? "border-red-500" : "border-input",
+          )}
+        >
+          <Textarea
+            ref={textareaRef}
+            value={message}
+            onChange={updateMessage}
+            onKeyDown={handleEnterKey}
+            placeholder={PLACEHOLDER_TEXT}
+            rows={1}
+            disabled={isPrivateChannel}
+            className={cn(
+              "w-full h-full min-h-0 leading-6 resize-none border-0 shadow-none p-0 outline-none",
+              "focus-visible:ring-0 focus-visible:ring-offset-0 disabled:bg-gray-100",
+              isScrollable ? "overflow-y-auto" : "overflow-y-hidden",
+            )}
+          />
+
+          {/* 글자수 카운터: 900자 이상일 때만 Textarea 내부에 표시 */}
+          {isNearLimit && (
+            <div
+              className={cn(
+                "absolute right-4 bottom-2 px-1.5 py-0.5 rounded text-xs transition-all duration-200",
+                "bg-white/50 backdrop-blur-sm pointer-events-none",
+                isAtLimit ? "text-red-500 font-medium" : "text-amber-600",
+              )}
+            >
+              <span>
+                {charCount} / {MAX_LENGTH}
+              </span>
+            </div>
+          )}
+        </div>
         <button
           onClick={sendMessage}
           disabled={isButtonDisabled}

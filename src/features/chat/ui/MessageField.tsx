@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { useAutoResizeTextarea } from "@/shared/hooks";
 import { Textarea } from "@/shared/ui/textarea";
+import { toast } from "sonner";
 
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
 
@@ -84,7 +85,12 @@ export default function MessageField({
   const updateMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
 
-    if (newValue.length <= MAX_LENGTH) {
+    if (newValue.length > MAX_LENGTH) {
+      setMessage(newValue.slice(0, MAX_LENGTH));
+      toast.warning("최대 1,000자까지 입력할 수 있습니다.", {
+        position: "bottom-center",
+      });
+    } else {
       setMessage(newValue);
     }
 
@@ -122,7 +128,7 @@ export default function MessageField({
           {isNearLimit && (
             <div
               className={cn(
-                "absolute right-4 bottom-2 px-1.5 py-0.5 rounded text-xs transition-all duration-200",
+                "absolute right-6 bottom-2 px-1.5 py-0.5 rounded text-xs transition-all duration-200 opacity-80",
                 "bg-white/50 backdrop-blur-sm pointer-events-none",
                 isAtLimit ? "text-red-500 font-medium" : "text-amber-600",
               )}

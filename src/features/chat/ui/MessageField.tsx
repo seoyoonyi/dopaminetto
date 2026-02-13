@@ -39,8 +39,9 @@ export default function MessageField({
   const isAtLimit = charCount >= MAX_LENGTH;
 
   const { textareaRef, wrapperRef, isScrollable } = useAutoResizeTextarea(message, {
-    maxHeight: isNearLimit ? 128 : 96,
-    minHeight: 48,
+    maxHeight: 72,
+    minHeight: 24,
+    extraHeight: isNearLimit ? 24 : 0,
   });
 
   const isPrivateChannel = channelType === "private";

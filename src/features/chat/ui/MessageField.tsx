@@ -21,6 +21,7 @@ const ERROR_MESSAGES = {
 
 const PLACEHOLDER_TEXT = "메시지를 입력해 주세요.";
 const MAX_LENGTH = 1000;
+const WRAPPER_PADDING = 24;
 
 export default function MessageField({
   channelType,
@@ -30,18 +31,19 @@ export default function MessageField({
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // 글자수 상태
+  const charCount = message.length;
+  // 900자 이상일 때 UI 표시 (1000자의 90%)
+  const isNearLimit = charCount >= 900;
+  const isAtLimit = charCount >= MAX_LENGTH;
+
   const { textareaRef, wrapperRef, isScrollable } = useAutoResizeTextarea(message, {
-    maxHeight: 96,
+    maxHeight: isNearLimit ? 128 : 96,
     minHeight: 48,
   });
 
   const isPrivateChannel = channelType === "private";
   const isButtonDisabled = isPrivateChannel || !message.trim() || !isConnected;
-
-  // 글자수 상태
-  const charCount = message.length;
-  const isNearLimit = charCount >= MAX_LENGTH * 0.9;
-  const isAtLimit = charCount >= MAX_LENGTH;
 
   const isValidMessage = (trimmed: string) => {
     if (isPrivateChannel) {
@@ -101,13 +103,17 @@ export default function MessageField({
     <div className="border-t p-3">
       {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
       <div className="flex gap-2 items-end">
-        {/* wrapper에 padding을 부여 */}
+        {/* wrapper에 padding을 부여 - WRAPPER_PADDING(24px)과 py-3(12px) * 2 */}
         <div
           ref={wrapperRef}
           className={cn(
-            "flex-1 relative min-h-[48px] overflow-hidden rounded-md border py-3 px-3",
+            "flex-1 relative flex flex-col min-h-[48px] overflow-hidden rounded-md border transition-all duration-200",
             error ? "border-red-500" : "border-input",
           )}
+          style={{
+            paddingTop: `${WRAPPER_PADDING / 2}px`,
+            paddingBottom: isNearLimit ? "6px" : `${WRAPPER_PADDING / 2}px`,
+          }}
         >
           <Textarea
             ref={textareaRef}
@@ -118,7 +124,7 @@ export default function MessageField({
             rows={1}
             disabled={isPrivateChannel}
             className={cn(
-              "w-full h-full min-h-0 leading-6 resize-none border-0 shadow-none p-0 outline-none",
+              "w-full h-full min-h-0 leading-6 resize-none border-0 shadow-none py-0 px-3 outline-none",
               "focus-visible:ring-0 focus-visible:ring-offset-0 disabled:bg-gray-100",
               isScrollable ? "overflow-y-auto" : "overflow-y-hidden",
             )}
@@ -128,9 +134,9 @@ export default function MessageField({
           {isNearLimit && (
             <div
               className={cn(
-                "absolute right-6 bottom-2 px-1.5 py-0.5 rounded text-xs transition-all duration-200 opacity-80",
-                "bg-white/50 backdrop-blur-sm pointer-events-none",
-                isAtLimit ? "text-red-500 font-medium" : "text-amber-600",
+                "self-end mr-6 py-0.5 rounded text-xs transition-all duration-200",
+                "bg-background/80 backdrop-blur-sm select-none",
+                isAtLimit ? "text-red-500 font-medium" : "text-amber-500 font-medium",
               )}
             >
               <span>

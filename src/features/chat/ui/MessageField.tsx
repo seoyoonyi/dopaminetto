@@ -37,6 +37,7 @@ export default function MessageField({
   // 900자 이상일 때 UI 표시 (1000자의 90%)
   const isNearLimit = charCount >= 900;
   const isAtLimit = charCount >= MAX_LENGTH;
+  const [isInputShaking, setIsInputShaking] = useState(false);
 
   const { textareaRef, wrapperRef, isScrollable } = useAutoResizeTextarea(message, {
     maxHeight: 72,
@@ -91,6 +92,9 @@ export default function MessageField({
 
     if (newValue.length > MAX_LENGTH) {
       setMessage(newValue.slice(0, MAX_LENGTH));
+      // 이미 한계에 도달했는데 더 입력하려고 하면 흔들림 효과
+      setIsInputShaking(true);
+      setTimeout(() => setIsInputShaking(false), 500); // 애니메이션 시간만큼 대기
     } else {
       setMessage(newValue);
     }
@@ -135,6 +139,7 @@ export default function MessageField({
             max={MAX_LENGTH}
             isNearLimit={isNearLimit}
             isAtLimit={isAtLimit}
+            isInputShaking={isInputShaking}
           />
         </div>
         <button

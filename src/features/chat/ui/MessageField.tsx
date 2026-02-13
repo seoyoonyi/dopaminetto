@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import { useAutoResizeTextarea } from "@/shared/hooks";
 import { Textarea } from "@/shared/ui/textarea";
-import { toast } from "sonner";
 
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
 
@@ -89,9 +88,6 @@ export default function MessageField({
 
     if (newValue.length > MAX_LENGTH) {
       setMessage(newValue.slice(0, MAX_LENGTH));
-      toast.warning("최대 1,000자까지 입력할 수 있습니다.", {
-        position: "bottom-center",
-      });
     } else {
       setMessage(newValue);
     }

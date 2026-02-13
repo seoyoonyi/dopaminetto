@@ -6,6 +6,8 @@ import { Textarea } from "@/shared/ui/textarea";
 
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
 
+import { CharacterCounter } from "./CharacterCounter";
+
 interface MessageFieldProps {
   channelType: "public" | "private";
   onMessageSend?: (message: string) => Promise<{ error?: string }>;
@@ -127,19 +129,12 @@ export default function MessageField({
           />
 
           {/* 글자수 카운터: 900자 이상일 때만 Textarea 내부에 표시 */}
-          {isNearLimit && (
-            <div
-              className={cn(
-                "self-end mr-6 py-0.5 rounded text-xs transition-all duration-200",
-                "bg-background/80 backdrop-blur-sm select-none",
-                isAtLimit ? "text-red-500 font-medium" : "text-amber-500 font-medium",
-              )}
-            >
-              <span>
-                {charCount} / {MAX_LENGTH}
-              </span>
-            </div>
-          )}
+          <CharacterCounter
+            current={charCount}
+            max={MAX_LENGTH}
+            isNearLimit={isNearLimit}
+            isAtLimit={isAtLimit}
+          />
         </div>
         <button
           onClick={sendMessage}

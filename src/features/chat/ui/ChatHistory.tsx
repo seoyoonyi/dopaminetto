@@ -42,8 +42,6 @@ export default function ChatHistory({
   const prevScrollTop = useRef<number>(0);
 
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const [debugShowNotification, setDebugShowNotification] = useState(true);
 
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
@@ -117,13 +115,27 @@ export default function ChatHistory({
     isFirstRender.current = false;
   }, [sortedMessages]);
 
+  // 스크롤 임계값 (px)
+  const SCROLL_THRESHOLD = 20;
+  const lastMessageIdRef = useRef<number | null>(null);
+  // TODO: step3 작업 단계에서 hasNewMessage를 배지/버튼에 연결 예정
+  const [, setHasNewMessage] = useState(false);
+  const isAtBottomRef = useRef(true);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
-      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 5;
-      setIsAtBottom(atBottom);
+      const { scrollHeight, scrollTop, clientHeight } = container;
+      const isBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
+
+      isAtBottomRef.current = isBottom;
+
+      // 사용자가 직접 맨 아래로 스크롤하면 알림 끄기
+      if (isBottom) {
+        setHasNewMessage(false);
+      }
     };
 
     container.addEventListener("scroll", handleScroll);
@@ -133,9 +145,28 @@ export default function ChatHistory({
   }, []);
 
   useEffect(() => {
-    if (!isAtBottom) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isAtBottom]);
+    if (sortedMessages.length === 0) return;
+
+    const lastMsg = sortedMessages[sortedMessages.length - 1];
+    const isNewMessageObj = lastMessageIdRef.current !== lastMsg.id;
+    if (!isNewMessageObj) return;
+
+    if (isFirstRender.current) {
+      lastMessageIdRef.current = lastMsg.id;
+      return;
+    }
+
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      lastMessageIdRef.current = lastMsg.id;
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      setHasNewMessage(true);
+    });
+    lastMessageIdRef.current = lastMsg.id;
+  }, [sortedMessages]);
 
   useEffect(() => {
     const container = containerRef.current;

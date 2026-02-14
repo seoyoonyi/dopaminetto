@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Message, MessagesPage } from "../types";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";
+import { NewMessageNotification } from "./NewMessageNotification";
 import { ObservedMessageWrapper } from "./ObservedMessageWrapper";
 
 interface ChatHistoryProps {
@@ -202,40 +203,57 @@ export default function ChatHistory({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b px-3 py-2 text-sm font-semibold">채팅</div>
 
-      <div ref={containerRef} className="flex flex-1 flex-col overflow-y-auto p-3 text-sm">
-        {isLoading ? (
-          <ChatMessageSkeletonList count={skeletonCount} />
-        ) : sortedMessages.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-gray-500">
-            대화를 시작해보세요!
-          </div>
-        ) : (
-          <>
-            {hasMore && <div ref={topObserverRef} className="h-1" />}
-            {isFetchingNextPage && <ChatMessageSkeletonList count={skeletonCount} />}
-            {messagesWithPageIndex.map((message, index) => {
-              const prevMessage = index > 0 ? messagesWithPageIndex[index - 1] : undefined;
-              const isFirstMessage = index === 0;
-              const isDifferentDay =
-                prevMessage && !isSameDay(prevMessage.created_at, message.created_at);
+      <div className="relative flex min-h-0 flex-1">
+        {/* TODO: 새 메시지 연결 작업 전까지 애니메이션 확인용 디버그 토글 */}
+        <button
+          type="button"
+          onClick={() => setDebugShowNotification((prev) => !prev)}
+          className="absolute top-2 right-2 z-20 rounded-md border bg-background px-2 py-1 text-xs"
+        >
+          Toggle Notification
+        </button>
+        <div ref={containerRef} className="flex h-full flex-col overflow-y-auto p-3 text-sm">
+          {isLoading ? (
+            <ChatMessageSkeletonList count={skeletonCount} />
+          ) : sortedMessages.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center text-gray-500">
+              대화를 시작해보세요!
+            </div>
+          ) : (
+            <>
+              {hasMore && <div ref={topObserverRef} className="h-1" />}
+              {isFetchingNextPage && <ChatMessageSkeletonList count={skeletonCount} />}
+              {messagesWithPageIndex.map((message, index) => {
+                const prevMessage = index > 0 ? messagesWithPageIndex[index - 1] : undefined;
+                const isFirstMessage = index === 0;
+                const isDifferentDay =
+                  prevMessage && !isSameDay(prevMessage.created_at, message.created_at);
 
-              const showDateDivider =
-                shouldShowDateDividers && ((isFirstMessage && !isLoading) || isDifferentDay);
+                const showDateDivider =
+                  shouldShowDateDividers && ((isFirstMessage && !isLoading) || isDifferentDay);
 
-              return (
-                <ObservedMessageWrapper
-                  key={`message-${message.id}`}
-                  pageIndex={message.pageIndex}
-                  observer={observer.current}
-                >
-                  {showDateDivider && <DateDivider created_at={message.created_at} />}
-                  <ChatMessageItem message={message} previousMessage={prevMessage} />
-                </ObservedMessageWrapper>
-              );
-            })}
-          </>
-        )}
-        <div ref={messagesEndRef} />
+                return (
+                  <ObservedMessageWrapper
+                    key={`message-${message.id}`}
+                    pageIndex={message.pageIndex}
+                    observer={observer.current}
+                  >
+                    {showDateDivider && <DateDivider created_at={message.created_at} />}
+                    <ChatMessageItem message={message} previousMessage={prevMessage} />
+                  </ObservedMessageWrapper>
+                );
+              })}
+            </>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* UI 테스트를 위한 임시 렌더링 */}
+        <NewMessageNotification
+          show={debugShowNotification}
+          count={3}
+          onClick={() => setDebugShowNotification(false)}
+        />
       </div>
     </div>
   );

@@ -1,8 +1,12 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { useAutoResizeTextarea } from "@/shared/hooks";
 import { Textarea } from "@/shared/ui/textarea";
 
 import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
+
+import { CharacterCounter } from "./CharacterCounter";
 
 interface MessageFieldProps {
   channelType: "public" | "private";
@@ -17,6 +21,8 @@ const ERROR_MESSAGES = {
 } as const;
 
 const PLACEHOLDER_TEXT = "메시지를 입력해 주세요.";
+const MAX_LENGTH = 1000;
+const WRAPPER_PADDING = 24;
 
 export default function MessageField({
   channelType,
@@ -25,7 +31,19 @@ export default function MessageField({
 }: MessageFieldProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 글자수 상태
+  const charCount = message.length;
+  // 900자 이상일 때 UI 표시 (1000자의 90%)
+  const isNearLimit = charCount >= 900;
+  const isAtLimit = charCount >= MAX_LENGTH;
+  const [isInputShaking, setIsInputShaking] = useState(false);
+
+  const { textareaRef, wrapperRef, isScrollable } = useAutoResizeTextarea(message, {
+    maxHeight: 72,
+    minHeight: 24,
+    extraHeight: isNearLimit ? 24 : 0,
+  });
 
   const isPrivateChannel = channelType === "private";
   const isButtonDisabled = isPrivateChannel || !message.trim() || !isConnected;
@@ -70,7 +88,17 @@ export default function MessageField({
   };
 
   const updateMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+    const newValue = e.target.value;
+
+    if (newValue.length > MAX_LENGTH) {
+      setMessage(newValue.slice(0, MAX_LENGTH));
+      // 이미 한계에 도달했는데 더 입력하려고 하면 흔들림 효과
+      setIsInputShaking(true);
+      setTimeout(() => setIsInputShaking(false), 500); // 애니메이션 시간만큼 대기
+    } else {
+      setMessage(newValue);
+    }
+
     if (error) setError(null); // 입력 시 에러 초기화
   };
 
@@ -78,18 +106,42 @@ export default function MessageField({
     <div className="border-t p-3">
       {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
       <div className="flex gap-2 items-end">
-        <Textarea
-          ref={textareaRef}
-          value={message}
-          onChange={updateMessage}
-          onKeyDown={handleEnterKey}
-          placeholder={PLACEHOLDER_TEXT}
-          rows={1}
-          disabled={isPrivateChannel}
-          className={`flex-1 p-2 border rounded resize-none disabled:bg-gray-100 ${
-            error ? "border-red-500" : ""
-          }`}
-        />
+        {/* wrapper에 padding을 부여 - WRAPPER_PADDING(24px)과 py-3(12px) * 2 */}
+        <div
+          ref={wrapperRef}
+          className={cn(
+            "flex-1 relative flex flex-col min-h-[48px] overflow-hidden rounded-md border transition-all duration-200",
+            error ? "border-red-500" : "border-input",
+          )}
+          style={{
+            paddingTop: `${WRAPPER_PADDING / 2}px`,
+            paddingBottom: isNearLimit ? "6px" : `${WRAPPER_PADDING / 2}px`,
+          }}
+        >
+          <Textarea
+            ref={textareaRef}
+            value={message}
+            onChange={updateMessage}
+            onKeyDown={handleEnterKey}
+            placeholder={PLACEHOLDER_TEXT}
+            rows={1}
+            disabled={isPrivateChannel}
+            className={cn(
+              "w-full h-full min-h-0 leading-6 resize-none border-0 shadow-none py-0 px-3 outline-none",
+              "focus-visible:ring-0 focus-visible:ring-offset-0 disabled:bg-gray-100",
+              isScrollable ? "overflow-y-auto" : "overflow-y-hidden",
+            )}
+          />
+
+          {/* 글자수 카운터: 900자 이상일 때만 Textarea 내부에 표시 */}
+          <CharacterCounter
+            current={charCount}
+            max={MAX_LENGTH}
+            isNearLimit={isNearLimit}
+            isAtLimit={isAtLimit}
+            isInputShaking={isInputShaking}
+          />
+        </div>
         <button
           onClick={sendMessage}
           disabled={isButtonDisabled}

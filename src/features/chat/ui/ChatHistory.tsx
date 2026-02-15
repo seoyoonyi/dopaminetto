@@ -21,6 +21,11 @@ interface ChatHistoryProps {
   isLoading?: boolean;
   isFetchingNextPage?: boolean;
   onVisiblePagesUpdate?: (pageIndices: Set<number>) => void;
+  /**
+   * 사용자가 직접 메시지를 전송했음을 나타내는 증가 신호입니다.
+   * 값이 증가하면 채팅을 하단으로 이동시키고 새 메시지 알림 상태를 초기화합니다.
+   */
+  selfSendScrollSignal?: number;
 }
 
 const MESSAGE_HEIGHT = 60;
@@ -34,16 +39,21 @@ export default function ChatHistory({
   isLoading,
   isFetchingNextPage,
   onVisiblePagesUpdate,
+  selfSendScrollSignal = 0,
 }: ChatHistoryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
-  const prevScrollHeight = useRef<number>(0);
-  const prevScrollTop = useRef<number>(0);
+  const lastMessageIdRef = useRef<number | null>(null);
+  /**
+   * 상단 페이지 prepend(fetchNextPage) 전 기준 앵커 위치를 저장합니다.
+   * prepend 이후 동일 메시지의 offset 변화를 이용해 사용자가 보던 시점을 유지합니다.
+   */
+  const prependAnchorRef = useRef<{ messageId: number; top: number } | null>(null);
 
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
-  const [debugShowNotification, setDebugShowNotification] = useState(true);
-
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [newMessageCount, setNewMessageCount] = useState(0);
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
       if (a.id < 0 && b.id >= 0) return 1;
@@ -97,12 +107,20 @@ export default function ChatHistory({
 
     const container = containerRef.current;
     if (container) {
-      prevScrollHeight.current = container.scrollHeight;
-      prevScrollTop.current = container.scrollTop;
+      const anchorId = sortedMessages[0]?.id;
+      if (anchorId != null) {
+        const anchorEl = container.querySelector<HTMLElement>(`[data-message-id="${anchorId}"]`);
+        if (anchorEl) {
+          prependAnchorRef.current = {
+            messageId: anchorId,
+            top: anchorEl.offsetTop,
+          };
+        }
+      }
     }
 
     onLoadMore?.();
-  }, [hasMore, isLoading, onLoadMore, isFetchingNextPage]);
+  }, [hasMore, isLoading, onLoadMore, isFetchingNextPage, sortedMessages]);
 
   const topObserverRef = useIntersectionObserver<HTMLDivElement>(handleLoadMore, {
     rootMargin: "100px",
@@ -113,14 +131,12 @@ export default function ChatHistory({
     if (sortedMessages.length === 0) return;
 
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    lastMessageIdRef.current = sortedMessages[sortedMessages.length - 1]?.id ?? null;
     isFirstRender.current = false;
   }, [sortedMessages]);
 
   // 스크롤 임계값 (px)
   const SCROLL_THRESHOLD = 20;
-  const lastMessageIdRef = useRef<number | null>(null);
-  // TODO: step3 작업 단계에서 hasNewMessage를 배지/버튼에 연결 예정
-  const [, setHasNewMessage] = useState(false);
   const isAtBottomRef = useRef(true);
 
   useEffect(() => {
@@ -136,6 +152,7 @@ export default function ChatHistory({
       // 사용자가 직접 맨 아래로 스크롤하면 알림 끄기
       if (isBottom) {
         setHasNewMessage(false);
+        setNewMessageCount(0);
       }
     };
 
@@ -148,26 +165,47 @@ export default function ChatHistory({
   useEffect(() => {
     if (sortedMessages.length === 0) return;
 
-    const lastMsg = sortedMessages[sortedMessages.length - 1];
-    const isNewMessageObj = lastMessageIdRef.current !== lastMsg.id;
-    if (!isNewMessageObj) return;
+    const lastMsgId = sortedMessages[sortedMessages.length - 1]?.id;
+    if (lastMsgId == null) return;
+    if (lastMessageIdRef.current === null) {
+      lastMessageIdRef.current = lastMsgId;
+      return;
+    }
+    if (lastMessageIdRef.current === lastMsgId) return;
 
     if (isFirstRender.current) {
-      lastMessageIdRef.current = lastMsg.id;
+      lastMessageIdRef.current = lastMsgId;
       return;
     }
 
     if (isAtBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      lastMessageIdRef.current = lastMsg.id;
+      lastMessageIdRef.current = lastMsgId;
       return;
     }
 
     requestAnimationFrame(() => {
       setHasNewMessage(true);
+      setNewMessageCount((prev) => prev + 1);
     });
-    lastMessageIdRef.current = lastMsg.id;
+    lastMessageIdRef.current = lastMsgId;
   }, [sortedMessages]);
+
+  /**
+   * 사용자가 과거 메시지를 보고 있는 상태에서 Enter로 메시지를 전송하면,
+   * 현재 스크롤 위치와 무관하게 하단(최신 메시지)으로 이동시킵니다.
+   */
+  useEffect(() => {
+    if (selfSendScrollSignal <= 0) return;
+
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selfSendScrollSignal]);
+
+  const handleNotificationClick = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setHasNewMessage(false);
+    setNewMessageCount(0);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -190,13 +228,20 @@ export default function ChatHistory({
     const container = containerRef.current;
     if (!container || isFirstRender.current) return;
 
-    if (prevScrollHeight.current > 0 && !isFetchingNextPage) {
-      const newScrollHeight = container.scrollHeight;
-      const scrollDiff = newScrollHeight - prevScrollHeight.current;
+    /**
+     * prepend 완료 후 기존 앵커 메시지의 offset 차이만큼 scrollTop을 보정합니다.
+     * 이 방식은 상단 로드와 하단 신규 메시지 수신이 동시에 일어나도 읽던 위치를 유지합니다.
+     */
+    if (prependAnchorRef.current && !isFetchingNextPage) {
+      const { messageId, top: prevTop } = prependAnchorRef.current;
+      const anchorEl = container.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
 
-      container.scrollTop = prevScrollTop.current + scrollDiff;
-      prevScrollHeight.current = 0;
-      prevScrollTop.current = 0;
+      if (anchorEl) {
+        const offsetDiff = anchorEl.offsetTop - prevTop;
+        container.scrollTop += offsetDiff;
+      }
+
+      prependAnchorRef.current = null;
     }
   }, [messages, isFetchingNextPage]);
 
@@ -205,15 +250,11 @@ export default function ChatHistory({
       <div className="border-b px-3 py-2 text-sm font-semibold">채팅</div>
 
       <div className="relative flex min-h-0 flex-1">
-        {/* TODO: 새 메시지 연결 작업 전까지 애니메이션 확인용 디버그 토글 */}
-        <button
-          type="button"
-          onClick={() => setDebugShowNotification((prev) => !prev)}
-          className="absolute top-2 right-2 z-20 rounded-md border bg-background px-2 py-1 text-xs"
+        <div
+          ref={containerRef}
+          data-testid="chat-history-scroll-container"
+          className="flex h-full flex-col overflow-y-auto p-3 text-sm"
         >
-          Toggle Notification
-        </button>
-        <div ref={containerRef} className="flex h-full flex-col overflow-y-auto p-3 text-sm">
           {isLoading ? (
             <ChatMessageSkeletonList count={skeletonCount} />
           ) : sortedMessages.length === 0 ? (
@@ -234,14 +275,15 @@ export default function ChatHistory({
                   shouldShowDateDividers && ((isFirstMessage && !isLoading) || isDifferentDay);
 
                 return (
-                  <ObservedMessageWrapper
-                    key={`message-${message.id}`}
-                    pageIndex={message.pageIndex}
-                    observer={observer.current}
-                  >
-                    {showDateDivider && <DateDivider created_at={message.created_at} />}
-                    <ChatMessageItem message={message} previousMessage={prevMessage} />
-                  </ObservedMessageWrapper>
+                  <div key={`message-${message.id}`} data-message-id={message.id}>
+                    <ObservedMessageWrapper
+                      pageIndex={message.pageIndex}
+                      observer={observer.current}
+                    >
+                      {showDateDivider && <DateDivider created_at={message.created_at} />}
+                      <ChatMessageItem message={message} previousMessage={prevMessage} />
+                    </ObservedMessageWrapper>
+                  </div>
                 );
               })}
             </>
@@ -249,11 +291,10 @@ export default function ChatHistory({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* UI 테스트를 위한 임시 렌더링 */}
         <NewMessageNotification
-          show={debugShowNotification}
-          count={3}
-          onClick={() => setDebugShowNotification(false)}
+          show={hasNewMessage}
+          count={newMessageCount}
+          onClick={handleNotificationClick}
         />
       </div>
     </div>

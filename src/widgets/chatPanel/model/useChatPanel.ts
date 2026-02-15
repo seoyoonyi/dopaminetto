@@ -28,6 +28,11 @@ export function useChatPanel() {
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+  /**
+   * 사용자가 직접 메시지를 전송할 때마다 증가하는 신호값입니다.
+   * ChatHistory에서 이 값을 구독해 과거 메시지 조회 중에도 하단으로 이동합니다.
+   */
+  const [selfSendScrollSignal, setSelfSendScrollSignal] = useState(0);
 
   // Zustand 스토어 사용
   const { setVisiblePages } = useChatVisibilityActions();
@@ -147,6 +152,12 @@ export function useChatPanel() {
     };
 
     setOptimisticMessages((prev) => [...prev, tempMessage]);
+    /**
+     * 상대 메시지 수신과 분리된 "내 전송" 이벤트를 명확히 전달합니다.
+     * 이를 통해 ChatHistory는 시나리오 B(상대 수신 시 위치 유지)와
+     * 시나리오 E(내 전송 시 하단 이동)를 충돌 없이 처리할 수 있습니다.
+     */
+    setSelfSendScrollSignal((prev) => prev + 1);
 
     const { error } = await supabase.from(CHAT_TABLE_NAME).insert({
       user_id: userId,
@@ -175,5 +186,6 @@ export function useChatPanel() {
     isFetchingNextPage,
     isLoading,
     onVisiblePagesUpdate: updateVisiblePagesTimestamp,
+    selfSendScrollSignal,
   };
 }

@@ -15,6 +15,7 @@ export function ChatPanel() {
     isLoading,
     isFetchingNextPage,
     onVisiblePagesUpdate,
+    selfSendScrollSignal,
   } = useChatPanel();
 
   return (
@@ -27,6 +28,7 @@ export function ChatPanel() {
         isLoading={isLoading}
         isFetchingNextPage={isFetchingNextPage}
         onVisiblePagesUpdate={onVisiblePagesUpdate}
+        selfSendScrollSignal={selfSendScrollSignal}
       />
       <MessageField
         channelType="public"

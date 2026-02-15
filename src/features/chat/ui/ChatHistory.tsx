@@ -42,6 +42,7 @@ export default function ChatHistory({
   const prevScrollTop = useRef<number>(0);
 
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
+  const [debugShowNotification, setDebugShowNotification] = useState(true);
 
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {

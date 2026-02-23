@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useUserInfo } from "./useUserInfo";
 
+const logPrefix = "[useTownChannel]";
+
 const MAX_AUTO_RECONNECT = 5;
 const RECONNECT_BACKOFF_MS = [1000, 2000, 4000, 8000, 16000];
 
@@ -46,6 +48,7 @@ const notifyObservers = (channelName: string, status: string) => {
   globals.statuses.set(channelName, status);
   const observers = globals.channelObservers.get(channelName);
   if (observers) {
+    console.debug(`${logPrefix} status`, { channel: channelName, status });
     observers.forEach((callback) => callback(status));
   }
 };
@@ -156,6 +159,11 @@ export const useTownChannel = (villageId?: string | null) => {
             broadcast: { self: false },
           },
         });
+        console.debug(`${logPrefix} create channel`, {
+          channel: channelName,
+          attempt: count + 1,
+          userId,
+        });
         globals.channels.set(channelName, newChannel);
         globals.reconnectCounts.set(channelName, count + 1);
 
@@ -168,6 +176,10 @@ export const useTownChannel = (villageId?: string | null) => {
             notifyPresenceObservers(channelName, "leave", payload),
           )
           .subscribe((newStatus) => {
+            console.debug(`${logPrefix} subscribe callback`, {
+              channel: channelName,
+              status: newStatus,
+            });
             notifyObservers(channelName, newStatus);
           });
       }, waitTime);

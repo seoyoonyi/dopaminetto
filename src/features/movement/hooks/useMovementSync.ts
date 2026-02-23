@@ -13,6 +13,8 @@ import { useShallow } from "zustand/react/shallow";
 
 import { useEffect } from "react";
 
+const logPrefix = "[useMovementSync]";
+
 /**
  * 전역 빌리지 좌표 동기화 훅
  * - 모든 빌리지 채널을 동시에 구독하여 어느 룸에 있든 서로 보이게 합니다.
@@ -74,6 +76,11 @@ export function useMovementSync() {
     channel
       .on("presence", { event: "sync" }, syncRemotePlayers)
       .on("presence", { event: "join" }, ({ newPresences }) => {
+        console.debug(`${logPrefix} presence join`, {
+          channel: channel.topic,
+          count: newPresences.length,
+          status,
+        });
         newPresences.forEach((p) => {
           const presence = p as unknown as PresenceMetadata;
           if (presence.userId && presence.userId !== userId) {
@@ -96,6 +103,11 @@ export function useMovementSync() {
         }
       })
       .on("presence", { event: "leave" }, ({ leftPresences }) => {
+        console.debug(`${logPrefix} presence leave`, {
+          channel: channel.topic,
+          count: leftPresences.length,
+          status,
+        });
         leftPresences.forEach((p) => {
           const presence = p as unknown as PresenceMetadata;
           if (presence.userId) removeRemotePlayer(presence.userId);
@@ -108,6 +120,15 @@ export function useMovementSync() {
       if (status !== "SUBSCRIBED" || !channel || !userId) return;
 
       const state = useMovementStore.getState();
+      console.debug(`${logPrefix} trackPresence start`, {
+        retryCount,
+        channel: channel.topic,
+        status,
+        socketConnected: channel.socket?.isConnected?.() ?? "unknown",
+        userId,
+        villageId: state.villageId,
+        lastSyncedPosition: state.lastSyncedPosition,
+      });
       const payload: PresenceMetadata = {
         userId,
         nickname: state.nickname || "익명",
@@ -121,12 +142,28 @@ export function useMovementSync() {
         if (res !== "ok") {
           throw new Error(`Track result: ${res}`);
         }
+        console.debug(`${logPrefix} trackPresence success`, {
+          channel: channel.topic,
+          status,
+          socketConnected: channel.socket?.isConnected?.() ?? "unknown",
+          userId,
+          villageId: state.villageId,
+        });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.warn(`[useMovementSync] Track failed (Attempt ${retryCount + 1}): ${errorMessage}`);
+        console.warn(`${logPrefix} Track failed (Attempt ${retryCount + 1}): ${errorMessage}`, {
+          channel: channel.topic,
+          status,
+          socketConnected: channel.socket?.isConnected?.() ?? "unknown",
+          userId,
+          villageId: state.villageId,
+          payload,
+        });
 
         if (retryCount >= 3) {
-          console.warn(`[useMovementSync] Start reconnecting due to track failure.`);
+          console.warn(`${logPrefix} Start reconnecting due to track failure.`, {
+            channel: channel.topic,
+          });
           reconnect();
           return;
         }

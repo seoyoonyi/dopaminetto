@@ -1,9 +1,11 @@
 "use client";
 
-import { useTownPresence } from "@/features/presence";
+import { useTownPresence, useTownPresenceView } from "@/features/presence";
 
 export default function TownPresenceDebugPage() {
-  const { participants, isConnected } = useTownPresence();
+  // 채널 연결/트래킹은 비주얼 훅 외부에서 한 번만 실행
+  const { isConnected } = useTownPresence();
+  const { participants } = useTownPresenceView();
 
   return (
     <div className="p-6 space-y-4">

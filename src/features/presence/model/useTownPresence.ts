@@ -90,8 +90,6 @@ export const useTownPresence = () => {
     })),
   );
 
-  const presenceView = useTownPresenceView();
-
   useEffect(() => {
     setConnectionState(isConnected);
   }, [isConnected, setConnectionState]);
@@ -135,6 +133,10 @@ export const useTownPresence = () => {
   useEffect(() => {
     const onPresenceEvent = () => {
       if (channel) {
+        console.debug("[useTownPresence] presence sync", {
+          channel: channel.topic,
+          stateSize: Object.keys(channel.presenceState() || {}).length,
+        });
         const state = channel.presenceState();
         const mapped = mapPresenceState(state);
         setParticipantsState(mapped, userNickname || "", userId || "");
@@ -161,7 +163,6 @@ export const useTownPresence = () => {
   }, [channelStatus]);
 
   return {
-    participants: presenceView.participants,
     isConnected,
     channelStatus,
   };

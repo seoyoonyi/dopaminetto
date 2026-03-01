@@ -47,10 +47,15 @@ export default function ChatHistory({
    * prepend 이후 동일 메시지의 offset 변화를 이용해 사용자가 보던 시점을 유지합니다.
    */
   const prependAnchorRef = useRef<{ messageId: number; top: number } | null>(null);
+  /**
+   * 사용자가 마지막으로 확인한(하단에 있었던) 메시지 ID를 저장합니다.
+   * 이 ID 이후에 추가된 메시지 수를 계산하여 신규 메시지 카운트로 사용합니다.
+   * useMemo에서 안전하게 참조하기 위해 useRef 대신 useState로 관리합니다.
+   */
+  const [lastSeenMessageId, setLastSeenMessageId] = useState<number | null>(null);
 
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
   const [hasNewMessage, setHasNewMessage] = useState(false);
-  const [newMessageCount, setNewMessageCount] = useState(0);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
@@ -59,6 +64,18 @@ export default function ChatHistory({
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   }, [messages]);
+
+  /**
+   * lastSeenMessageId 이후에 반영된 신규 메시지 수를 계산합니다.
+   * 이벤트 단위가 아닌 실제 화면에 반영된 메시지 수 기준이므로,
+   * 배치로 여러 메시지가 도착해도 정확한 카운트를 반환합니다.
+   */
+  const newMessageCount = useMemo(() => {
+    if (!hasNewMessage || lastSeenMessageId === null) return 0;
+    const seenIndex = sortedMessages.findIndex((m) => m.id === lastSeenMessageId);
+    if (seenIndex === -1) return sortedMessages.length;
+    return sortedMessages.length - 1 - seenIndex;
+  }, [sortedMessages, hasNewMessage, lastSeenMessageId]);
 
   /**
    * 각 메시지가 속한 페이지 인덱스를 계산합니다.
@@ -128,9 +145,23 @@ export default function ChatHistory({
     if (!isFirstRender.current) return;
     if (sortedMessages.length === 0) return;
 
-    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
     lastMessageIdRef.current = sortedMessages[sortedMessages.length - 1]?.id ?? null;
     isFirstRender.current = false;
+
+    /**
+     * 초기 렌더 시 스크롤을 맨 아래로 이동합니다.
+     * rAF를 중첩하여 브라우저 레이아웃이 완전히 확정된 후 scrollTop을 최대값으로 설정합니다.
+     * 이후 scroll 이벤트를 수동으로 dispatch하여 handleScroll이 실행되고
+     * isScrolledUp 상태가 정확히 false로 설정되도록 합니다.
+     */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        container.scrollTop = container.scrollHeight;
+        container.dispatchEvent(new Event("scroll"));
+      });
+    });
   }, [sortedMessages]);
 
   // 스크롤 임계값 (px)
@@ -153,7 +184,7 @@ export default function ChatHistory({
       if (isBottom) {
         setHasNewMessage((prev) => {
           if (prev) {
-            setNewMessageCount(0);
+            setLastSeenMessageId(null);
             return false;
           }
           return prev;
@@ -199,9 +230,10 @@ export default function ChatHistory({
       return;
     }
 
+    // 아직 lastSeenMessageId가 없으면 현재 마지막 메시지를 기준점으로 설정합니다.
+    setLastSeenMessageId((prev) => prev ?? lastMessageIdRef.current);
     requestAnimationFrame(() => {
       setHasNewMessage(true);
-      setNewMessageCount((prev) => prev + 1);
     });
     lastMessageIdRef.current = lastMsgId;
   }, [sortedMessages, currentUserId]);
@@ -209,7 +241,7 @@ export default function ChatHistory({
   const handleNotificationClick = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     setHasNewMessage(false);
-    setNewMessageCount(0);
+    setLastSeenMessageId(null);
   }, []);
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";
 import { NewMessageNotification } from "./NewMessageNotification";
 import { ObservedMessageWrapper } from "./ObservedMessageWrapper";
+import { ScrollToBottomButton } from "./ScrollToBottomButton";
 
 interface ChatHistoryProps {
   messages: Message[];
@@ -50,6 +51,7 @@ export default function ChatHistory({
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
       if (a.id < 0 && b.id >= 0) return 1;
@@ -144,6 +146,7 @@ export default function ChatHistory({
       const isBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
 
       isAtBottomRef.current = isBottom;
+      setIsScrolledUp(!isBottom);
 
       // 사용자가 직접 맨 아래로 스크롤하면 알림 끄기
       // 단, 이미 꺼져있을 때는 상태 업데이트를 발생시키지 않도록 하여 불필요한 렌더링을 방지합니다.
@@ -293,11 +296,19 @@ export default function ChatHistory({
           <div ref={messagesEndRef} />
         </div>
 
-        <NewMessageNotification
-          show={hasNewMessage}
-          count={newMessageCount}
-          onClick={handleNotificationClick}
-        />
+        {hasNewMessage ? (
+          <NewMessageNotification
+            show={hasNewMessage}
+            count={newMessageCount}
+            onClick={handleNotificationClick}
+          />
+        ) : (
+          <ScrollToBottomButton
+            show={isScrolledUp}
+            onClick={handleNotificationClick}
+            ariaLabel="맨 아래로 이동"
+          />
+        )}
       </div>
     </div>
   );

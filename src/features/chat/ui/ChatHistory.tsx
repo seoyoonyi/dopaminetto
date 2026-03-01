@@ -21,11 +21,7 @@ interface ChatHistoryProps {
   isLoading?: boolean;
   isFetchingNextPage?: boolean;
   onVisiblePagesUpdate?: (pageIndices: Set<number>) => void;
-  /**
-   * 사용자가 직접 메시지를 전송했음을 나타내는 증가 신호입니다.
-   * 값이 증가하면 채팅을 하단으로 이동시키고 새 메시지 알림 상태를 초기화합니다.
-   */
-  selfSendScrollSignal?: number;
+  currentUserId?: string;
 }
 
 const MESSAGE_HEIGHT = 60;
@@ -39,7 +35,7 @@ export default function ChatHistory({
   isLoading,
   isFetchingNextPage,
   onVisiblePagesUpdate,
-  selfSendScrollSignal = 0,
+  currentUserId,
 }: ChatHistoryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -150,9 +146,15 @@ export default function ChatHistory({
       isAtBottomRef.current = isBottom;
 
       // 사용자가 직접 맨 아래로 스크롤하면 알림 끄기
+      // 단, 이미 꺼져있을 때는 상태 업데이트를 발생시키지 않도록 하여 불필요한 렌더링을 방지합니다.
       if (isBottom) {
-        setHasNewMessage(false);
-        setNewMessageCount(0);
+        setHasNewMessage((prev) => {
+          if (prev) {
+            setNewMessageCount(0);
+            return false;
+          }
+          return prev;
+        });
       }
     };
 
@@ -165,8 +167,10 @@ export default function ChatHistory({
   useEffect(() => {
     if (sortedMessages.length === 0) return;
 
-    const lastMsgId = sortedMessages[sortedMessages.length - 1]?.id;
+    const lastMsg = sortedMessages[sortedMessages.length - 1];
+    const lastMsgId = lastMsg?.id;
     if (lastMsgId == null) return;
+
     if (lastMessageIdRef.current === null) {
       lastMessageIdRef.current = lastMsgId;
       return;
@@ -174,6 +178,14 @@ export default function ChatHistory({
     if (lastMessageIdRef.current === lastMsgId) return;
 
     if (isFirstRender.current) {
+      lastMessageIdRef.current = lastMsgId;
+      return;
+    }
+
+    const isMyMessage = currentUserId && lastMsg.user_id === currentUserId;
+
+    if (isMyMessage) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       lastMessageIdRef.current = lastMsgId;
       return;
     }
@@ -189,17 +201,7 @@ export default function ChatHistory({
       setNewMessageCount((prev) => prev + 1);
     });
     lastMessageIdRef.current = lastMsgId;
-  }, [sortedMessages]);
-
-  /**
-   * 사용자가 과거 메시지를 보고 있는 상태에서 Enter로 메시지를 전송하면,
-   * 현재 스크롤 위치와 무관하게 하단(최신 메시지)으로 이동시킵니다.
-   */
-  useEffect(() => {
-    if (selfSendScrollSignal <= 0) return;
-
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selfSendScrollSignal]);
+  }, [sortedMessages, currentUserId]);
 
   const handleNotificationClick = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

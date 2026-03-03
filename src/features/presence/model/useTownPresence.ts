@@ -32,7 +32,7 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
         const userId = untyped.userId || untyped.user_id || key;
         const nickname = untyped.nickname || untyped.user_nickname || "익명";
         const joinedAt = untyped.joinedAt || untyped.online_at || untyped.joined_at;
-        const villageId = untyped.villageId || "village-a";
+        const villageId = untyped.villageId;
 
         return {
           userId,

@@ -5,3 +5,5 @@
 // export type { ApiResponse } from './api';
 // export type { User, Room } from './entities';
 // export type { GlobalState } from './state';
+
+export * from "./presence";

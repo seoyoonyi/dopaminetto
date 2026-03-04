@@ -12,6 +12,7 @@ import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";
 import { NewMessageNotification } from "./NewMessageNotification";
 import { ObservedMessageWrapper } from "./ObservedMessageWrapper";
+import { ScrollToBottomButton } from "./ScrollToBottomButton";
 
 interface ChatHistoryProps {
   messages: Message[];
@@ -21,6 +22,7 @@ interface ChatHistoryProps {
   isLoading?: boolean;
   isFetchingNextPage?: boolean;
   onVisiblePagesUpdate?: (pageIndices: Set<number>) => void;
+  currentUserId?: string;
 }
 
 const MESSAGE_HEIGHT = 60;
@@ -34,16 +36,27 @@ export default function ChatHistory({
   isLoading,
   isFetchingNextPage,
   onVisiblePagesUpdate,
+  currentUserId,
 }: ChatHistoryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
-  const prevScrollHeight = useRef<number>(0);
-  const prevScrollTop = useRef<number>(0);
+  const lastMessageIdRef = useRef<number | null>(null);
+  /**
+   * 상단 페이지 prepend(fetchNextPage) 전 기준 앵커 위치를 저장합니다.
+   * prepend 이후 동일 메시지의 offset 변화를 이용해 사용자가 보던 시점을 유지합니다.
+   */
+  const prependAnchorRef = useRef<{ messageId: number; top: number } | null>(null);
+  /**
+   * 사용자가 마지막으로 확인한(하단에 있었던) 메시지 ID를 저장합니다.
+   * 이 ID 이후에 추가된 메시지 수를 계산하여 신규 메시지 카운트로 사용합니다.
+   * useMemo에서 안전하게 참조하기 위해 useRef 대신 useState로 관리합니다.
+   */
+  const [lastSeenMessageId, setLastSeenMessageId] = useState<number | null>(null);
 
   const [skeletonCount, setSkeletonCount] = useState(DEFAULT_SKELETON_COUNT);
-  const [debugShowNotification, setDebugShowNotification] = useState(true);
-
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
   const sortedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
       if (a.id < 0 && b.id >= 0) return 1;
@@ -51,6 +64,18 @@ export default function ChatHistory({
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   }, [messages]);
+
+  /**
+   * lastSeenMessageId 이후에 반영된 신규 메시지 수를 계산합니다.
+   * 이벤트 단위가 아닌 실제 화면에 반영된 메시지 수 기준이므로,
+   * 배치로 여러 메시지가 도착해도 정확한 카운트를 반환합니다.
+   */
+  const newMessageCount = useMemo(() => {
+    if (!hasNewMessage || lastSeenMessageId === null) return 0;
+    const seenIndex = sortedMessages.findIndex((m) => m.id === lastSeenMessageId);
+    if (seenIndex === -1) return sortedMessages.length;
+    return sortedMessages.length - 1 - seenIndex;
+  }, [sortedMessages, hasNewMessage, lastSeenMessageId]);
 
   /**
    * 각 메시지가 속한 페이지 인덱스를 계산합니다.
@@ -97,12 +122,20 @@ export default function ChatHistory({
 
     const container = containerRef.current;
     if (container) {
-      prevScrollHeight.current = container.scrollHeight;
-      prevScrollTop.current = container.scrollTop;
+      const anchorId = sortedMessages[0]?.id;
+      if (anchorId != null) {
+        const anchorEl = container.querySelector<HTMLElement>(`[data-message-id="${anchorId}"]`);
+        if (anchorEl) {
+          prependAnchorRef.current = {
+            messageId: anchorId,
+            top: anchorEl.offsetTop,
+          };
+        }
+      }
     }
 
     onLoadMore?.();
-  }, [hasMore, isLoading, onLoadMore, isFetchingNextPage]);
+  }, [hasMore, isLoading, onLoadMore, isFetchingNextPage, sortedMessages]);
 
   const topObserverRef = useIntersectionObserver<HTMLDivElement>(handleLoadMore, {
     rootMargin: "100px",
@@ -112,15 +145,27 @@ export default function ChatHistory({
     if (!isFirstRender.current) return;
     if (sortedMessages.length === 0) return;
 
-    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    lastMessageIdRef.current = sortedMessages[sortedMessages.length - 1]?.id ?? null;
     isFirstRender.current = false;
+
+    /**
+     * 초기 렌더 시 스크롤을 맨 아래로 이동합니다.
+     * rAF를 중첩하여 브라우저 레이아웃이 완전히 확정된 후 scrollTop을 최대값으로 설정합니다.
+     * 이후 scroll 이벤트를 수동으로 dispatch하여 handleScroll이 실행되고
+     * isScrolledUp 상태가 정확히 false로 설정되도록 합니다.
+     */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        container.scrollTop = container.scrollHeight;
+        container.dispatchEvent(new Event("scroll"));
+      });
+    });
   }, [sortedMessages]);
 
   // 스크롤 임계값 (px)
   const SCROLL_THRESHOLD = 20;
-  const lastMessageIdRef = useRef<number | null>(null);
-  // TODO: step3 작업 단계에서 hasNewMessage를 배지/버튼에 연결 예정
-  const [, setHasNewMessage] = useState(false);
   const isAtBottomRef = useRef(true);
 
   useEffect(() => {
@@ -132,10 +177,18 @@ export default function ChatHistory({
       const isBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
 
       isAtBottomRef.current = isBottom;
+      setIsScrolledUp(!isBottom);
 
       // 사용자가 직접 맨 아래로 스크롤하면 알림 끄기
+      // 단, 이미 꺼져있을 때는 상태 업데이트를 발생시키지 않도록 하여 불필요한 렌더링을 방지합니다.
       if (isBottom) {
-        setHasNewMessage(false);
+        setHasNewMessage((prev) => {
+          if (prev) {
+            setLastSeenMessageId(null);
+            return false;
+          }
+          return prev;
+        });
       }
     };
 
@@ -149,25 +202,47 @@ export default function ChatHistory({
     if (sortedMessages.length === 0) return;
 
     const lastMsg = sortedMessages[sortedMessages.length - 1];
-    const isNewMessageObj = lastMessageIdRef.current !== lastMsg.id;
-    if (!isNewMessageObj) return;
+    const lastMsgId = lastMsg?.id;
+    if (lastMsgId == null) return;
+
+    if (lastMessageIdRef.current === null) {
+      lastMessageIdRef.current = lastMsgId;
+      return;
+    }
+    if (lastMessageIdRef.current === lastMsgId) return;
 
     if (isFirstRender.current) {
-      lastMessageIdRef.current = lastMsg.id;
+      lastMessageIdRef.current = lastMsgId;
+      return;
+    }
+
+    const isMyMessage = currentUserId && lastMsg.user_id === currentUserId;
+
+    if (isMyMessage) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      lastMessageIdRef.current = lastMsgId;
       return;
     }
 
     if (isAtBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      lastMessageIdRef.current = lastMsg.id;
+      lastMessageIdRef.current = lastMsgId;
       return;
     }
 
+    // 아직 lastSeenMessageId가 없으면 현재 마지막 메시지를 기준점으로 설정합니다.
+    setLastSeenMessageId((prev) => prev ?? lastMessageIdRef.current);
     requestAnimationFrame(() => {
       setHasNewMessage(true);
     });
-    lastMessageIdRef.current = lastMsg.id;
-  }, [sortedMessages]);
+    lastMessageIdRef.current = lastMsgId;
+  }, [sortedMessages, currentUserId]);
+
+  const handleNotificationClick = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setHasNewMessage(false);
+    setLastSeenMessageId(null);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -190,13 +265,20 @@ export default function ChatHistory({
     const container = containerRef.current;
     if (!container || isFirstRender.current) return;
 
-    if (prevScrollHeight.current > 0 && !isFetchingNextPage) {
-      const newScrollHeight = container.scrollHeight;
-      const scrollDiff = newScrollHeight - prevScrollHeight.current;
+    /**
+     * prepend 완료 후 기존 앵커 메시지의 offset 차이만큼 scrollTop을 보정합니다.
+     * 이 방식은 상단 로드와 하단 신규 메시지 수신이 동시에 일어나도 읽던 위치를 유지합니다.
+     */
+    if (prependAnchorRef.current && !isFetchingNextPage) {
+      const { messageId, top: prevTop } = prependAnchorRef.current;
+      const anchorEl = container.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
 
-      container.scrollTop = prevScrollTop.current + scrollDiff;
-      prevScrollHeight.current = 0;
-      prevScrollTop.current = 0;
+      if (anchorEl) {
+        const offsetDiff = anchorEl.offsetTop - prevTop;
+        container.scrollTop += offsetDiff;
+      }
+
+      prependAnchorRef.current = null;
     }
   }, [messages, isFetchingNextPage]);
 
@@ -205,15 +287,11 @@ export default function ChatHistory({
       <div className="border-b px-3 py-2 text-sm font-semibold">채팅</div>
 
       <div className="relative flex min-h-0 flex-1">
-        {/* TODO: 새 메시지 연결 작업 전까지 애니메이션 확인용 디버그 토글 */}
-        <button
-          type="button"
-          onClick={() => setDebugShowNotification((prev) => !prev)}
-          className="absolute top-2 right-2 z-20 rounded-md border bg-background px-2 py-1 text-xs"
+        <div
+          ref={containerRef}
+          data-testid="chat-history-scroll-container"
+          className="flex h-full flex-col overflow-y-auto p-3 text-sm"
         >
-          Toggle Notification
-        </button>
-        <div ref={containerRef} className="flex h-full flex-col overflow-y-auto p-3 text-sm">
           {isLoading ? (
             <ChatMessageSkeletonList count={skeletonCount} />
           ) : sortedMessages.length === 0 ? (
@@ -234,14 +312,15 @@ export default function ChatHistory({
                   shouldShowDateDividers && ((isFirstMessage && !isLoading) || isDifferentDay);
 
                 return (
-                  <ObservedMessageWrapper
-                    key={`message-${message.id}`}
-                    pageIndex={message.pageIndex}
-                    observer={observer.current}
-                  >
-                    {showDateDivider && <DateDivider created_at={message.created_at} />}
-                    <ChatMessageItem message={message} previousMessage={prevMessage} />
-                  </ObservedMessageWrapper>
+                  <div key={`message-${message.id}`} data-message-id={message.id}>
+                    <ObservedMessageWrapper
+                      pageIndex={message.pageIndex}
+                      observer={observer.current}
+                    >
+                      {showDateDivider && <DateDivider created_at={message.created_at} />}
+                      <ChatMessageItem message={message} previousMessage={prevMessage} />
+                    </ObservedMessageWrapper>
+                  </div>
                 );
               })}
             </>
@@ -249,12 +328,19 @@ export default function ChatHistory({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* UI 테스트를 위한 임시 렌더링 */}
-        <NewMessageNotification
-          show={debugShowNotification}
-          count={3}
-          onClick={() => setDebugShowNotification(false)}
-        />
+        {hasNewMessage ? (
+          <NewMessageNotification
+            show={hasNewMessage}
+            count={newMessageCount}
+            onClick={handleNotificationClick}
+          />
+        ) : (
+          <ScrollToBottomButton
+            show={isScrolledUp}
+            onClick={handleNotificationClick}
+            ariaLabel="맨 아래로 이동"
+          />
+        )}
       </div>
     </div>
   );

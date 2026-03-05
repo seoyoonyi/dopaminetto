@@ -1,10 +1,13 @@
+import { VillageId } from "@/entities/village";
 import { toast } from "sonner";
 import { create } from "zustand";
 
+import { groupParticipantsByVillage } from "../lib/groupByVillage";
 import { PresenceParticipant } from "../types";
 
 interface TownPresenceState {
   participants: PresenceParticipant[];
+  groupedParticipants: Partial<Record<VillageId, PresenceParticipant[]>>;
   isConnected: boolean;
   lastSyncedAt?: string;
   localJoinedAt: string;
@@ -22,6 +25,7 @@ interface TownPresenceState {
 
 export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   participants: [],
+  groupedParticipants: {},
   isConnected: false,
   lastSyncedAt: undefined,
   localJoinedAt: new Date().toISOString(),
@@ -41,6 +45,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
 
       set({
         participants,
+        groupedParticipants: groupParticipantsByVillage(participants),
         lastSyncedAt: new Date().toISOString(),
         previousUserIds: currentUserIdSet,
         hasInitialized: false,
@@ -71,6 +76,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
 
     set({
       participants,
+      groupedParticipants: groupParticipantsByVillage(participants),
       lastSyncedAt: new Date().toISOString(),
       previousUserIds: currentUserIdSet,
     });
@@ -81,6 +87,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   reset: () =>
     set({
       participants: [],
+      groupedParticipants: {},
       isConnected: false,
       lastSyncedAt: undefined,
       previousUserIds: new Set(),

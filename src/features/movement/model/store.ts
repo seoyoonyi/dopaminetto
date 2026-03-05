@@ -1,4 +1,4 @@
-import { VillageId } from "@/entities/village";
+import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
 import { findSafeSpawnPosition, validateMovement } from "@/features/movement/lib/validateMovement";
 import { INITIAL_POSITION } from "@/features/movement/model/config";
 import { MovementState, Position, RemotePlayer } from "@/features/movement/model/types";
@@ -44,11 +44,11 @@ export const useMovementStore = create<MovementStore>()(
 
     return {
       position: initialJitter,
-      villageId: "village-a",
+      villageId: LOBBY_VILLAGE_ID,
       nickname: "익명",
       userId: "",
       lastSyncedPosition: initialJitter,
-      lastSyncedVillageId: "village-a",
+      lastSyncedVillageId: LOBBY_VILLAGE_ID,
       remotePlayers: {},
       isValidating: false,
       validationLatency: 0,
@@ -203,11 +203,11 @@ export const useMovementStore = create<MovementStore>()(
         const newJitter = createJitter();
         set({
           position: newJitter,
-          villageId: "village-a",
+          villageId: LOBBY_VILLAGE_ID,
           nickname: "익명",
           userId: "",
           lastSyncedPosition: newJitter,
-          lastSyncedVillageId: "village-a",
+          lastSyncedVillageId: LOBBY_VILLAGE_ID,
           remotePlayers: {},
           isValidating: false,
           validationLatency: 0,

@@ -5,6 +5,7 @@ import { useMovementStore } from "@/features/movement/model/store";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
+import { PresenceStateItem, PresenceTrackPayload } from "@/shared/types/presence";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
@@ -22,29 +23,19 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
   return Object.entries(state)
     .flatMap(([key, presences]) =>
       presences.map((p) => {
-        const untyped = p as {
-          userId?: string;
-          user_id?: string;
-          nickname?: string;
-          user_nickname?: string;
-          joinedAt?: string;
-          online_at?: string;
-          joined_at?: string;
-          presence_ref: string;
-          villageId?: string | null;
-        };
+        const raw = p as PresenceStateItem;
 
-        const userId = untyped.userId || untyped.user_id || key;
-        const nickname = untyped.nickname || untyped.user_nickname || "익명";
-        const joinedAt = untyped.joinedAt || untyped.online_at || untyped.joined_at;
-        const villageId = isVillageId(untyped.villageId) ? untyped.villageId : LOBBY_VILLAGE_ID;
+        const userId = raw.userId || raw.user_id || key;
+        const nickname = raw.nickname || raw.user_nickname || "익명";
+        const joinedAt = raw.joinedAt || raw.online_at || raw.joined_at;
+        const villageId = isVillageId(raw.villageId) ? raw.villageId : LOBBY_VILLAGE_ID;
 
         return {
           userId,
           nickname,
           joinedAt,
           villageId,
-          presenceRef: untyped.presence_ref,
+          presenceRef: raw.presence_ref,
         } as PresenceParticipant;
       }),
     )
@@ -106,7 +97,7 @@ export const useTownPresence = () => {
     const trackPresence = async (retryCount = 0) => {
       if (channelStatus !== "SUBSCRIBED" || !channel || !userId) return;
 
-      const payload = {
+      const payload: PresenceTrackPayload = {
         userId,
         nickname: userNickname || "익명",
         joinedAt: localJoinedAt,

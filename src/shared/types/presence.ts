@@ -13,8 +13,15 @@ export interface PresenceTrackPayload {
 }
 
 /**
- * Presence 상태 조회 시 포함되는 필드
+ * Supabase presenceState() raw item 구조
+ * - presence_ref는 snake_case로 내려옵니다.
+ * - joinedAt / villageId는 누락될 수 있습니다.
  */
-export interface PresenceStateItem extends PresenceTrackPayload {
-  presenceRef: string;
+export interface PresenceStateItem extends Partial<Omit<PresenceTrackPayload, "villageId">> {
+  presence_ref: string;
+  villageId?: string | null;
+  user_id?: string;
+  user_nickname?: string;
+  joined_at?: string;
+  online_at?: string;
 }

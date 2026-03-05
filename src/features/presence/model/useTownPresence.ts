@@ -9,13 +9,13 @@ import { PresenceStateItem, PresenceTrackPayload } from "@/shared/types/presence
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 import { PresenceParticipant } from "../types";
 
 // Supabase Presence payload의 villageId를 런타임에서 검증해 내부 VillageId 타입으로 좁힌다.
 const isVillageId = (value: unknown): value is VillageId =>
-  typeof value === "string" && value in VILLAGES;
+  typeof value === "string" && Object.hasOwn(VILLAGES, value);
 
 const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] => {
   if (!state) return [];
@@ -54,12 +54,8 @@ export const useTownPresenceView = () => {
   const participants = useTownPresenceStore((state) => state.participants);
   const isConnected = useTownPresenceStore((state) => state.isConnected);
 
-  const orderedParticipants = useMemo(() => {
-    return [...participants].sort((a, b) => a.nickname.localeCompare(b.nickname));
-  }, [participants]);
-
   return {
-    participants: orderedParticipants,
+    participants,
     isConnected,
   };
 };

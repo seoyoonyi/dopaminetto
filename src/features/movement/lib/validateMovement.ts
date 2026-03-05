@@ -72,10 +72,11 @@ export const validateMovement = (
   const transition = detectVillageTransition(clampedPosition, currentVillageId, delta);
 
   if (transition) {
-    const targetVillageClamp = clampPositionToVillage(clampedPosition, transition.toVillageId);
+    // 전환 후 좌표는 현재 클램프 좌표가 아닌 전환 설정의 스폰 좌표를 기준으로 한다.
+    const nextPosition = clampPositionToVillage(transition.spawnPosition, transition.toVillageId);
 
     return {
-      nextPosition: targetVillageClamp,
+      nextPosition,
       nextVillageId: transition.toVillageId,
       event: {
         type: MOVEMENT_EVENT_TYPES.VILLAGE_CHANGE,

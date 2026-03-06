@@ -28,10 +28,23 @@ const clampPositionToVillage = (position: Position, villageId: VillageId): Posit
 /**
  * 특정 마을 내부에 설정된 이동 구역(Transition Zone)에 진입했는지 감지합니다.
  */
-const detectVillageTransition = (position: Position, villageId: VillageId) => {
+const isTransitionDirectionMatched = (
+  fromVillageId: VillageId,
+  toVillageId: VillageId,
+  delta: Position,
+) => {
+  if (fromVillageId === "lobby" && toVillageId !== "lobby") return delta.y < 0;
+  if (fromVillageId !== "lobby" && toVillageId === "lobby") return delta.y > 0;
+  if (fromVillageId === "village-a" && toVillageId === "village-b") return delta.x > 0;
+  if (fromVillageId === "village-b" && toVillageId === "village-a") return delta.x < 0;
+  return true;
+};
+
+const detectVillageTransition = (position: Position, villageId: VillageId, delta: Position) => {
   return TRANSITION_ZONES.find(
     (tz) =>
       tz.fromVillageId === villageId &&
+      isTransitionDirectionMatched(tz.fromVillageId, tz.toVillageId, delta) &&
       position.x >= tz.triggerZone.x1 &&
       position.x <= tz.triggerZone.x2 &&
       position.y >= tz.triggerZone.y1 &&
@@ -56,19 +69,22 @@ export const validateMovement = (
 
   const clampedPosition = clampPositionToVillage(rawNextPosition, currentVillageId);
 
-  const transition = detectVillageTransition(clampedPosition, currentVillageId);
+  const transition = detectVillageTransition(clampedPosition, currentVillageId, delta);
 
   if (transition) {
-    const targetVillageClamp = clampPositionToVillage(
-      { x: transition.spawnPosition.x, y: clampedPosition.y },
-      transition.toVillageId,
-    );
+    // 전환 축만 spawnPosition을 사용하고, 나머지 축은 현재 좌표를 유지해 점프를 줄인다.
+    const zoneWidth = transition.triggerZone.x2 - transition.triggerZone.x1;
+    const zoneHeight = transition.triggerZone.y2 - transition.triggerZone.y1;
+    const isSideGate = zoneWidth < zoneHeight;
+
+    const transitionBasePosition = isSideGate
+      ? { x: transition.spawnPosition.x, y: clampedPosition.y }
+      : { x: clampedPosition.x, y: transition.spawnPosition.y };
+
+    const nextPosition = clampPositionToVillage(transitionBasePosition, transition.toVillageId);
 
     return {
-      nextPosition: {
-        x: transition.spawnPosition.x,
-        y: targetVillageClamp.y,
-      },
+      nextPosition,
       nextVillageId: transition.toVillageId,
       event: {
         type: MOVEMENT_EVENT_TYPES.VILLAGE_CHANGE,

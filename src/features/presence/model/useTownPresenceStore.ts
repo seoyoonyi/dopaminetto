@@ -1,10 +1,13 @@
+import { VillageId } from "@/entities/village";
 import { toast } from "sonner";
 import { create } from "zustand";
 
+import { groupParticipantsByVillage } from "../lib/groupByVillage";
 import { PresenceParticipant } from "../types";
 
 interface TownPresenceState {
   participants: PresenceParticipant[];
+  groupedParticipants: Partial<Record<VillageId, PresenceParticipant[]>>;
   isConnected: boolean;
   lastSyncedAt?: string;
   localJoinedAt: string;
@@ -22,6 +25,7 @@ interface TownPresenceState {
 
 export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   participants: [],
+  groupedParticipants: {},
   isConnected: false,
   lastSyncedAt: undefined,
   localJoinedAt: new Date().toISOString(),
@@ -29,18 +33,24 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   hasInitialized: true,
 
   setParticipants: (participants, currentUserNickname, currentUserId) => {
+    const sortedParticipants = [...participants].sort((a, b) =>
+      a.nickname.localeCompare(b.nickname, "ko"),
+    );
+    const groupedParticipants = groupParticipantsByVillage(sortedParticipants);
+
     const state = get();
-    const currentUserIds = participants.map((p) => p.userId);
+    const currentUserIds = sortedParticipants.map((p) => p.userId);
     const currentUserIdSet = new Set(currentUserIds);
 
     // 닉네임 대신 userId로 정확하게 자신을 식별 (유저 제안 사항)
-    const me = participants.find((p) => p.userId === currentUserId);
+    const me = sortedParticipants.find((p) => p.userId === currentUserId);
 
     if (state.hasInitialized && me) {
       toast(`${me.nickname} 입장했습니다.`, { duration: 3000 });
 
       set({
-        participants,
+        participants: sortedParticipants,
+        groupedParticipants,
         lastSyncedAt: new Date().toISOString(),
         previousUserIds: currentUserIdSet,
         hasInitialized: false,
@@ -52,7 +62,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
     if (!state.hasInitialized && state.previousUserIds.size > 0) {
       currentUserIdSet.forEach((userId) => {
         if (!state.previousUserIds.has(userId)) {
-          const participant = participants.find((p) => p.userId === userId);
+          const participant = sortedParticipants.find((p) => p.userId === userId);
           if (participant) {
             toast(`${participant.nickname} 입장했습니다.`, { duration: 3000 });
           }
@@ -70,7 +80,8 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
     }
 
     set({
-      participants,
+      participants: sortedParticipants,
+      groupedParticipants,
       lastSyncedAt: new Date().toISOString(),
       previousUserIds: currentUserIdSet,
     });
@@ -81,6 +92,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   reset: () =>
     set({
       participants: [],
+      groupedParticipants: {},
       isConnected: false,
       lastSyncedAt: undefined,
       previousUserIds: new Set(),

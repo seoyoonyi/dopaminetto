@@ -1,4 +1,7 @@
-export type VillageId = "village-a" | "village-b";
+export const LOBBY_VILLAGE_ID = "lobby";
+export type LobbyVillageId = typeof LOBBY_VILLAGE_ID;
+export type PlayableVillageId = "village-a" | "village-b";
+export type VillageId = LobbyVillageId | PlayableVillageId;
 
 export interface Boundary {
   x1: number;

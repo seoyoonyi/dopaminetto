@@ -166,6 +166,7 @@ export function useChatPanel() {
 
   return {
     userNickname,
+    userId,
     messages,
     data,
     handleMessageSend,

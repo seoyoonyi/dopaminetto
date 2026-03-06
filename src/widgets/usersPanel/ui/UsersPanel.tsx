@@ -1,28 +1,23 @@
 "use client";
 
-import { VILLAGES } from "@/entities/village/config/villageData";
-import { useTownPresenceView } from "@/features/presence/model/useTownPresence";
+import { VILLAGES, VillageId } from "@/entities/village";
+import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { PresenceParticipant } from "@/features/presence/types";
 import { formatJoinedTime } from "@/shared/lib";
+import { useShallow } from "zustand/react/shallow";
 
 export function UsersPanel() {
-  const { participants, isConnected } = useTownPresenceView();
-  const participantCount = participants.length;
+  const { groupedParticipants, participantCount, isConnected } = useTownPresenceStore(
+    useShallow((state) => ({
+      groupedParticipants: state.groupedParticipants,
+      participantCount: state.participants.length,
+      isConnected: state.isConnected,
+    })),
+  );
   const presenceStatus = isConnected ? "실시간으로 동기화 중" : "연결 대기 중";
   const presenceIndicatorLabel = isConnected ? "Presence 연결됨" : "Presence 연결 대기";
 
-  const groupedParticipants = participants.reduce(
-    (acc, p) => {
-      const vId = p.villageId || "unknown";
-      if (!acc[vId]) acc[vId] = [];
-      acc[vId].push(p);
-      return acc;
-    },
-    {} as Record<string, PresenceParticipant[]>,
-  );
-
-  const villageIds = Object.keys(VILLAGES);
-  const otherVillageIds = Object.keys(groupedParticipants).filter((id) => !villageIds.includes(id));
+  const villageIds = Object.keys(VILLAGES) as VillageId[];
 
   const renderParticipantList = (list: PresenceParticipant[]) => {
     return list.map((participant) => (
@@ -78,25 +73,6 @@ export function UsersPanel() {
                 </div>
               );
             })}
-
-            {otherVillageIds.length > 0 && (
-              <div className="flex flex-col">
-                <div className="bg-gray-100/80 px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider sticky top-0 backdrop-blur-sm border-b border-gray-200/50">
-                  기타 / 로비 (
-                  {otherVillageIds.reduce(
-                    (acc, id) => acc + (groupedParticipants[id]?.length || 0),
-                    0,
-                  )}
-                  )
-                </div>
-                <div className="divide-y divide-gray-50">
-                  {otherVillageIds.map((vId) => {
-                    const list = groupedParticipants[vId];
-                    return renderParticipantList(list);
-                  })}
-                </div>
-              </div>
-            )}
           </>
         )}
         {/* TODO(Phase3): Presence 역할/음성 상태 등의 추가 메타데이터를 노출하고 필터링 UI를 확장한다. */}

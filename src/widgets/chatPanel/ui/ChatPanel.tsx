@@ -6,6 +6,7 @@ import { useChatPanel } from "../model/useChatPanel";
 
 export function ChatPanel() {
   const {
+    userId,
     messages,
     data,
     handleMessageSend,
@@ -27,6 +28,7 @@ export function ChatPanel() {
         isLoading={isLoading}
         isFetchingNextPage={isFetchingNextPage}
         onVisiblePagesUpdate={onVisiblePagesUpdate}
+        currentUserId={userId}
       />
       <MessageField
         channelType="public"

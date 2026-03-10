@@ -6,3 +6,4 @@ export {
   runGarbageCollection,
 } from "./chat";
 export { toDate, isSameDay, formatTime, formatDate, formatJoinedTime } from "./datetime";
+export { getChatRoomId } from "./realtime/getChatRoomId";

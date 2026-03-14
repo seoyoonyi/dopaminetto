@@ -3,8 +3,14 @@
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { Message, MessagesPage } from "@/features/chat";
 import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
+import { useMovementStore } from "@/features/movement/model/store";
 import { CHAT_CHANNEL_NAME, CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
-import { addMessageToCache, removeMatchingTempMessage, runGarbageCollection } from "@/shared/lib";
+import {
+  addMessageToCache,
+  getChatRoomId,
+  removeMatchingTempMessage,
+  runGarbageCollection,
+} from "@/shared/lib";
 import { useChatVisibilityActions, useUserStore, useVisiblePageIndices } from "@/shared/store";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
@@ -20,11 +26,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * - 가비지 컬렉션(GC) 로직 트리거
  * - 메시지 전송 및 낙관적 업데이트(Optimistic Updates)
  * - 읽은 메시지(뷰포트 내 페이지)의 타임스탬프 갱신
+ * - 빌리지별 채팅 채널 분리 (room_id: village:${villageId})
  */
 export function useChatPanel() {
   const supabase = useSupabase();
   const queryClient = useQueryClient();
   const { userId, userNickname } = useUserStore();
+  const villageId = useMovementStore((state) => state.villageId);
+  const roomId = getChatRoomId(villageId);
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
@@ -34,7 +43,16 @@ export function useChatPanel() {
   const visiblePageIndices = useVisiblePageIndices();
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useMessagesQuery("town");
+    useMessagesQuery(roomId);
+
+  // 빌리지 이동 시 낙관적 메시지 초기화
+  // React 공식 권장 패턴: useState로 이전 roomId를 추적하여 렌더 중 비교합니다.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [prevRoomId, setPrevRoomId] = useState(roomId);
+  if (prevRoomId !== roomId) {
+    setPrevRoomId(roomId);
+    setOptimisticMessages([]);
+  }
 
   // GC Trigger: 페이지 수가 너무 많아지면 정리 (Infinite Scroll 등으로 인해)
   // useMessagesQuery는 자동으로 pages를 append 하므로, 여기서 감지해서 줄여줘야 함.
@@ -53,12 +71,12 @@ export function useChatPanel() {
 
     // 변경사항이 있을 때만 업데이트 (무한 루프 방지)
     if (newPages.length !== currentPages.length) {
-      queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) => {
+      queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", roomId], (oldData) => {
         if (!oldData) return oldData;
         return { ...oldData, pages: newPages };
       });
     }
-  }, [data?.pages?.length, queryClient]);
+  }, [data?.pages?.length, queryClient, roomId]);
 
   const messages = useMemo(() => {
     const fetched = data?.pages.flatMap((page) => page.messages) ?? [];
@@ -74,7 +92,7 @@ export function useChatPanel() {
 
     const timeoutId = setTimeout(() => {
       const now = Date.now();
-      queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) => {
+      queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", roomId], (oldData) => {
         if (!oldData) return oldData;
 
         const newPages = oldData.pages.map((page, index) => {
@@ -89,7 +107,7 @@ export function useChatPanel() {
     }, 2000);
 
     return () => clearTimeout(timeoutId);
-  }, [visiblePageIndices, queryClient]);
+  }, [visiblePageIndices, queryClient, roomId]);
 
   // UI 컴포넌트에서 호출할 간단한 업데이트 함수 (Zustand 액션만 호출)
   const updateVisiblePagesTimestamp = useCallback(
@@ -111,13 +129,13 @@ export function useChatPanel() {
           event: "INSERT",
           schema: "public",
           table: CHAT_TABLE_NAME,
-          filter: "room_id=eq.town",
+          filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
           const newMessage = payload.new as Message;
 
           setOptimisticMessages((prev) => removeMatchingTempMessage(prev, newMessage));
-          queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", "town"], (oldData) =>
+          queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", roomId], (oldData) =>
             addMessageToCache(oldData, newMessage),
           );
         },
@@ -131,7 +149,7 @@ export function useChatPanel() {
     return () => {
       supabase.removeChannel(chatChannel);
     };
-  }, [userNickname, supabase, queryClient]);
+  }, [userNickname, supabase, queryClient, roomId]);
 
   const handleMessageSend = async (messageText: string): Promise<{ error?: string }> => {
     if (!messageText || !userNickname || !userId) return {};
@@ -140,7 +158,7 @@ export function useChatPanel() {
     const tempMessage: Message = {
       id: tempId,
       user_id: userId,
-      room_id: "town",
+      room_id: roomId,
       nickname: userNickname,
       message: messageText,
       created_at: new Date().toISOString(),
@@ -150,7 +168,7 @@ export function useChatPanel() {
 
     const { error } = await supabase.from(CHAT_TABLE_NAME).insert({
       user_id: userId,
-      room_id: "town",
+      room_id: roomId,
       nickname: userNickname,
       message: messageText,
     });
@@ -176,5 +194,6 @@ export function useChatPanel() {
     isFetchingNextPage,
     isLoading,
     onVisiblePagesUpdate: updateVisiblePagesTimestamp,
+    roomId,
   };
 }

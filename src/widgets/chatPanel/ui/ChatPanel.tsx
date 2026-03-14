@@ -16,6 +16,7 @@ export function ChatPanel() {
     isLoading,
     isFetchingNextPage,
     onVisiblePagesUpdate,
+    roomId,
   } = useChatPanel();
 
   return (
@@ -34,6 +35,7 @@ export function ChatPanel() {
         channelType="public"
         onMessageSend={handleMessageSend}
         isConnected={isConnected}
+        roomId={roomId}
       />
     </>
   );

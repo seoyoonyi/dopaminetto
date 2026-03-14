@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAutoResizeTextarea } from "@/shared/hooks";
 import { Textarea } from "@/shared/ui/textarea";
 
-import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
+import { ChangeEvent, KeyboardEvent, useState } from "react";
 
 import { CharacterCounter } from "./CharacterCounter";
 
@@ -12,6 +12,7 @@ interface MessageFieldProps {
   channelType: "public" | "private";
   onMessageSend?: (message: string) => Promise<{ error?: string }>;
   isConnected: boolean;
+  roomId: string;
 }
 
 const ERROR_MESSAGES = {
@@ -28,9 +29,19 @@ export default function MessageField({
   channelType,
   onMessageSend,
   isConnected,
+  roomId,
 }: MessageFieldProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // 빌리지 이동 시 입력 중인 메시지 초기화
+  // 팀 협의 정책: 빌리지가 바뀌면 대화 대상이 달라지므로 입력값 초기화
+  const [prevRoomId, setPrevRoomId] = useState(roomId);
+  if (prevRoomId !== roomId) {
+    setPrevRoomId(roomId);
+    setMessage("");
+    setError(null);
+  }
 
   // 글자수 상태
   const charCount = message.length;
@@ -77,7 +88,7 @@ export default function MessageField({
       setMessage(trimmed);
     }
 
-    textareaRef.current?.focus();
+    textareaRef.current?.blur();
   };
 
   const handleEnterKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {

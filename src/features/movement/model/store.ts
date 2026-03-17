@@ -19,7 +19,9 @@ interface MovementStore extends MovementState {
   warp: (position: Position, villageId: VillageId) => void;
   updatePosition: (delta: Position) => void;
   updateRemotePlayer: (player: RemotePlayer) => void;
+  // 특정 remote player 1명 제거
   removeRemotePlayer: (userId: string) => void;
+  // visible village 범위 밖 remote player 일괄 제거
   removeRemotePlayersOutsideVillages: (visibleVillages: VillageId[]) => void;
 
   flush: () => Promise<void>;

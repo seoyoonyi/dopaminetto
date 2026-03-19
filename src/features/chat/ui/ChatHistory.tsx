@@ -290,7 +290,7 @@ export default function ChatHistory({
         <div
           ref={containerRef}
           data-testid="chat-history-scroll-container"
-          className="flex h-full flex-col overflow-y-auto p-3 text-sm"
+          className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto p-3 text-sm"
         >
           {isLoading ? (
             <ChatMessageSkeletonList count={skeletonCount} />

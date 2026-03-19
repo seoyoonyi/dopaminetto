@@ -1,6 +1,6 @@
 "use client";
 
-import { useMovementStore } from "@/features/movement/model/store";
+import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
 import { useUserInfo } from "@/shared/hooks";

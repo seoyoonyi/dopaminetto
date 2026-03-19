@@ -1,7 +1,7 @@
 "use client";
 
 import { LOBBY_VILLAGE_ID, VILLAGES, VillageId } from "@/entities/village";
-import { useMovementStore } from "@/features/movement/model/store";
+import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";

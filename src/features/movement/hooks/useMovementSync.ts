@@ -2,12 +2,12 @@
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { VillageId, getVisibleVillages } from "@/entities/village";
-import { useMovementStore } from "@/features/movement/model/store";
 import {
   PresenceMetadata,
   SyncLeavePayload,
   SyncPositionPayload,
 } from "@/features/movement/model/types";
+import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { getVillageChannelName } from "@/shared/lib/realtime";
 import {

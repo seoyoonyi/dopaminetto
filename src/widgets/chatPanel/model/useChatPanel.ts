@@ -3,7 +3,7 @@
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { Message, MessagesPage } from "@/features/chat";
 import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
-import { useMovementStore } from "@/features/movement/model/store";
+import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { CHAT_CHANNEL_NAME, CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
 import {
   addMessageToCache,

@@ -267,6 +267,9 @@ export const releaseTownChannel = ({
     destroyChannel(supabase, channelName);
     globals.presenceObservers.delete(channelName);
     globals.broadcastObservers.delete(channelName);
+    globals.statusObservers.delete(channelName);
+    globals.statuses.delete(channelName);
+    globals.reconnectCounts.delete(channelName);
   }, CHANNEL_CLEANUP_DELAY_MS);
 
   globals.cleanupTimeouts.set(channelName, timeout);

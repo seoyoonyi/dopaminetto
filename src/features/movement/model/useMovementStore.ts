@@ -19,7 +19,10 @@ interface MovementStore extends MovementState {
   warp: (position: Position, villageId: VillageId) => void;
   updatePosition: (delta: Position) => void;
   updateRemotePlayer: (player: RemotePlayer) => void;
+  // 특정 remote player 1명 제거
   removeRemotePlayer: (userId: string) => void;
+  // visible village 범위 밖 remote player 일괄 제거
+  removeRemotePlayersOutsideVillages: (visibleVillages: VillageId[]) => void;
 
   flush: () => Promise<void>;
   reset: () => void;
@@ -72,6 +75,28 @@ export const useMovementStore = create<MovementStore>()(
           const newPlayers = { ...state.remotePlayers };
           delete newPlayers[userId];
           return { remotePlayers: newPlayers };
+        }),
+
+      removeRemotePlayersOutsideVillages: (visibleVillages) =>
+        set((state) => {
+          const visibleVillageSet = new Set(visibleVillages);
+          let hasChanged = false;
+          const nextRemotePlayers: typeof state.remotePlayers = {};
+
+          Object.entries(state.remotePlayers).forEach(([userId, player]) => {
+            if (visibleVillageSet.has(player.villageId)) {
+              nextRemotePlayers[userId] = player;
+              return;
+            }
+
+            hasChanged = true;
+          });
+
+          if (!hasChanged) {
+            return state;
+          }
+
+          return { remotePlayers: nextRemotePlayers };
         }),
 
       /**

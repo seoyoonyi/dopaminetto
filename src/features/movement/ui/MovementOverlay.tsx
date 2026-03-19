@@ -1,7 +1,7 @@
 "use client";
 
 import { VILLAGES } from "@/entities/village";
-import { useMovementStore } from "@/features/movement/model/store";
+import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useShallow } from "zustand/react/shallow";
 
 import React from "react";

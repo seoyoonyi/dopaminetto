@@ -72,16 +72,8 @@ export const validateMovement = (
   const transition = detectVillageTransition(clampedPosition, currentVillageId, delta);
 
   if (transition) {
-    // 전환 축만 spawnPosition을 사용하고, 나머지 축은 현재 좌표를 유지해 점프를 줄인다.
-    const zoneWidth = transition.triggerZone.x2 - transition.triggerZone.x1;
-    const zoneHeight = transition.triggerZone.y2 - transition.triggerZone.y1;
-    const isSideGate = zoneWidth < zoneHeight;
-
-    const transitionBasePosition = isSideGate
-      ? { x: transition.spawnPosition.x, y: clampedPosition.y }
-      : { x: clampedPosition.x, y: transition.spawnPosition.y };
-
-    const nextPosition = clampPositionToVillage(transitionBasePosition, transition.toVillageId);
+    // 경계 보행 이동은 연속 월드처럼 보여야 하므로 절대 좌표를 유지한 채 village만 전환한다.
+    const nextPosition = clampPositionToVillage(rawNextPosition, transition.toVillageId);
 
     return {
       nextPosition,

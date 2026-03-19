@@ -9,9 +9,13 @@ export const PRESENCE_LEAVE_REMOVAL_DELAY_MS = 250;
 const createInitialHandlers = () =>
   ({
     attachVillageChannel: () => {},
+    broadcastSyncLeave: () => {},
     cleanupAllChannels: () => {},
     detachVillageChannel: () => {},
+    scheduleRemotePlayerRemovalCheck: () => {},
+    syncChannelSnapshot: () => {},
     trackCurrentPresence: async () => {},
+    upsertVisibleRemotePlayer: () => {},
   }) satisfies MovementSyncHandlers;
 
 export const createMovementSyncState = (): MovementSyncState => ({

@@ -1,10 +1,15 @@
 import { VillageId } from "@/entities/village";
+import type { PresenceMetadata, SyncPositionPayload } from "@/features/movement/model/types";
 
 export interface MovementSyncHandlers {
   attachVillageChannel: (targetVillageId: VillageId) => void;
+  broadcastSyncLeave: (targetVillageId: VillageId) => void;
   cleanupAllChannels: () => void;
   detachVillageChannel: (targetVillageId: VillageId) => void;
+  scheduleRemotePlayerRemovalCheck: (remoteUserId: string) => void;
+  syncChannelSnapshot: (channelName: string) => void;
   trackCurrentPresence: (retryCount?: number) => Promise<void>;
+  upsertVisibleRemotePlayer: (player: PresenceMetadata | SyncPositionPayload) => void;
 }
 
 export interface ChannelBinding {

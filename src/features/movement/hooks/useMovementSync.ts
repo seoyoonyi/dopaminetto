@@ -37,6 +37,8 @@ import {
  */
 export function useMovementSync() {
   const supabase = useSupabase();
+  // Presence leave 반영이 지연될 수 있어 remote player 제거 전 짧게 여러 번 재확인한다.
+  const MAX_REMOTE_PLAYER_REMOVAL_RETRIES = 8;
 
   const {
     villageId,
@@ -91,7 +93,20 @@ export function useMovementSync() {
       updateRemotePlayer({ ...player, lastUpdatedAt: Date.now() });
     };
 
-    const scheduleRemotePlayerRemovalCheck = (remoteUserId: string) => {
+    const isRemotePlayerStillPresent = (remoteUserId: string) =>
+      Array.from(syncState.channelBindings.keys()).some((channelName) => {
+        const channel = getTownChannel(channelName);
+        if (!channel) return false;
+
+        return Object.values(channel.presenceState<PresenceMetadata>())
+          .flat()
+          .some((presence) => presence.userId === remoteUserId);
+      });
+
+    const scheduleRemotePlayerRemovalCheckWithRetry = (
+      remoteUserId: string,
+      retryCount: number,
+    ) => {
       if (!remoteUserId || remoteUserId === playerId) return;
 
       clearPendingRemoval(remoteUserId);
@@ -99,21 +114,45 @@ export function useMovementSync() {
       const timeout = setTimeout(() => {
         syncState.pendingRemovalTimeouts.delete(remoteUserId);
 
-        const isStillPresent = Array.from(syncState.channelBindings.keys()).some((channelName) => {
-          const channel = getTownChannel(channelName);
-          if (!channel) return false;
-
-          return Object.values(channel.presenceState<PresenceMetadata>())
-            .flat()
-            .some((presence) => presence.userId === remoteUserId);
-        });
-
-        if (!isStillPresent) {
+        if (!isRemotePlayerStillPresent(remoteUserId)) {
           removeRemotePlayer(remoteUserId);
+          return;
         }
+
+        if (retryCount >= MAX_REMOTE_PLAYER_REMOVAL_RETRIES) return;
+
+        scheduleRemotePlayerRemovalCheckWithRetry(remoteUserId, retryCount + 1);
       }, PRESENCE_LEAVE_REMOVAL_DELAY_MS);
 
       syncState.pendingRemovalTimeouts.set(remoteUserId, timeout);
+    };
+
+    const scheduleRemotePlayerRemovalCheck = (remoteUserId: string) => {
+      scheduleRemotePlayerRemovalCheckWithRetry(remoteUserId, 0);
+    };
+
+    const broadcastSyncLeave = (targetVillageId: VillageId) => {
+      if (!playerId) return;
+
+      const channelName = getVillageChannelName(targetVillageId);
+      const channel = getTownChannel(channelName);
+      if (!channel || getTownChannelStatus(channelName) !== "SUBSCRIBED") {
+        return;
+      }
+
+      void channel
+        .send({
+          type: "broadcast",
+          event: "sync-leave",
+          payload: {
+            userId: playerId,
+          } satisfies SyncLeavePayload,
+        })
+        .then((res) => {
+          if (res === "error") {
+            console.warn("[useMovementSync] sync-leave broadcast failed (send error)");
+          }
+        });
     };
 
     const syncChannelSnapshot = (channelName: string) => {
@@ -232,7 +271,7 @@ export function useMovementSync() {
       const unsubscribeStatus = observeTownChannelStatus(channelName, (nextStatus) => {
         if (nextStatus !== "SUBSCRIBED") return;
 
-        syncChannelSnapshot(channelName);
+        syncState.handlers.syncChannelSnapshot(channelName);
 
         if (useMovementStore.getState().villageId === targetVillageId) {
           void syncState.handlers.trackCurrentPresence();
@@ -241,7 +280,7 @@ export function useMovementSync() {
 
       const unsubscribePresence = observeTownChannelPresence(channelName, (event, payload) => {
         if (event === "sync") {
-          syncChannelSnapshot(channelName);
+          syncState.handlers.syncChannelSnapshot(channelName);
           return;
         }
 
@@ -250,7 +289,7 @@ export function useMovementSync() {
             ?.newPresences;
 
           newPresences?.forEach((presence) => {
-            upsertVisibleRemotePlayer(presence);
+            syncState.handlers.upsertVisibleRemotePlayer(presence);
           });
           return;
         }
@@ -260,14 +299,14 @@ export function useMovementSync() {
 
         leftPresences?.forEach((presence) => {
           if (presence.userId) {
-            scheduleRemotePlayerRemovalCheck(presence.userId);
+            syncState.handlers.scheduleRemotePlayerRemovalCheck(presence.userId);
           }
         });
       });
 
       const unsubscribeBroadcast = observeTownChannelBroadcast(channelName, (event, payload) => {
         if ((event === PLAYER_MOVE_EVENT || event === LEGACY_PLAYER_MOVE_EVENT) && payload) {
-          upsertVisibleRemotePlayer(payload as SyncPositionPayload);
+          syncState.handlers.upsertVisibleRemotePlayer(payload as SyncPositionPayload);
           return;
         }
 
@@ -275,7 +314,7 @@ export function useMovementSync() {
 
         const leavePayload = payload as SyncLeavePayload;
         if (leavePayload.userId) {
-          scheduleRemotePlayerRemovalCheck(leavePayload.userId);
+          syncState.handlers.scheduleRemotePlayerRemovalCheck(leavePayload.userId);
         }
       });
 
@@ -290,7 +329,7 @@ export function useMovementSync() {
       });
 
       if (getTownChannelStatus(channelName) === "SUBSCRIBED") {
-        syncChannelSnapshot(channelName);
+        syncState.handlers.syncChannelSnapshot(channelName);
 
         if (useMovementStore.getState().villageId === targetVillageId) {
           void syncState.handlers.trackCurrentPresence();
@@ -309,6 +348,7 @@ export function useMovementSync() {
 
       const trackedVillageId = syncState.trackedVillageId;
       if (trackedVillageId) {
+        broadcastSyncLeave(trackedVillageId);
         const trackedChannel = getTownChannel(getVillageChannelName(trackedVillageId));
         if (trackedChannel) {
           void trackedChannel.untrack();
@@ -334,9 +374,13 @@ export function useMovementSync() {
 
     syncState.handlers = {
       attachVillageChannel,
+      broadcastSyncLeave,
       cleanupAllChannels,
       detachVillageChannel,
+      scheduleRemotePlayerRemovalCheck,
+      syncChannelSnapshot,
       trackCurrentPresence,
+      upsertVisibleRemotePlayer,
     };
   }, [
     removeRemotePlayer,
@@ -414,6 +458,8 @@ export function useMovementSync() {
         clearTimeout(syncState.trackRetryTimeout);
         syncState.trackRetryTimeout = null;
       }
+
+      syncState.handlers.broadcastSyncLeave(prevTrackedVillageId);
 
       const prevChannel = getTownChannel(getVillageChannelName(prevTrackedVillageId));
       if (prevChannel) {

@@ -34,41 +34,35 @@ export const TRANSITION_ZONES = [
     fromVillageId: LOBBY_VILLAGE_ID as VillageId,
     toVillageId: "village-a" as VillageId,
     triggerZone: { x1: 0, y1: 600, x2: 799, y2: 620 },
-    spawnPosition: { x: 400, y: 560 },
   },
   // Lobby -> Village B (right half of top edge)
   {
     fromVillageId: LOBBY_VILLAGE_ID as VillageId,
     toVillageId: "village-b" as VillageId,
     triggerZone: { x1: 800, y1: 600, x2: 1600, y2: 620 },
-    spawnPosition: { x: 1200, y: 560 },
   },
   // Village A -> Lobby (bottom edge)
   {
     fromVillageId: "village-a" as VillageId,
     toVillageId: LOBBY_VILLAGE_ID as VillageId,
     triggerZone: { x1: 0, y1: 600, x2: 800, y2: 620 },
-    spawnPosition: { x: 400, y: 640 },
   },
   // Village B -> Lobby (bottom edge)
   {
     fromVillageId: "village-b" as VillageId,
     toVillageId: LOBBY_VILLAGE_ID as VillageId,
     triggerZone: { x1: 800, y1: 600, x2: 1600, y2: 620 },
-    spawnPosition: { x: 1200, y: 640 },
   },
   // Village A -> Village B (side gate)
   {
     fromVillageId: "village-a" as VillageId,
     toVillageId: "village-b" as VillageId,
     triggerZone: { x1: 795, y1: 0, x2: 800, y2: 600 },
-    spawnPosition: { x: 820, y: 300 },
   },
   // Village B -> Village A (side gate)
   {
     fromVillageId: "village-b" as VillageId,
     toVillageId: "village-a" as VillageId,
     triggerZone: { x1: 800, y1: 0, x2: 805, y2: 600 },
-    spawnPosition: { x: 780, y: 300 },
   },
 ] as const;

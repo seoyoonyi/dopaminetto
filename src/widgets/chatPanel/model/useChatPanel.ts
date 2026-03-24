@@ -13,7 +13,6 @@ import {
   runGarbageCollection,
 } from "@/shared/lib";
 import { useChatVisibilityActions, useUserStore, useVisiblePageIndices } from "@/shared/store";
-import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -37,7 +36,7 @@ export function useChatPanel() {
   const chatChannelName = getChatChannelName(villageId);
   const roomId = getChatRoomId(villageId);
 
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+  const [channelStatus, setChannelStatus] = useState("INITIAL");
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
   // Zustand 스토어 사용
@@ -54,6 +53,13 @@ export function useChatPanel() {
   if (prevRoomId !== roomId) {
     setPrevRoomId(roomId);
     setOptimisticMessages([]);
+  }
+
+  // 빌리지 전환 시 이전 채널 상태를 현재 UI에 남기지 않도록 렌더 중 비교로 초기화합니다.
+  const [prevChatChannelName, setPrevChatChannelName] = useState(chatChannelName);
+  if (prevChatChannelName !== chatChannelName) {
+    setPrevChatChannelName(chatChannelName);
+    setChannelStatus("INITIAL");
   }
 
   // GC Trigger: 페이지 수가 너무 많아지면 정리 (Infinite Scroll 등으로 인해)
@@ -122,6 +128,8 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
+    let isActive = true;
+
     const chatChannel = supabase.channel(chatChannelName);
 
     chatChannel
@@ -143,12 +151,12 @@ export function useChatPanel() {
         },
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setChannel(chatChannel);
-        }
+        if (!isActive) return;
+        setChannelStatus(status);
       });
 
     return () => {
+      isActive = false;
       supabase.removeChannel(chatChannel);
     };
   }, [chatChannelName, userNickname, supabase, queryClient, roomId]);
@@ -190,7 +198,7 @@ export function useChatPanel() {
     messages,
     data,
     handleMessageSend,
-    isConnected: !!channel,
+    isConnected: channelStatus === "SUBSCRIBED",
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

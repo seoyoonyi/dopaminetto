@@ -1,6 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-export const CHAT_CHANNEL_NAME = "public:chat-room";
 export const CHAT_TABLE_NAME = "chat";
 
 /**

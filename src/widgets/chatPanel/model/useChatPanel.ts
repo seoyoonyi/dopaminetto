@@ -4,7 +4,7 @@ import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { Message, MessagesPage } from "@/features/chat";
 import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
-import { CHAT_CHANNEL_NAME, CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
+import { CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
 import {
   addMessageToCache,
   getChatRoomId,
@@ -16,6 +16,8 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+const DEFAULT_CHAT_REALTIME_CHANNEL = "public:chat-room";
 
 /**
  * 채팅 패널의 주요 비즈니스 로직을 관리하는 커스텀 훅입니다.
@@ -120,7 +122,7 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    const chatChannel = supabase.channel(CHAT_CHANNEL_NAME);
+    const chatChannel = supabase.channel(DEFAULT_CHAT_REALTIME_CHANNEL);
 
     chatChannel
       .on(

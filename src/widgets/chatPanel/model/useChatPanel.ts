@@ -7,6 +7,7 @@ import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
 import {
   addMessageToCache,
+  getChatChannelName,
   getChatRoomId,
   removeMatchingTempMessage,
   runGarbageCollection,
@@ -16,8 +17,6 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-const DEFAULT_CHAT_REALTIME_CHANNEL = "public:chat-room";
 
 /**
  * 채팅 패널의 주요 비즈니스 로직을 관리하는 커스텀 훅입니다.
@@ -35,6 +34,7 @@ export function useChatPanel() {
   const queryClient = useQueryClient();
   const { userId, userNickname } = useUserStore();
   const villageId = useMovementStore((state) => state.villageId);
+  const chatChannelName = getChatChannelName(villageId);
   const roomId = getChatRoomId(villageId);
 
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
@@ -122,7 +122,7 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    const chatChannel = supabase.channel(DEFAULT_CHAT_REALTIME_CHANNEL);
+    const chatChannel = supabase.channel(chatChannelName);
 
     chatChannel
       .on(
@@ -151,7 +151,7 @@ export function useChatPanel() {
     return () => {
       supabase.removeChannel(chatChannel);
     };
-  }, [userNickname, supabase, queryClient, roomId]);
+  }, [chatChannelName, userNickname, supabase, queryClient, roomId]);
 
   const handleMessageSend = async (messageText: string): Promise<{ error?: string }> => {
     if (!messageText || !userNickname || !userId) return {};

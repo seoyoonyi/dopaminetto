@@ -4,15 +4,15 @@ import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { Message, MessagesPage } from "@/features/chat";
 import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
-import { CHAT_CHANNEL_NAME, CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
+import { CHAT_GC_CONFIG, CHAT_TABLE_NAME } from "@/shared/config";
 import {
   addMessageToCache,
+  getChatChannelName,
   getChatRoomId,
   removeMatchingTempMessage,
   runGarbageCollection,
 } from "@/shared/lib";
 import { useChatVisibilityActions, useUserStore, useVisiblePageIndices } from "@/shared/store";
-import { RealtimeChannel } from "@supabase/supabase-js";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,16 +26,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * - 가비지 컬렉션(GC) 로직 트리거
  * - 메시지 전송 및 낙관적 업데이트(Optimistic Updates)
  * - 읽은 메시지(뷰포트 내 페이지)의 타임스탬프 갱신
- * - 빌리지별 채팅 채널 분리 (room_id: village:${villageId})
+ * - 빌리지별 채팅 채널 분리 (room_id: village:${villageId}, Realtime topic: getChatChannelName)
  */
 export function useChatPanel() {
   const supabase = useSupabase();
   const queryClient = useQueryClient();
   const { userId, userNickname } = useUserStore();
   const villageId = useMovementStore((state) => state.villageId);
+  const chatChannelName = getChatChannelName(villageId);
   const roomId = getChatRoomId(villageId);
 
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+  const [channelStatus, setChannelStatus] = useState("INITIAL");
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
   // Zustand 스토어 사용
@@ -52,6 +53,13 @@ export function useChatPanel() {
   if (prevRoomId !== roomId) {
     setPrevRoomId(roomId);
     setOptimisticMessages([]);
+  }
+
+  // 빌리지 전환 시 이전 채널 상태를 현재 UI에 남기지 않도록 렌더 중 비교로 초기화합니다.
+  const [prevChatChannelName, setPrevChatChannelName] = useState(chatChannelName);
+  if (prevChatChannelName !== chatChannelName) {
+    setPrevChatChannelName(chatChannelName);
+    setChannelStatus("INITIAL");
   }
 
   // GC Trigger: 페이지 수가 너무 많아지면 정리 (Infinite Scroll 등으로 인해)
@@ -120,7 +128,9 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    const chatChannel = supabase.channel(CHAT_CHANNEL_NAME);
+    let isActive = true;
+
+    const chatChannel = supabase.channel(chatChannelName);
 
     chatChannel
       .on(
@@ -141,15 +151,15 @@ export function useChatPanel() {
         },
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setChannel(chatChannel);
-        }
+        if (!isActive) return;
+        setChannelStatus(status);
       });
 
     return () => {
+      isActive = false;
       supabase.removeChannel(chatChannel);
     };
-  }, [userNickname, supabase, queryClient, roomId]);
+  }, [chatChannelName, userNickname, supabase, queryClient, roomId]);
 
   const handleMessageSend = async (messageText: string): Promise<{ error?: string }> => {
     if (!messageText || !userNickname || !userId) return {};
@@ -188,7 +198,7 @@ export function useChatPanel() {
     messages,
     data,
     handleMessageSend,
-    isConnected: !!channel,
+    isConnected: channelStatus === "SUBSCRIBED",
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

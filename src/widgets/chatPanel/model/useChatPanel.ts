@@ -26,7 +26,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * - 가비지 컬렉션(GC) 로직 트리거
  * - 메시지 전송 및 낙관적 업데이트(Optimistic Updates)
  * - 읽은 메시지(뷰포트 내 페이지)의 타임스탬프 갱신
- * - 빌리지별 채팅 채널 분리 (room_id: village:${villageId})
+ * - 빌리지별 채팅 채널 분리 (room_id: village:${villageId}, Realtime topic: getChatChannelName)
  */
 export function useChatPanel() {
   const supabase = useSupabase();

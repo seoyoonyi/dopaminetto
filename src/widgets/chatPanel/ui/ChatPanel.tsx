@@ -1,8 +1,10 @@
 "use client";
 
+import { VILLAGES } from "@/entities/village";
 import { ChatHistory, MessageField } from "@/features/chat";
 
 import { useChatPanel } from "../model/useChatPanel";
+import { ChatPanelHeader } from "./ChatPanelHeader";
 
 export function ChatPanel() {
   const {
@@ -17,11 +19,16 @@ export function ChatPanel() {
     isFetchingNextPage,
     onVisiblePagesUpdate,
     roomId,
+    villageId,
   } = useChatPanel();
+
+  const villageName = VILLAGES[villageId as keyof typeof VILLAGES]?.name ?? villageId;
 
   return (
     <>
+      <ChatPanelHeader villageName={villageName} isConnected={isConnected} />
       <ChatHistory
+        key={roomId}
         messages={messages}
         data={data}
         onLoadMore={fetchNextPage}
@@ -31,12 +38,7 @@ export function ChatPanel() {
         onVisiblePagesUpdate={onVisiblePagesUpdate}
         currentUserId={userId}
       />
-      <MessageField
-        channelType="public"
-        onMessageSend={handleMessageSend}
-        isConnected={isConnected}
-        roomId={roomId}
-      />
+      <MessageField onMessageSend={handleMessageSend} isConnected={isConnected} roomId={roomId} />
     </>
   );
 }

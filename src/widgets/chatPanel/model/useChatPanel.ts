@@ -205,5 +205,6 @@ export function useChatPanel() {
     isLoading,
     onVisiblePagesUpdate: updateVisiblePagesTimestamp,
     roomId,
+    villageId,
   };
 }

@@ -9,7 +9,7 @@ import { ChangeEvent, KeyboardEvent, useState } from "react";
 import { CharacterCounter } from "./CharacterCounter";
 
 interface MessageFieldProps {
-  channelType: "public" | "private";
+  channelType?: "public" | "private";
   onMessageSend?: (message: string) => Promise<{ error?: string }>;
   isConnected: boolean;
   roomId: string;
@@ -26,7 +26,7 @@ const MAX_LENGTH = 1000;
 const WRAPPER_PADDING = 24;
 
 export default function MessageField({
-  channelType,
+  channelType = "public",
   onMessageSend,
   isConnected,
   roomId,

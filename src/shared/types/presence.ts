@@ -10,8 +10,11 @@ export interface PresenceTrackPayload {
   villageId: VillageId;
   joinedAt: string;
   username?: string;
+  isSpeaker?: boolean;
   /** 음성 채널에 연결되어 있는지 여부 */
   voiceConnected?: boolean;
+  /** 발표자의 마이크가 실제로 활성화되어 있는지 여부 */
+  audioEnabled?: boolean;
 }
 
 /**
@@ -26,6 +29,4 @@ export interface PresenceStateItem extends Partial<Omit<PresenceTrackPayload, "v
   user_nickname?: string;
   joined_at?: string;
   online_at?: string;
-  /** 음성 채널 연결 여부 (presence sync 시 수신) */
-  voiceConnected?: boolean;
 }

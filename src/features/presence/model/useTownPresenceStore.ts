@@ -15,6 +15,18 @@ interface TownPresenceState {
   hasInitialized: boolean;
   /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
   voiceConnected: boolean;
+  /** 현재 유저의 발표용 마이크 활성 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
+  audioEnabled: boolean;
+  /** 현재 유저가 사용자 패널에서 마이크 토글을 제어할 수 있는지 여부 */
+  canToggleAudio: boolean;
+  /** 현재 유저의 마이크 토글을 수행하는 로컬 제어 함수 */
+  toggleLocalAudio: (() => Promise<void>) | null;
+  /** 현재 유저가 사용자 패널에서 청취 토글을 제어할 수 있는지 여부 */
+  canToggleListening: boolean;
+  /** 현재 유저의 실제 청취 on/off 상태 */
+  listeningEnabled: boolean;
+  /** 현재 유저의 청취 on/off를 수행하는 로컬 제어 함수 */
+  toggleLocalListening: (() => Promise<void>) | null;
 
   setParticipants: (
     participants: PresenceParticipant[],
@@ -24,6 +36,20 @@ interface TownPresenceState {
   setConnectionState: (isConnected: boolean) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
+  /** 발표용 마이크 활성 상태를 업데이트하고 presence track이 재전송되도록 한다. */
+  setAudioEnabled: (audioEnabled: boolean) => void;
+  /** 사용자 패널에서 사용할 마이크 토글 제어기를 등록한다. */
+  setAudioController: (
+    canToggleAudio: boolean,
+    toggleLocalAudio: (() => Promise<void>) | null,
+  ) => void;
+  /** 사용자 패널에서 사용할 청취 토글 제어기를 등록한다. */
+  setListeningController: (
+    canToggleListening: boolean,
+    toggleLocalListening: (() => Promise<void>) | null,
+  ) => void;
+  /** 현재 유저의 청취 on/off 상태를 업데이트한다. */
+  setListeningEnabled: (listeningEnabled: boolean) => void;
   reset: () => void;
 }
 
@@ -36,6 +62,12 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   previousUserIds: new Set(),
   hasInitialized: true,
   voiceConnected: false,
+  audioEnabled: false,
+  canToggleAudio: false,
+  toggleLocalAudio: null,
+  canToggleListening: false,
+  listeningEnabled: true,
+  toggleLocalListening: null,
 
   setParticipants: (participants, currentUserNickname, currentUserId) => {
     const sortedParticipants = [...participants].sort((a, b) =>
@@ -96,6 +128,34 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
 
   setVoiceConnected: (voiceConnected) => set({ voiceConnected }),
 
+  /**
+   * 발표용 마이크 활성 상태를 업데이트하고 presence track이 재전송되도록 한다.
+   */
+  setAudioEnabled: (audioEnabled) => set({ audioEnabled }),
+
+  /**
+   * 사용자 패널에서 사용할 마이크 토글 제어기를 등록한다.
+   */
+  setAudioController: (canToggleAudio, toggleLocalAudio) =>
+    set({
+      canToggleAudio,
+      toggleLocalAudio,
+    }),
+
+  /**
+   * 사용자 패널에서 사용할 청취 토글 제어기를 등록한다.
+   */
+  setListeningController: (canToggleListening, toggleLocalListening) =>
+    set({
+      canToggleListening,
+      toggleLocalListening,
+    }),
+
+  /**
+   * 현재 유저의 청취 on/off 상태를 업데이트한다.
+   */
+  setListeningEnabled: (listeningEnabled) => set({ listeningEnabled }),
+
   reset: () =>
     set({
       participants: [],
@@ -104,5 +164,12 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       lastSyncedAt: undefined,
       previousUserIds: new Set(),
       hasInitialized: true,
+      voiceConnected: false,
+      audioEnabled: false,
+      canToggleAudio: false,
+      toggleLocalAudio: null,
+      canToggleListening: false,
+      listeningEnabled: true,
+      toggleLocalListening: null,
     }),
 }));

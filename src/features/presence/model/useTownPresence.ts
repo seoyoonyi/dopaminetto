@@ -17,6 +17,10 @@ import { PresenceParticipant } from "../types";
 const isVillageId = (value: unknown): value is VillageId =>
   typeof value === "string" && Object.hasOwn(VILLAGES, value);
 
+/**
+ * Supabase Presence 상태를 PresenceParticipant 배열로 변환한다.
+ * 유효한 참여자만 필터링하여 반환한다.
+ */
 const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] => {
   if (!state) return [];
 
@@ -36,7 +40,9 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
           joinedAt,
           villageId,
           presenceRef: raw.presence_ref,
+          isSpeaker: raw.isSpeaker ?? false,
           voiceConnected: raw.voiceConnected ?? false,
+          audioEnabled: raw.audioEnabled ?? false,
         } as PresenceParticipant;
       }),
     )
@@ -84,6 +90,8 @@ export const useTownPresence = () => {
   );
   const localJoinedAt = useTownPresenceStore((state) => state.localJoinedAt);
   const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
+  const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
+  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
 
   const presenceView = useTownPresenceView();
 
@@ -101,7 +109,9 @@ export const useTownPresence = () => {
         joinedAt: localJoinedAt,
         villageId,
         username: userNickname,
+        isSpeaker,
         voiceConnected,
+        audioEnabled,
       };
 
       try {
@@ -134,7 +144,9 @@ export const useTownPresence = () => {
     villageId,
     reconnect,
     localJoinedAt,
+    isSpeaker,
     voiceConnected,
+    audioEnabled,
   ]);
 
   useEffect(() => {

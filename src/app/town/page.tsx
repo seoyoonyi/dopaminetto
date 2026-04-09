@@ -29,6 +29,10 @@ export default function TownPage() {
   const userNickname = user?.user_metadata?.nickname;
   const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
   const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
+  const setAudioEnabled = useTownPresenceStore((state) => state.setAudioEnabled);
+  const setAudioController = useTownPresenceStore((state) => state.setAudioController);
+  const setListeningController = useTownPresenceStore((state) => state.setListeningController);
+  const setListeningEnabled = useTownPresenceStore((state) => state.setListeningEnabled);
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -94,6 +98,10 @@ export default function TownPage() {
           nickname={userNickname}
           isSpeaker={isSpeaker}
           onConnectionChange={setVoiceConnected}
+          onAudioEnabledChange={setAudioEnabled}
+          onAudioControllerChange={setAudioController}
+          onListeningControllerChange={setListeningController}
+          onListeningEnabledChange={setListeningEnabled}
         />
       )}
       <TownToolbar />

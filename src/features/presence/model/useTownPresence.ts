@@ -36,6 +36,7 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
           joinedAt,
           villageId,
           presenceRef: raw.presence_ref,
+          voiceConnected: raw.voiceConnected ?? false,
         } as PresenceParticipant;
       }),
     )
@@ -82,6 +83,7 @@ export const useTownPresence = () => {
     })),
   );
   const localJoinedAt = useTownPresenceStore((state) => state.localJoinedAt);
+  const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
 
   const presenceView = useTownPresenceView();
 
@@ -99,6 +101,7 @@ export const useTownPresence = () => {
         joinedAt: localJoinedAt,
         villageId,
         username: userNickname,
+        voiceConnected,
       };
 
       try {
@@ -123,7 +126,16 @@ export const useTownPresence = () => {
     if (channelStatus === "SUBSCRIBED") {
       trackPresence();
     }
-  }, [channelStatus, channel, userId, userNickname, villageId, reconnect, localJoinedAt]);
+  }, [
+    channelStatus,
+    channel,
+    userId,
+    userNickname,
+    villageId,
+    reconnect,
+    localJoinedAt,
+    voiceConnected,
+  ]);
 
   useEffect(() => {
     const onPresenceEvent = () => {

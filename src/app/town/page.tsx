@@ -3,6 +3,7 @@
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
+import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { TownVoiceClient } from "@/features/voice-chat";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
@@ -26,7 +27,8 @@ export default function TownPage() {
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
-  const isSpeaker = user?.id === process.env.NEXT_PUBLIC_SPEAKER_USER_ID;
+  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
+  const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -87,7 +89,12 @@ export default function TownPage() {
       </div>
 
       {user?.id && userNickname && (
-        <TownVoiceClient userId={user.id} nickname={userNickname} isSpeaker={isSpeaker} />
+        <TownVoiceClient
+          userId={user.id}
+          nickname={userNickname}
+          isSpeaker={isSpeaker}
+          onConnectionChange={setVoiceConnected}
+        />
       )}
       <TownToolbar />
     </div>

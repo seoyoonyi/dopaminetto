@@ -13,6 +13,8 @@ interface TownPresenceState {
   localJoinedAt: string;
   previousUserIds: Set<string>;
   hasInitialized: boolean;
+  /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
+  voiceConnected: boolean;
 
   setParticipants: (
     participants: PresenceParticipant[],
@@ -20,6 +22,8 @@ interface TownPresenceState {
     currentUserId: string,
   ) => void;
   setConnectionState: (isConnected: boolean) => void;
+  /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
+  setVoiceConnected: (voiceConnected: boolean) => void;
   reset: () => void;
 }
 
@@ -31,6 +35,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   localJoinedAt: new Date().toISOString(),
   previousUserIds: new Set(),
   hasInitialized: true,
+  voiceConnected: false,
 
   setParticipants: (participants, currentUserNickname, currentUserId) => {
     const sortedParticipants = [...participants].sort((a, b) =>
@@ -88,6 +93,8 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   },
 
   setConnectionState: (isConnected) => set({ isConnected }),
+
+  setVoiceConnected: (voiceConnected) => set({ voiceConnected }),
 
   reset: () =>
     set({

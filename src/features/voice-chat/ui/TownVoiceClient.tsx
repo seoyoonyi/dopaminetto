@@ -97,10 +97,10 @@ function VoicePanel({
               ? "현재 방송을 청취합니다."
               : "사용자 패널의 헤드셋 버튼으로 청취를 시작할 수 있습니다."}
           </p>
-          {/* speaker의 오디오 스트림을 자동으로 재생한다 */}
-          {isListeningEnabled ? <RtkParticipantsAudio /> : null}
         </div>
       )}
+      {/* 모든 역할에서 상대방 오디오를 재생한다. listener는 헤드셋 토글 상태를 따른다. */}
+      {isSpeaker || isListeningEnabled ? <RtkParticipantsAudio /> : null}
     </section>
   );
 }

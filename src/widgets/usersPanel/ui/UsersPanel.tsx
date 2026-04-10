@@ -36,16 +36,13 @@ const renderVoiceIndicator = (participant: PresenceParticipant) => {
   }
 
   return (
-    <button
-      type="button"
-      aria-disabled="true"
-      tabIndex={-1}
-      className="inline-flex cursor-pointer items-center rounded-full text-emerald-500"
+    <span
+      className="inline-flex items-center text-emerald-500"
       aria-label="청취 중"
       title="청취 중"
     >
       <Headphones className="size-3.5" aria-hidden="true" />
-    </button>
+    </span>
   );
 };
 

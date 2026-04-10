@@ -33,6 +33,7 @@ export default function TownPage() {
   const setAudioController = useTownPresenceStore((state) => state.setAudioController);
   const setListeningController = useTownPresenceStore((state) => state.setListeningController);
   const setListeningEnabled = useTownPresenceStore((state) => state.setListeningEnabled);
+  const setAudioToggling = useTownPresenceStore((state) => state.setAudioToggling);
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -100,6 +101,7 @@ export default function TownPage() {
           onConnectionChange={setVoiceConnected}
           onAudioEnabledChange={setAudioEnabled}
           onAudioControllerChange={setAudioController}
+          onAudioTogglingChange={setAudioToggling}
           onListeningControllerChange={setListeningController}
           onListeningEnabledChange={setListeningEnabled}
         />

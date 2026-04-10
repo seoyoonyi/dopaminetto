@@ -69,12 +69,20 @@ const getResolvedParticipant = (
 
 /**
  * 발표자인 현재 사용자의 마이크 토글 버튼을 렌더링한다.
+ *
+ * isToggling이 true인 동안 버튼을 disabled 처리해
+ * SDK enableAudio/disableAudio 호출이 완료되기 전에 중복 클릭되지 않도록 막는다.
  */
-const renderSpeakerControl = (audioEnabled: boolean | undefined, onToggle: () => Promise<void>) => (
+const renderSpeakerControl = (
+  audioEnabled: boolean | undefined,
+  onToggle: () => Promise<void>,
+  isToggling: boolean,
+) => (
   <button
     type="button"
     onClick={() => void onToggle()}
-    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+    disabled={isToggling}
+    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 ${
       audioEnabled ? "text-emerald-500 hover:text-emerald-600" : "text-gray-300 hover:text-gray-500"
     }`}
     aria-label={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
@@ -115,6 +123,7 @@ export function UsersPanel() {
     localAudioEnabled,
     canToggleAudio,
     toggleLocalAudio,
+    isAudioToggling,
     canToggleListening,
     localListeningEnabled,
     toggleLocalListening,
@@ -127,6 +136,7 @@ export function UsersPanel() {
       localAudioEnabled: state.audioEnabled,
       canToggleAudio: state.canToggleAudio,
       toggleLocalAudio: state.toggleLocalAudio,
+      isAudioToggling: state.isAudioToggling,
       canToggleListening: state.canToggleListening,
       localListeningEnabled: state.listeningEnabled,
       toggleLocalListening: state.toggleLocalListening,
@@ -151,7 +161,11 @@ export function UsersPanel() {
         if (!isCurrentUser) return renderVoiceIndicator(resolvedParticipant);
         if (resolvedParticipant.isSpeaker) {
           if (!canToggleAudio || !toggleLocalAudio) return null;
-          return renderSpeakerControl(resolvedParticipant.audioEnabled, toggleLocalAudio);
+          return renderSpeakerControl(
+            resolvedParticipant.audioEnabled,
+            toggleLocalAudio,
+            isAudioToggling,
+          );
         }
         if (!canToggleListening || !toggleLocalListening) return null;
         return renderListenerControl(localListeningEnabled, toggleLocalListening);

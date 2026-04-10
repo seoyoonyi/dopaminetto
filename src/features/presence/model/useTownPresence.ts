@@ -100,8 +100,16 @@ export const useTownPresence = () => {
   }, [isConnected, setConnectionState]);
 
   useEffect(() => {
+    /**
+     * effect cleanup 이후 비동기 재시도가 실행되지 않도록 취소 플래그를 사용한다.
+     * retryTimerIds 배열 방식은 channel.track()이 await 중일 때 cleanup이 실행되면
+     * 배열이 비어 있어 이후 등록되는 타이머를 정리하지 못하는 타이밍 버그가 있었다.
+     */
+    let isCancelled = false;
+
     const trackPresence = async (retryCount = 0) => {
-      if (channelStatus !== "SUBSCRIBED" || !channel || !userId) return;
+      // effect가 cleanup된 이후에는 실행하지 않는다.
+      if (isCancelled || channelStatus !== "SUBSCRIBED" || !channel || !userId) return;
 
       const payload: PresenceTrackPayload = {
         userId,
@@ -123,6 +131,9 @@ export const useTownPresence = () => {
         const errorMessage = err instanceof Error ? err.message : String(err);
         console.warn(`[useTownPresence] Track failed (Attempt ${retryCount + 1}): ${errorMessage}`);
 
+        // cleanup 이후라면 reconnect와 재시도 타이머를 등록하지 않는다.
+        if (isCancelled) return;
+
         if (retryCount >= 3) {
           console.warn(`[useTownPresence] Start reconnecting due to track failure.`);
           reconnect();
@@ -136,7 +147,10 @@ export const useTownPresence = () => {
     if (channelStatus !== "SUBSCRIBED") return;
 
     const timer = setTimeout(() => void trackPresence(), 300);
-    return () => clearTimeout(timer);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
   }, [
     channelStatus,
     channel,

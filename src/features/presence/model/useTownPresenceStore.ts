@@ -21,6 +21,11 @@ interface TownPresenceState {
   canToggleAudio: boolean;
   /** 현재 유저의 마이크 토글을 수행하는 로컬 제어 함수 */
   toggleLocalAudio: (() => Promise<void>) | null;
+  /**
+   * 마이크 토글 SDK 호출이 진행 중인지 여부.
+   * true인 동안 버튼을 disabled 처리해 중복 클릭을 막는다.
+   */
+  isAudioToggling: boolean;
   /** 현재 유저가 사용자 패널에서 청취 토글을 제어할 수 있는지 여부 */
   canToggleListening: boolean;
   /** 현재 유저의 실제 청취 on/off 상태 */
@@ -43,6 +48,8 @@ interface TownPresenceState {
     canToggleAudio: boolean,
     toggleLocalAudio: (() => Promise<void>) | null,
   ) => void;
+  /** 마이크 토글 SDK 호출 진행 상태를 업데이트한다. */
+  setAudioToggling: (isAudioToggling: boolean) => void;
   /** 사용자 패널에서 사용할 청취 토글 제어기를 등록한다. */
   setListeningController: (
     canToggleListening: boolean,
@@ -65,6 +72,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   audioEnabled: false,
   canToggleAudio: false,
   toggleLocalAudio: null,
+  isAudioToggling: false,
   canToggleListening: false,
   listeningEnabled: true,
   toggleLocalListening: null,
@@ -142,6 +150,8 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       toggleLocalAudio,
     }),
 
+  setAudioToggling: (isAudioToggling) => set({ isAudioToggling }),
+
   /**
    * 사용자 패널에서 사용할 청취 토글 제어기를 등록한다.
    */
@@ -168,6 +178,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       audioEnabled: false,
       canToggleAudio: false,
       toggleLocalAudio: null,
+      isAudioToggling: false,
       canToggleListening: false,
       listeningEnabled: true,
       toggleLocalListening: null,

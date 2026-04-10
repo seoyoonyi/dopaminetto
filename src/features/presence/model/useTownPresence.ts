@@ -133,9 +133,10 @@ export const useTownPresence = () => {
       }
     };
 
-    if (channelStatus === "SUBSCRIBED") {
-      trackPresence();
-    }
+    if (channelStatus !== "SUBSCRIBED") return;
+
+    const timer = setTimeout(() => void trackPresence(), 300);
+    return () => clearTimeout(timer);
   }, [
     channelStatus,
     channel,

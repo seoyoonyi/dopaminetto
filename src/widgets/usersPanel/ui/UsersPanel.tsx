@@ -67,6 +67,44 @@ const getResolvedParticipant = (
   };
 };
 
+/**
+ * 발표자인 현재 사용자의 마이크 토글 버튼을 렌더링한다.
+ */
+const renderSpeakerControl = (audioEnabled: boolean | undefined, onToggle: () => Promise<void>) => (
+  <button
+    type="button"
+    onClick={() => void onToggle()}
+    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+      audioEnabled ? "text-emerald-500 hover:text-emerald-600" : "text-gray-300 hover:text-gray-500"
+    }`}
+    aria-label={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
+    aria-pressed={audioEnabled}
+    title={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
+  >
+    <Mic className="size-3.5" aria-hidden="true" />
+  </button>
+);
+
+/**
+ * 청취자인 현재 사용자의 청취 토글 버튼을 렌더링한다.
+ */
+const renderListenerControl = (listeningEnabled: boolean, onToggle: () => Promise<void>) => (
+  <button
+    type="button"
+    onClick={() => void onToggle()}
+    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+      listeningEnabled
+        ? "text-emerald-500 hover:text-emerald-600"
+        : "text-gray-300 hover:text-gray-500"
+    }`}
+    aria-label={listeningEnabled ? "청취 끄기" : "청취 켜기"}
+    aria-pressed={listeningEnabled}
+    title={listeningEnabled ? "청취 끄기" : "청취 켜기"}
+  >
+    <Headphones className="size-3.5" aria-hidden="true" />
+  </button>
+);
+
 export function UsersPanel() {
   const { data: user } = useUserInfo();
   const {
@@ -109,44 +147,15 @@ export function UsersPanel() {
         localAudioEnabled,
       );
       const isCurrentUser = resolvedParticipant.userId === currentUserId;
-      const voiceControl =
-        isCurrentUser && resolvedParticipant.isSpeaker ? (
-          canToggleAudio && toggleLocalAudio ? (
-            <button
-              type="button"
-              onClick={() => void toggleLocalAudio()}
-              className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
-                resolvedParticipant.audioEnabled
-                  ? "text-emerald-500 hover:text-emerald-600"
-                  : "text-gray-300 hover:text-gray-500"
-              }`}
-              aria-label={resolvedParticipant.audioEnabled ? "마이크 끄기" : "마이크 켜기"}
-              aria-pressed={resolvedParticipant.audioEnabled}
-              title={resolvedParticipant.audioEnabled ? "마이크 끄기" : "마이크 켜기"}
-            >
-              <Mic className="size-3.5" aria-hidden="true" />
-            </button>
-          ) : null
-        ) : isCurrentUser ? (
-          canToggleListening && toggleLocalListening ? (
-            <button
-              type="button"
-              onClick={() => void toggleLocalListening()}
-              className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
-                localListeningEnabled
-                  ? "text-emerald-500 hover:text-emerald-600"
-                  : "text-gray-300 hover:text-gray-500"
-              }`}
-              aria-label={localListeningEnabled ? "청취 끄기" : "청취 켜기"}
-              aria-pressed={localListeningEnabled}
-              title={localListeningEnabled ? "청취 끄기" : "청취 켜기"}
-            >
-              <Headphones className="size-3.5" aria-hidden="true" />
-            </button>
-          ) : null
-        ) : (
-          renderVoiceIndicator(resolvedParticipant)
-        );
+      const voiceControl = (() => {
+        if (!isCurrentUser) return renderVoiceIndicator(resolvedParticipant);
+        if (resolvedParticipant.isSpeaker) {
+          if (!canToggleAudio || !toggleLocalAudio) return null;
+          return renderSpeakerControl(resolvedParticipant.audioEnabled, toggleLocalAudio);
+        }
+        if (!canToggleListening || !toggleLocalListening) return null;
+        return renderListenerControl(localListeningEnabled, toggleLocalListening);
+      })();
 
       return (
         <div

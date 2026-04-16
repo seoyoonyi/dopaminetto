@@ -58,8 +58,8 @@ type ConnectionStatus =
 /**
  * 음성 채널 연결이 완료된 뒤 speaker/listener 역할에 맞는 UI를 렌더링한다.
  *
- * speaker는 마이크 토글을 노출하고,
- * listener는 방송자의 오디오만 재생한다.
+ * speaker는 마이크 상태 안내를 보여주고,
+ * listener는 speaker의 오디오를 재생한다.
  */
 function VoicePanel({
   isSpeaker,
@@ -97,10 +97,11 @@ function VoicePanel({
               ? "현재 방송을 청취합니다."
               : "사용자 패널의 헤드셋 버튼으로 청취를 시작할 수 있습니다."}
           </p>
+          <p>isListeningEnabled: {String(isListeningEnabled)}</p>
         </div>
       )}
       {/* 모든 역할에서 상대방 오디오를 재생한다. listener는 헤드셋 토글 상태를 따른다. */}
-      {isSpeaker || isListeningEnabled ? <RtkParticipantsAudio /> : null}
+      {isSpeaker || isListeningEnabled ? <RtkParticipantsAudio meeting={meeting} /> : null}
     </section>
   );
 }
@@ -126,8 +127,9 @@ export function TownVoiceClient({
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tokenResult, setTokenResult] = useState<RequestVoiceTokenResponse | null>(null);
-  const [isListeningEnabled, setIsListeningEnabled] = useState(true);
+  const [isListeningEnabled, setIsListeningEnabled] = useState(false);
   const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
+
   const meetingRef = useRef<typeof client | null>(null);
   const listeningEnabledRef = useRef(true);
   /** 마이크 토글 SDK 호출이 진행 중인지 동기적으로 추적하는 ref.
@@ -156,9 +158,10 @@ export function TownVoiceClient({
         onAudioTogglingChange?.(false);
         onAudioControllerChange?.(false, null);
         onListeningControllerChange?.(false, null);
-        listeningEnabledRef.current = true;
-        setIsListeningEnabled(true);
-        onListeningEnabledChange?.(true);
+
+        listeningEnabledRef.current = false;
+        setIsListeningEnabled(false);
+        onListeningEnabledChange?.(false);
 
         const tokenResponse = await requestVoiceToken({
           userId,
@@ -171,7 +174,11 @@ export function TownVoiceClient({
         setTokenResult(tokenResponse);
         setStatus("initializing");
 
-        const mediaHandler = await initRTKMedia({ audio: false, video: false });
+        const mediaHandler = await initRTKMedia({
+          audio: canUseMic,
+          video: false,
+        });
+
         const initializedMeeting = await initMeeting({
           authToken: tokenResponse.token,
           defaults: {
@@ -256,19 +263,34 @@ export function TownVoiceClient({
         await initializedMeeting.joinRoom();
         joinedRoom = true;
 
+        console.log("self.roomJoined", initializedMeeting.self.roomJoined);
+        console.log("self.audioEnabled(before)", initializedMeeting.self.audioEnabled);
+        console.log("mediaPermissions(before)", initializedMeeting.self.mediaPermissions);
+
         if (!isMounted) return;
 
         if (!canUseMic && initializedMeeting.self.audioEnabled) {
           await initializedMeeting.self.disableAudio();
         }
 
+        console.log("participants.joined", initializedMeeting.participants.joined);
+        console.log(
+          "participants.audioSubscribed",
+          initializedMeeting.participants.audioSubscribed,
+        );
+
         onAudioControllerChange?.(canUseMic, canUseMic ? toggleLocalAudio : null);
         onListeningControllerChange?.(!isSpeaker, !isSpeaker ? toggleLocalListening : null);
 
         if (canUseMic) {
           try {
+            console.log("mediaPermissions(before)", initializedMeeting.self.mediaPermissions);
             await initializedMeeting.self.enableAudio();
+            console.log("self.audioEnabled(after)", initializedMeeting.self.audioEnabled);
+            console.log("mediaPermissions(after)", initializedMeeting.self.mediaPermissions);
           } catch (audioError) {
+            console.error("enableAudio error", audioError);
+            console.log("mediaPermissions(error)", initializedMeeting.self.mediaPermissions);
             if (isMounted) {
               setErrorMessage(
                 audioError instanceof Error

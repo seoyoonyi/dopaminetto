@@ -3,6 +3,8 @@
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
+import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
+import { TownVoiceClient } from "@/features/voice-chat";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
@@ -25,6 +27,13 @@ export default function TownPage() {
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
+  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
+  const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
+  const setAudioEnabled = useTownPresenceStore((state) => state.setAudioEnabled);
+  const setAudioController = useTownPresenceStore((state) => state.setAudioController);
+  const setListeningController = useTownPresenceStore((state) => state.setListeningController);
+  const setListeningEnabled = useTownPresenceStore((state) => state.setListeningEnabled);
+  const setAudioToggling = useTownPresenceStore((state) => state.setAudioToggling);
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -84,6 +93,19 @@ export default function TownPage() {
         <div className="flex h-full w-96 flex-col">{renderPanel()}</div>
       </div>
 
+      {user?.id && userNickname && (
+        <TownVoiceClient
+          userId={user.id}
+          nickname={userNickname}
+          isSpeaker={isSpeaker}
+          onConnectionChange={setVoiceConnected}
+          onAudioEnabledChange={setAudioEnabled}
+          onAudioControllerChange={setAudioController}
+          onAudioTogglingChange={setAudioToggling}
+          onListeningControllerChange={setListeningController}
+          onListeningEnabledChange={setListeningEnabled}
+        />
+      )}
       <TownToolbar />
     </div>
   );

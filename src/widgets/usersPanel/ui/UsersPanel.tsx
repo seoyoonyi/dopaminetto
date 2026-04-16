@@ -3,35 +3,196 @@
 import { VILLAGES, VillageId } from "@/entities/village";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { PresenceParticipant } from "@/features/presence/types";
+import { useUserInfo } from "@/shared/hooks";
 import { formatJoinedTime } from "@/shared/lib";
+import { Headphones, Mic } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
+/**
+ * 다른 사용자의 음성 상태를 나타내는 아이콘을 렌더링한다.
+ *
+ * 발표자는 마이크가 활성화되었을 때 초록색 마이크 아이콘을 표시하고,
+ * 청취자는 음성 채널에 연결되었을 때 초록색 헤드셋 아이콘을 표시한다.
+ */
+const renderVoiceIndicator = (participant: PresenceParticipant) => {
+  if (participant.isSpeaker) {
+    if (!participant.audioEnabled) {
+      return null;
+    }
+
+    return (
+      <span
+        className="inline-flex items-center text-emerald-500"
+        aria-label="발표 중"
+        title="발표 중"
+      >
+        <Mic className="size-3.5" aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (!participant.voiceConnected) {
+    return null;
+  }
+
+  return (
+    <span
+      className="inline-flex items-center text-emerald-500"
+      aria-label="청취 중"
+      title="청취 중"
+    >
+      <Headphones className="size-3.5" aria-hidden="true" />
+    </span>
+  );
+};
+
+/**
+ * 현재 사용자 row는 presence 재동기화보다 로컬 음성 상태를 우선 사용해
+ * 아이콘이 즉시 반응하도록 한다.
+ */
+const getResolvedParticipant = (
+  participant: PresenceParticipant,
+  currentUserId: string | undefined,
+  localVoiceConnected: boolean,
+  localAudioEnabled: boolean,
+) => {
+  if (participant.userId !== currentUserId) {
+    return participant;
+  }
+
+  return {
+    ...participant,
+    voiceConnected: localVoiceConnected,
+    audioEnabled: localAudioEnabled,
+  };
+};
+
+/**
+ * 발표자인 현재 사용자의 마이크 토글 버튼을 렌더링한다.
+ *
+ * isToggling이 true인 동안 버튼을 disabled 처리해
+ * SDK enableAudio/disableAudio 호출이 완료되기 전에 중복 클릭되지 않도록 막는다.
+ */
+const renderSpeakerControl = (
+  audioEnabled: boolean | undefined,
+  onToggle: () => Promise<void>,
+  isToggling: boolean,
+) => (
+  <button
+    type="button"
+    onClick={() => void onToggle()}
+    disabled={isToggling}
+    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 ${
+      audioEnabled ? "text-emerald-500 hover:text-emerald-600" : "text-gray-300 hover:text-gray-500"
+    }`}
+    aria-label={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
+    aria-pressed={audioEnabled}
+    title={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
+  >
+    <Mic className="size-3.5" aria-hidden="true" />
+  </button>
+);
+
+/**
+ * 청취자인 현재 사용자의 청취 토글 버튼을 렌더링한다.
+ */
+const renderListenerControl = (listeningEnabled: boolean, onToggle: () => Promise<void>) => (
+  <button
+    type="button"
+    onClick={() => void onToggle()}
+    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+      listeningEnabled
+        ? "text-emerald-500 hover:text-emerald-600"
+        : "text-gray-300 hover:text-gray-500"
+    }`}
+    aria-label={listeningEnabled ? "청취 끄기" : "청취 켜기"}
+    aria-pressed={listeningEnabled}
+    title={listeningEnabled ? "청취 끄기" : "청취 켜기"}
+  >
+    <Headphones className="size-3.5" aria-hidden="true" />
+  </button>
+);
+
 export function UsersPanel() {
-  const { groupedParticipants, participantCount, isConnected } = useTownPresenceStore(
+  const { data: user } = useUserInfo();
+  const {
+    groupedParticipants,
+    participantCount,
+    isConnected,
+    localVoiceConnected,
+    localAudioEnabled,
+    canToggleAudio,
+    toggleLocalAudio,
+    isAudioToggling,
+    canToggleListening,
+    localListeningEnabled,
+    toggleLocalListening,
+  } = useTownPresenceStore(
     useShallow((state) => ({
       groupedParticipants: state.groupedParticipants,
       participantCount: state.participants.length,
       isConnected: state.isConnected,
+      localVoiceConnected: state.voiceConnected,
+      localAudioEnabled: state.audioEnabled,
+      canToggleAudio: state.canToggleAudio,
+      toggleLocalAudio: state.toggleLocalAudio,
+      isAudioToggling: state.isAudioToggling,
+      canToggleListening: state.canToggleListening,
+      localListeningEnabled: state.listeningEnabled,
+      toggleLocalListening: state.toggleLocalListening,
     })),
   );
   const presenceStatus = isConnected ? "실시간으로 동기화 중" : "연결 대기 중";
   const presenceIndicatorLabel = isConnected ? "Presence 연결됨" : "Presence 연결 대기";
+  const currentUserId = user?.id;
 
   const villageIds = Object.keys(VILLAGES) as VillageId[];
 
   const renderParticipantList = (list: PresenceParticipant[]) => {
-    return list.map((participant) => (
-      <div
-        key={participant.presenceRef}
-        className="flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-50"
-      >
-        <div className="flex flex-col">
-          <span className="font-medium text-gray-900">{participant.nickname}</span>
-          <span className="text-xs text-gray-500">{formatJoinedTime(participant.joinedAt)}</span>
+    return list.map((participant) => {
+      const resolvedParticipant = getResolvedParticipant(
+        participant,
+        currentUserId,
+        localVoiceConnected,
+        localAudioEnabled,
+      );
+      const isCurrentUser = resolvedParticipant.userId === currentUserId;
+      const voiceControl = (() => {
+        if (!isCurrentUser) return renderVoiceIndicator(resolvedParticipant);
+        if (resolvedParticipant.isSpeaker) {
+          if (!canToggleAudio || !toggleLocalAudio) return null;
+          return renderSpeakerControl(
+            resolvedParticipant.audioEnabled,
+            toggleLocalAudio,
+            isAudioToggling,
+          );
+        }
+        if (!canToggleListening || !toggleLocalListening) return null;
+        return renderListenerControl(localListeningEnabled, toggleLocalListening);
+      })();
+
+      return (
+        <div
+          key={resolvedParticipant.presenceRef}
+          className="flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-50"
+        >
+          <div className="flex min-w-0 flex-col">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-medium text-gray-900">
+                {resolvedParticipant.nickname}
+              </span>
+              {voiceControl}
+            </div>
+            <span className="text-xs text-gray-500">
+              {formatJoinedTime(resolvedParticipant.joinedAt)}
+            </span>
+          </div>
+          <span className="font-mono text-xs text-gray-400">
+            {resolvedParticipant.userId.slice(0, 4)}
+          </span>
         </div>
-        <span className="text-xs text-gray-400 font-mono">{participant.userId.slice(0, 4)}</span>
-      </div>
-    ));
+      );
+    });
   };
 
   return (

@@ -17,6 +17,10 @@ import { PresenceParticipant } from "../types";
 const isVillageId = (value: unknown): value is VillageId =>
   typeof value === "string" && Object.hasOwn(VILLAGES, value);
 
+/**
+ * Supabase Presence 상태를 PresenceParticipant 배열로 변환한다.
+ * 유효한 참여자만 필터링하여 반환한다.
+ */
 const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] => {
   if (!state) return [];
 
@@ -36,6 +40,9 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
           joinedAt,
           villageId,
           presenceRef: raw.presence_ref,
+          isSpeaker: raw.isSpeaker ?? false,
+          voiceConnected: raw.voiceConnected ?? false,
+          audioEnabled: raw.audioEnabled ?? false,
         } as PresenceParticipant;
       }),
     )
@@ -82,6 +89,9 @@ export const useTownPresence = () => {
     })),
   );
   const localJoinedAt = useTownPresenceStore((state) => state.localJoinedAt);
+  const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
+  const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
+  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
 
   const presenceView = useTownPresenceView();
 
@@ -90,8 +100,16 @@ export const useTownPresence = () => {
   }, [isConnected, setConnectionState]);
 
   useEffect(() => {
+    /**
+     * effect cleanup 이후 비동기 재시도가 실행되지 않도록 취소 플래그를 사용한다.
+     * retryTimerIds 배열 방식은 channel.track()이 await 중일 때 cleanup이 실행되면
+     * 배열이 비어 있어 이후 등록되는 타이머를 정리하지 못하는 타이밍 버그가 있었다.
+     */
+    let isCancelled = false;
+
     const trackPresence = async (retryCount = 0) => {
-      if (channelStatus !== "SUBSCRIBED" || !channel || !userId) return;
+      // effect가 cleanup된 이후에는 실행하지 않는다.
+      if (isCancelled || channelStatus !== "SUBSCRIBED" || !channel || !userId) return;
 
       const payload: PresenceTrackPayload = {
         userId,
@@ -99,6 +117,9 @@ export const useTownPresence = () => {
         joinedAt: localJoinedAt,
         villageId,
         username: userNickname,
+        isSpeaker,
+        voiceConnected,
+        audioEnabled,
       };
 
       try {
@@ -110,6 +131,9 @@ export const useTownPresence = () => {
         const errorMessage = err instanceof Error ? err.message : String(err);
         console.warn(`[useTownPresence] Track failed (Attempt ${retryCount + 1}): ${errorMessage}`);
 
+        // cleanup 이후라면 reconnect와 재시도 타이머를 등록하지 않는다.
+        if (isCancelled) return;
+
         if (retryCount >= 3) {
           console.warn(`[useTownPresence] Start reconnecting due to track failure.`);
           reconnect();
@@ -120,10 +144,25 @@ export const useTownPresence = () => {
       }
     };
 
-    if (channelStatus === "SUBSCRIBED") {
-      trackPresence();
-    }
-  }, [channelStatus, channel, userId, userNickname, villageId, reconnect, localJoinedAt]);
+    if (channelStatus !== "SUBSCRIBED") return;
+
+    const timer = setTimeout(() => void trackPresence(), 300);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    channelStatus,
+    channel,
+    userId,
+    userNickname,
+    villageId,
+    reconnect,
+    localJoinedAt,
+    isSpeaker,
+    voiceConnected,
+    audioEnabled,
+  ]);
 
   useEffect(() => {
     const onPresenceEvent = () => {

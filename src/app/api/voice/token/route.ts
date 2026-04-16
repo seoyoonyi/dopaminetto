@@ -2,10 +2,10 @@
 import { NextResponse } from "next/server";
 
 /** speaker용 Cloudflare Realtime Kit preset Name */
-const SPEAKER_PRESET_NAME = "livestream_host";
+const SPEAKER_PRESET_NAME = "group_call_host";
 
 /** listener용 Cloudflare Realtime Kit preset Name */
-const LISTENER_PRESET_NAME = "livestream_viewer";
+const LISTENER_PRESET_NAME = "group_call_participant";
 
 /** 음성 토큰 발급 요청 바디 */
 type VoiceTokenRequest = {

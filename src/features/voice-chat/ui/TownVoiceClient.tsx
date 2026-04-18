@@ -10,10 +10,9 @@ import { RtkParticipantsAudio } from "@cloudflare/realtimekit-react-ui";
 
 // import { RtkMicToggle /*, RtkLivestreamPlayer */ } from "@cloudflare/
 // realtimekit-react-ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { requestVoiceToken } from "../api/requestVoiceToken";
-import type { RequestVoiceTokenResponse } from "../model/types";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
 export type TownVoiceClientProps = {
@@ -56,53 +55,27 @@ type ConnectionStatus =
   | "error";
 
 /**
- * 음성 채널 연결이 완료된 뒤 speaker/listener 역할에 맞는 UI를 렌더링한다.
+ * 음성 채널 연결이 완료된 뒤 오디오를 재생한다.
  *
- * speaker는 마이크 상태 안내를 보여주고,
- * listener는 speaker의 오디오를 재생한다.
+ * speaker는 항상 재생하고, listener는 isListeningEnabled일 때만 재생한다.
+ * RtkParticipantsAudio 렌더링을 위해 반드시 유지해야 한다.
  */
 function VoicePanel({
   isSpeaker,
   isListeningEnabled,
-  audioEnabled,
 }: {
   isSpeaker: boolean;
   isListeningEnabled: boolean;
-  audioEnabled: boolean;
 }) {
   const { meeting } = useRealtimeKitMeeting();
 
-  if (!meeting) {
-    return <p>음성 연결 정보를 불러오는 중입니다.</p>;
-  }
+  if (!meeting) return null;
 
   return (
-    <section className="rounded-xl border p-4">
-      <div className="mb-3">
-        <strong>{isSpeaker ? "방송자" : "청취자"}</strong>
-      </div>
-
-      {isSpeaker ? (
-        <div className="space-y-3">
-          <p>
-            {audioEnabled
-              ? "현재 타운 전체에 방송 중입니다."
-              : "사용자 패널의 마이크 버튼으로 타운 전체 방송을 시작할 수 있습니다."}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p>
-            {isListeningEnabled
-              ? "현재 방송을 청취합니다."
-              : "사용자 패널의 헤드셋 버튼으로 청취를 시작할 수 있습니다."}
-          </p>
-          <p>isListeningEnabled: {String(isListeningEnabled)}</p>
-        </div>
-      )}
+    <>
       {/* 모든 역할에서 상대방 오디오를 재생한다. listener는 헤드셋 토글 상태를 따른다. */}
       {isSpeaker || isListeningEnabled ? <RtkParticipantsAudio meeting={meeting} /> : null}
-    </section>
+    </>
   );
 }
 
@@ -126,9 +99,7 @@ export function TownVoiceClient({
   const [client, initMeeting] = useRealtimeKitClient();
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [tokenResult, setTokenResult] = useState<RequestVoiceTokenResponse | null>(null);
   const [isListeningEnabled, setIsListeningEnabled] = useState(false);
-  const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
 
   const meetingRef = useRef<typeof client | null>(null);
   const listeningEnabledRef = useRef(true);
@@ -136,7 +107,6 @@ export function TownVoiceClient({
    *  React 리렌더 전에 발생하는 중복 클릭을 state보다 먼저 차단한다. */
   const isAudioTogglingRef = useRef(false);
 
-  const roleLabel = useMemo(() => (isSpeaker ? "speaker" : "listener"), [isSpeaker]);
   const hasNickname = nickname.trim().length > 0;
   const canUseMic = hasNickname && isSpeaker;
 
@@ -153,7 +123,6 @@ export function TownVoiceClient({
       try {
         setStatus("requesting-token");
         setErrorMessage(null);
-        setLocalAudioEnabled(false);
         onAudioEnabledChange?.(false);
         onAudioTogglingChange?.(false);
         onAudioControllerChange?.(false, null);
@@ -171,7 +140,6 @@ export function TownVoiceClient({
 
         if (!isMounted) return;
 
-        setTokenResult(tokenResponse);
         setStatus("initializing");
 
         const mediaHandler = await initRTKMedia({
@@ -244,7 +212,6 @@ export function TownVoiceClient({
          * audioUpdate 이벤트 리스너로 등록되어 마이크 상태 변화를 감지한다.
          */
         const keepAudioDisabled = ({ audioEnabled }: { audioEnabled: boolean }) => {
-          setLocalAudioEnabled(audioEnabled);
           onAudioEnabledChange?.(audioEnabled);
 
           if (!canUseMic && audioEnabled) {
@@ -334,7 +301,6 @@ export function TownVoiceClient({
       }
 
       meetingRef.current = null;
-      setLocalAudioEnabled(false);
       onConnectionChange?.(false);
       onAudioEnabledChange?.(false);
       onAudioTogglingChange?.(false);
@@ -358,24 +324,13 @@ export function TownVoiceClient({
   ]);
 
   return (
-    <div className="space-y-4 rounded-2xl border p-5">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold">타운 음성 방송</h3>
-        <p>현재 역할: {roleLabel}</p>
-        <p>연결 상태: {status}</p>
-        {tokenResult ? <p>preset: {tokenResult.presetName}</p> : null}
-        {errorMessage ? <p className="text-red-600">{errorMessage}</p> : null}
-      </div>
-
+    <>
+      {errorMessage ? <p className="text-red-600">{errorMessage}</p> : null}
       {status === "connected" ? (
         <RealtimeKitProvider value={client}>
-          <VoicePanel
-            isSpeaker={isSpeaker}
-            isListeningEnabled={isListeningEnabled}
-            audioEnabled={localAudioEnabled}
-          />
+          <VoicePanel isSpeaker={isSpeaker} isListeningEnabled={isListeningEnabled} />
         </RealtimeKitProvider>
       ) : null}
-    </div>
+    </>
   );
 }

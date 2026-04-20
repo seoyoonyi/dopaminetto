@@ -16,6 +16,7 @@ interface MovementStore extends MovementState {
   setNickname: (nickname: string) => void;
   setPosition: (position: Position) => void;
   setVillage: (villageId: VillageId) => void;
+  initializePosition: (position: Position, villageId: VillageId) => void;
   warp: (position: Position, villageId: VillageId) => void;
   updatePosition: (delta: Position) => void;
   updateRemotePlayer: (player: RemotePlayer) => void;
@@ -61,6 +62,16 @@ export const useMovementStore = create<MovementStore>()(
       setNickname: (nickname) => set({ nickname }),
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
+      // 접속 시 DB에서 불러온 마지막 저장 위치를 초기값으로 설정한다.
+      // warp와 달리 findSafeSpawnPosition을 거치지 않고 위치를 그대로 적용한다.
+      initializePosition: (position, villageId) =>
+        set({
+          position,
+          villageId,
+          lastSyncedPosition: position,
+          lastSyncedVillageId: villageId,
+          pendingDelta: { x: 0, y: 0 },
+        }),
 
       updateRemotePlayer: (player) =>
         set((state) => ({

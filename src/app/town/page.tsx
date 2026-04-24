@@ -29,6 +29,7 @@ export default function TownPage() {
   const userNickname = user?.user_metadata?.nickname;
   const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
   const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
+  const setIsSpeaker = useTownPresenceStore((state) => state.setIsSpeaker);
   const setAudioEnabled = useTownPresenceStore((state) => state.setAudioEnabled);
   const setAudioController = useTownPresenceStore((state) => state.setAudioController);
   const setListeningController = useTownPresenceStore((state) => state.setListeningController);
@@ -51,6 +52,10 @@ export default function TownPage() {
       setUserNickname(userNickname);
     }
   }, [setUserNickname, userNickname]);
+
+  useEffect(() => {
+    setIsSpeaker(isSpeaker);
+  }, [isSpeaker, setIsSpeaker]);
 
   useEffect(() => {
     if (!isLoading && !userNickname) {

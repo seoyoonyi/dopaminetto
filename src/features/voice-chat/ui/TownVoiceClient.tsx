@@ -106,9 +106,33 @@ export function TownVoiceClient({
   /** 마이크 토글 SDK 호출이 진행 중인지 동기적으로 추적하는 ref.
    *  React 리렌더 전에 발생하는 중복 클릭을 state보다 먼저 차단한다. */
   const isAudioTogglingRef = useRef(false);
+  /**
+   * 비동기 연결 흐름, SDK 이벤트 리스너, cleanup에서 최신 콜백을 읽기 위한 참조다.
+   * 메인 연결 effect가 콜백 identity 변경으로 다시 실행되지 않도록 한다.
+   */
+  const callbacksRef = useRef({
+    onConnectionChange,
+    onAudioEnabledChange,
+    onAudioControllerChange,
+    onListeningControllerChange,
+    onListeningEnabledChange,
+    onAudioTogglingChange,
+  });
 
   const hasNickname = nickname.trim().length > 0;
   const canUseMic = hasNickname && isSpeaker;
+
+  /** 매 커밋 후 최신 콜백으로 ref를 갱신해 stale callback을 방지한다. */
+  useEffect(() => {
+    callbacksRef.current = {
+      onConnectionChange,
+      onAudioEnabledChange,
+      onAudioControllerChange,
+      onListeningControllerChange,
+      onListeningEnabledChange,
+      onAudioTogglingChange,
+    };
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -123,14 +147,14 @@ export function TownVoiceClient({
       try {
         setStatus("requesting-token");
         setErrorMessage(null);
-        onAudioEnabledChange?.(false);
-        onAudioTogglingChange?.(false);
-        onAudioControllerChange?.(false, null);
-        onListeningControllerChange?.(false, null);
+        callbacksRef.current.onAudioEnabledChange?.(false);
+        callbacksRef.current.onAudioTogglingChange?.(false);
+        callbacksRef.current.onAudioControllerChange?.(false, null);
+        callbacksRef.current.onListeningControllerChange?.(false, null);
 
         listeningEnabledRef.current = false;
         setIsListeningEnabled(false);
-        onListeningEnabledChange?.(false);
+        callbacksRef.current.onListeningEnabledChange?.(false);
 
         const tokenResponse = await requestVoiceToken({
           userId,
@@ -183,7 +207,7 @@ export function TownVoiceClient({
           if (!activeMeeting || !canUseMic || !activeMeeting.self.roomJoined) return;
 
           isAudioTogglingRef.current = true;
-          onAudioTogglingChange?.(true);
+          callbacksRef.current.onAudioTogglingChange?.(true);
           try {
             if (activeMeeting.self.audioEnabled) {
               await activeMeeting.self.disableAudio();
@@ -192,7 +216,7 @@ export function TownVoiceClient({
             }
           } finally {
             isAudioTogglingRef.current = false;
-            onAudioTogglingChange?.(false);
+            callbacksRef.current.onAudioTogglingChange?.(false);
           }
         };
 
@@ -204,7 +228,7 @@ export function TownVoiceClient({
           const next = !listeningEnabledRef.current;
           listeningEnabledRef.current = next;
           setIsListeningEnabled(next);
-          onListeningEnabledChange?.(next);
+          callbacksRef.current.onListeningEnabledChange?.(next);
         };
 
         /**
@@ -212,7 +236,7 @@ export function TownVoiceClient({
          * audioUpdate 이벤트 리스너로 등록되어 마이크 상태 변화를 감지한다.
          */
         const keepAudioDisabled = ({ audioEnabled }: { audioEnabled: boolean }) => {
-          onAudioEnabledChange?.(audioEnabled);
+          callbacksRef.current.onAudioEnabledChange?.(audioEnabled);
 
           if (!canUseMic && audioEnabled) {
             void initializedMeeting.self.disableAudio();
@@ -246,8 +270,14 @@ export function TownVoiceClient({
           initializedMeeting.participants.audioSubscribed,
         );
 
-        onAudioControllerChange?.(canUseMic, canUseMic ? toggleLocalAudio : null);
-        onListeningControllerChange?.(!isSpeaker, !isSpeaker ? toggleLocalListening : null);
+        callbacksRef.current.onAudioControllerChange?.(
+          canUseMic,
+          canUseMic ? toggleLocalAudio : null,
+        );
+        callbacksRef.current.onListeningControllerChange?.(
+          !isSpeaker,
+          !isSpeaker ? toggleLocalListening : null,
+        );
 
         if (canUseMic) {
           try {
@@ -271,17 +301,17 @@ export function TownVoiceClient({
         if (!isMounted) return;
 
         setStatus("connected");
-        onConnectionChange?.(true);
+        callbacksRef.current.onConnectionChange?.(true);
       } catch (error) {
         if (!isMounted) return;
 
         setStatus("error");
-        onConnectionChange?.(false);
-        onAudioEnabledChange?.(false);
-        onAudioTogglingChange?.(false);
-        onAudioControllerChange?.(false, null);
-        onListeningControllerChange?.(false, null);
-        onListeningEnabledChange?.(true);
+        callbacksRef.current.onConnectionChange?.(false);
+        callbacksRef.current.onAudioEnabledChange?.(false);
+        callbacksRef.current.onAudioTogglingChange?.(false);
+        callbacksRef.current.onAudioControllerChange?.(false, null);
+        callbacksRef.current.onListeningControllerChange?.(false, null);
+        callbacksRef.current.onListeningEnabledChange?.(true);
         setErrorMessage(
           error instanceof Error ? error.message : "음성 연결 중 알 수 없는 오류가 발생했습니다.",
         );
@@ -301,27 +331,15 @@ export function TownVoiceClient({
       }
 
       meetingRef.current = null;
-      onConnectionChange?.(false);
-      onAudioEnabledChange?.(false);
-      onAudioTogglingChange?.(false);
-      onAudioControllerChange?.(false, null);
-      onListeningControllerChange?.(false, null);
+      callbacksRef.current.onConnectionChange?.(false);
+      callbacksRef.current.onAudioEnabledChange?.(false);
+      callbacksRef.current.onAudioTogglingChange?.(false);
+      callbacksRef.current.onAudioControllerChange?.(false, null);
+      callbacksRef.current.onListeningControllerChange?.(false, null);
       listeningEnabledRef.current = true;
-      onListeningEnabledChange?.(true);
+      callbacksRef.current.onListeningEnabledChange?.(true);
     };
-  }, [
-    initMeeting,
-    isSpeaker,
-    nickname,
-    userId,
-    onConnectionChange,
-    onAudioEnabledChange,
-    onAudioControllerChange,
-    onListeningControllerChange,
-    onListeningEnabledChange,
-    onAudioTogglingChange,
-    canUseMic,
-  ]);
+  }, [initMeeting, isSpeaker, nickname, userId, canUseMic]);
 
   return (
     <>

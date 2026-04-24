@@ -11,35 +11,31 @@ import { useShallow } from "zustand/react/shallow";
 /**
  * 다른 사용자의 음성 상태를 나타내는 아이콘을 렌더링한다.
  *
- * 발표자는 마이크가 활성화되었을 때 초록색 마이크 아이콘을 표시하고,
- * 청취자는 음성 채널에 연결되었을 때 초록색 헤드셋 아이콘을 표시한다.
+ * 발표자는 마이크 활성 시 초록색, 비활성 시 회색 마이크 아이콘을 표시한다.
+ * 청취자는 음성 채널에 연결된 경우 초록색, 미연결 시 회색 헤드셋 아이콘을 표시한다.
  */
 const renderVoiceIndicator = (participant: PresenceParticipant) => {
   if (participant.isSpeaker) {
-    if (!participant.audioEnabled) {
-      return null;
-    }
-
     return (
       <span
-        className="inline-flex items-center text-emerald-500"
-        aria-label="발표 중"
-        title="발표 중"
+        className={`inline-flex items-center ${
+          participant.audioEnabled ? "text-emerald-500" : "text-gray-300"
+        }`}
+        aria-label={participant.audioEnabled ? "마이크 활성" : "마이크 비활성"}
+        title={participant.audioEnabled ? "마이크 활성" : "마이크 비활성"}
       >
         <Mic className="size-3.5" aria-hidden="true" />
       </span>
     );
   }
 
-  if (!participant.voiceConnected) {
-    return null;
-  }
-
   return (
     <span
-      className="inline-flex items-center text-emerald-500"
-      aria-label="청취 중"
-      title="청취 중"
+      className={`inline-flex items-center ${
+        participant.voiceConnected ? "text-emerald-500" : "text-gray-300"
+      }`}
+      aria-label={participant.voiceConnected ? "청취 중" : "청취 미연결"}
+      title={participant.voiceConnected ? "청취 중" : "청취 미연결"}
     >
       <Headphones className="size-3.5" aria-hidden="true" />
     </span>
@@ -49,69 +45,31 @@ const renderVoiceIndicator = (participant: PresenceParticipant) => {
 /**
  * 현재 사용자 row는 presence 재동기화보다 로컬 음성 상태를 우선 사용해
  * 아이콘이 즉시 반응하도록 한다.
+ *
+ * 청취자의 경우 voiceConnected와 listeningEnabled가 모두 true일 때만
+ * 연결된 것으로 간주해 헤드폰 아이콘을 초록색으로 표시한다.
  */
 const getResolvedParticipant = (
   participant: PresenceParticipant,
   currentUserId: string | undefined,
   localVoiceConnected: boolean,
   localAudioEnabled: boolean,
+  localListeningEnabled: boolean,
 ) => {
   if (participant.userId !== currentUserId) {
     return participant;
   }
 
+  const resolvedVoiceConnected = participant.isSpeaker
+    ? localVoiceConnected
+    : localVoiceConnected && localListeningEnabled;
+
   return {
     ...participant,
-    voiceConnected: localVoiceConnected,
+    voiceConnected: resolvedVoiceConnected,
     audioEnabled: localAudioEnabled,
   };
 };
-
-/**
- * 발표자인 현재 사용자의 마이크 토글 버튼을 렌더링한다.
- *
- * isToggling이 true인 동안 버튼을 disabled 처리해
- * SDK enableAudio/disableAudio 호출이 완료되기 전에 중복 클릭되지 않도록 막는다.
- */
-const renderSpeakerControl = (
-  audioEnabled: boolean | undefined,
-  onToggle: () => Promise<void>,
-  isToggling: boolean,
-) => (
-  <button
-    type="button"
-    onClick={() => void onToggle()}
-    disabled={isToggling}
-    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-50 ${
-      audioEnabled ? "text-emerald-500 hover:text-emerald-600" : "text-gray-300 hover:text-gray-500"
-    }`}
-    aria-label={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
-    aria-pressed={audioEnabled}
-    title={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
-  >
-    <Mic className="size-3.5" aria-hidden="true" />
-  </button>
-);
-
-/**
- * 청취자인 현재 사용자의 청취 토글 버튼을 렌더링한다.
- */
-const renderListenerControl = (listeningEnabled: boolean, onToggle: () => Promise<void>) => (
-  <button
-    type="button"
-    onClick={() => void onToggle()}
-    className={`inline-flex cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
-      listeningEnabled
-        ? "text-emerald-500 hover:text-emerald-600"
-        : "text-gray-300 hover:text-gray-500"
-    }`}
-    aria-label={listeningEnabled ? "청취 끄기" : "청취 켜기"}
-    aria-pressed={listeningEnabled}
-    title={listeningEnabled ? "청취 끄기" : "청취 켜기"}
-  >
-    <Headphones className="size-3.5" aria-hidden="true" />
-  </button>
-);
 
 export function UsersPanel() {
   const { data: user } = useUserInfo();
@@ -121,12 +79,7 @@ export function UsersPanel() {
     isConnected,
     localVoiceConnected,
     localAudioEnabled,
-    canToggleAudio,
-    toggleLocalAudio,
-    isAudioToggling,
-    canToggleListening,
     localListeningEnabled,
-    toggleLocalListening,
   } = useTownPresenceStore(
     useShallow((state) => ({
       groupedParticipants: state.groupedParticipants,
@@ -134,12 +87,7 @@ export function UsersPanel() {
       isConnected: state.isConnected,
       localVoiceConnected: state.voiceConnected,
       localAudioEnabled: state.audioEnabled,
-      canToggleAudio: state.canToggleAudio,
-      toggleLocalAudio: state.toggleLocalAudio,
-      isAudioToggling: state.isAudioToggling,
-      canToggleListening: state.canToggleListening,
       localListeningEnabled: state.listeningEnabled,
-      toggleLocalListening: state.toggleLocalListening,
     })),
   );
   const presenceStatus = isConnected ? "실시간으로 동기화 중" : "연결 대기 중";
@@ -155,21 +103,9 @@ export function UsersPanel() {
         currentUserId,
         localVoiceConnected,
         localAudioEnabled,
+        localListeningEnabled,
       );
-      const isCurrentUser = resolvedParticipant.userId === currentUserId;
-      const voiceControl = (() => {
-        if (!isCurrentUser) return renderVoiceIndicator(resolvedParticipant);
-        if (resolvedParticipant.isSpeaker) {
-          if (!canToggleAudio || !toggleLocalAudio) return null;
-          return renderSpeakerControl(
-            resolvedParticipant.audioEnabled,
-            toggleLocalAudio,
-            isAudioToggling,
-          );
-        }
-        if (!canToggleListening || !toggleLocalListening) return null;
-        return renderListenerControl(localListeningEnabled, toggleLocalListening);
-      })();
+      const voiceControl = renderVoiceIndicator(resolvedParticipant);
 
       return (
         <div

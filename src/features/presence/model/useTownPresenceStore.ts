@@ -15,6 +15,8 @@ interface TownPresenceState {
   hasInitialized: boolean;
   /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
   voiceConnected: boolean;
+  /** 현재 유저가 speaker 역할인지 여부 */
+  isSpeaker: boolean;
   /** 현재 유저의 발표용 마이크 활성 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
   audioEnabled: boolean;
   /** 현재 유저가 사용자 패널에서 마이크 토글을 제어할 수 있는지 여부 */
@@ -41,6 +43,7 @@ interface TownPresenceState {
   setConnectionState: (isConnected: boolean) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
+  setIsSpeaker: (isSpeaker: boolean) => void;
   /** 발표용 마이크 활성 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setAudioEnabled: (audioEnabled: boolean) => void;
   /** 사용자 패널에서 사용할 마이크 토글 제어기를 등록한다. */
@@ -69,6 +72,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   previousUserIds: new Set(),
   hasInitialized: true,
   voiceConnected: false,
+  isSpeaker: false,
   audioEnabled: false,
   canToggleAudio: false,
   toggleLocalAudio: null,
@@ -136,6 +140,8 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
 
   setVoiceConnected: (voiceConnected) => set({ voiceConnected }),
 
+  setIsSpeaker: (isSpeaker) => set({ isSpeaker }),
+
   /**
    * 발표용 마이크 활성 상태를 업데이트하고 presence track이 재전송되도록 한다.
    */
@@ -175,6 +181,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       previousUserIds: new Set(),
       hasInitialized: true,
       voiceConnected: false,
+      isSpeaker: false,
       audioEnabled: false,
       canToggleAudio: false,
       toggleLocalAudio: null,

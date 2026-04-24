@@ -10,10 +10,9 @@ import { RtkParticipantsAudio } from "@cloudflare/realtimekit-react-ui";
 
 // import { RtkMicToggle /*, RtkLivestreamPlayer */ } from "@cloudflare/
 // realtimekit-react-ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { requestVoiceToken } from "../api/requestVoiceToken";
-import type { RequestVoiceTokenResponse } from "../model/types";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
 export type TownVoiceClientProps = {
@@ -56,53 +55,27 @@ type ConnectionStatus =
   | "error";
 
 /**
- * 음성 채널 연결이 완료된 뒤 speaker/listener 역할에 맞는 UI를 렌더링한다.
+ * 음성 채널 연결이 완료된 뒤 오디오를 재생한다.
  *
- * speaker는 마이크 상태 안내를 보여주고,
- * listener는 speaker의 오디오를 재생한다.
+ * speaker는 항상 재생하고, listener는 isListeningEnabled일 때만 재생한다.
+ * RtkParticipantsAudio 렌더링을 위해 반드시 유지해야 한다.
  */
 function VoicePanel({
   isSpeaker,
   isListeningEnabled,
-  audioEnabled,
 }: {
   isSpeaker: boolean;
   isListeningEnabled: boolean;
-  audioEnabled: boolean;
 }) {
   const { meeting } = useRealtimeKitMeeting();
 
-  if (!meeting) {
-    return <p>음성 연결 정보를 불러오는 중입니다.</p>;
-  }
+  if (!meeting) return null;
 
   return (
-    <section className="rounded-xl border p-4">
-      <div className="mb-3">
-        <strong>{isSpeaker ? "방송자" : "청취자"}</strong>
-      </div>
-
-      {isSpeaker ? (
-        <div className="space-y-3">
-          <p>
-            {audioEnabled
-              ? "현재 타운 전체에 방송 중입니다."
-              : "사용자 패널의 마이크 버튼으로 타운 전체 방송을 시작할 수 있습니다."}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p>
-            {isListeningEnabled
-              ? "현재 방송을 청취합니다."
-              : "사용자 패널의 헤드셋 버튼으로 청취를 시작할 수 있습니다."}
-          </p>
-          <p>isListeningEnabled: {String(isListeningEnabled)}</p>
-        </div>
-      )}
+    <>
       {/* 모든 역할에서 상대방 오디오를 재생한다. listener는 헤드셋 토글 상태를 따른다. */}
       {isSpeaker || isListeningEnabled ? <RtkParticipantsAudio meeting={meeting} /> : null}
-    </section>
+    </>
   );
 }
 
@@ -126,19 +99,40 @@ export function TownVoiceClient({
   const [client, initMeeting] = useRealtimeKitClient();
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [tokenResult, setTokenResult] = useState<RequestVoiceTokenResponse | null>(null);
   const [isListeningEnabled, setIsListeningEnabled] = useState(false);
-  const [localAudioEnabled, setLocalAudioEnabled] = useState(false);
 
   const meetingRef = useRef<typeof client | null>(null);
   const listeningEnabledRef = useRef(true);
   /** 마이크 토글 SDK 호출이 진행 중인지 동기적으로 추적하는 ref.
    *  React 리렌더 전에 발생하는 중복 클릭을 state보다 먼저 차단한다. */
   const isAudioTogglingRef = useRef(false);
+  /**
+   * 비동기 연결 흐름, SDK 이벤트 리스너, cleanup에서 최신 콜백을 읽기 위한 참조다.
+   * 메인 연결 effect가 콜백 identity 변경으로 다시 실행되지 않도록 한다.
+   */
+  const callbacksRef = useRef({
+    onConnectionChange,
+    onAudioEnabledChange,
+    onAudioControllerChange,
+    onListeningControllerChange,
+    onListeningEnabledChange,
+    onAudioTogglingChange,
+  });
 
-  const roleLabel = useMemo(() => (isSpeaker ? "speaker" : "listener"), [isSpeaker]);
   const hasNickname = nickname.trim().length > 0;
   const canUseMic = hasNickname && isSpeaker;
+
+  /** 매 커밋 후 최신 콜백으로 ref를 갱신해 stale callback을 방지한다. */
+  useEffect(() => {
+    callbacksRef.current = {
+      onConnectionChange,
+      onAudioEnabledChange,
+      onAudioControllerChange,
+      onListeningControllerChange,
+      onListeningEnabledChange,
+      onAudioTogglingChange,
+    };
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -153,15 +147,14 @@ export function TownVoiceClient({
       try {
         setStatus("requesting-token");
         setErrorMessage(null);
-        setLocalAudioEnabled(false);
-        onAudioEnabledChange?.(false);
-        onAudioTogglingChange?.(false);
-        onAudioControllerChange?.(false, null);
-        onListeningControllerChange?.(false, null);
+        callbacksRef.current.onAudioEnabledChange?.(false);
+        callbacksRef.current.onAudioTogglingChange?.(false);
+        callbacksRef.current.onAudioControllerChange?.(false, null);
+        callbacksRef.current.onListeningControllerChange?.(false, null);
 
         listeningEnabledRef.current = false;
         setIsListeningEnabled(false);
-        onListeningEnabledChange?.(false);
+        callbacksRef.current.onListeningEnabledChange?.(false);
 
         const tokenResponse = await requestVoiceToken({
           userId,
@@ -171,7 +164,6 @@ export function TownVoiceClient({
 
         if (!isMounted) return;
 
-        setTokenResult(tokenResponse);
         setStatus("initializing");
 
         const mediaHandler = await initRTKMedia({
@@ -215,7 +207,7 @@ export function TownVoiceClient({
           if (!activeMeeting || !canUseMic || !activeMeeting.self.roomJoined) return;
 
           isAudioTogglingRef.current = true;
-          onAudioTogglingChange?.(true);
+          callbacksRef.current.onAudioTogglingChange?.(true);
           try {
             if (activeMeeting.self.audioEnabled) {
               await activeMeeting.self.disableAudio();
@@ -224,7 +216,7 @@ export function TownVoiceClient({
             }
           } finally {
             isAudioTogglingRef.current = false;
-            onAudioTogglingChange?.(false);
+            callbacksRef.current.onAudioTogglingChange?.(false);
           }
         };
 
@@ -236,7 +228,7 @@ export function TownVoiceClient({
           const next = !listeningEnabledRef.current;
           listeningEnabledRef.current = next;
           setIsListeningEnabled(next);
-          onListeningEnabledChange?.(next);
+          callbacksRef.current.onListeningEnabledChange?.(next);
         };
 
         /**
@@ -244,8 +236,7 @@ export function TownVoiceClient({
          * audioUpdate 이벤트 리스너로 등록되어 마이크 상태 변화를 감지한다.
          */
         const keepAudioDisabled = ({ audioEnabled }: { audioEnabled: boolean }) => {
-          setLocalAudioEnabled(audioEnabled);
-          onAudioEnabledChange?.(audioEnabled);
+          callbacksRef.current.onAudioEnabledChange?.(audioEnabled);
 
           if (!canUseMic && audioEnabled) {
             void initializedMeeting.self.disableAudio();
@@ -263,34 +254,26 @@ export function TownVoiceClient({
         await initializedMeeting.joinRoom();
         joinedRoom = true;
 
-        console.log("self.roomJoined", initializedMeeting.self.roomJoined);
-        console.log("self.audioEnabled(before)", initializedMeeting.self.audioEnabled);
-        console.log("mediaPermissions(before)", initializedMeeting.self.mediaPermissions);
-
         if (!isMounted) return;
 
         if (!canUseMic && initializedMeeting.self.audioEnabled) {
           await initializedMeeting.self.disableAudio();
         }
 
-        console.log("participants.joined", initializedMeeting.participants.joined);
-        console.log(
-          "participants.audioSubscribed",
-          initializedMeeting.participants.audioSubscribed,
+        callbacksRef.current.onAudioControllerChange?.(
+          canUseMic,
+          canUseMic ? toggleLocalAudio : null,
         );
-
-        onAudioControllerChange?.(canUseMic, canUseMic ? toggleLocalAudio : null);
-        onListeningControllerChange?.(!isSpeaker, !isSpeaker ? toggleLocalListening : null);
+        callbacksRef.current.onListeningControllerChange?.(
+          !isSpeaker,
+          !isSpeaker ? toggleLocalListening : null,
+        );
 
         if (canUseMic) {
           try {
-            console.log("mediaPermissions(before)", initializedMeeting.self.mediaPermissions);
             await initializedMeeting.self.enableAudio();
-            console.log("self.audioEnabled(after)", initializedMeeting.self.audioEnabled);
-            console.log("mediaPermissions(after)", initializedMeeting.self.mediaPermissions);
           } catch (audioError) {
             console.error("enableAudio error", audioError);
-            console.log("mediaPermissions(error)", initializedMeeting.self.mediaPermissions);
             if (isMounted) {
               setErrorMessage(
                 audioError instanceof Error
@@ -304,17 +287,17 @@ export function TownVoiceClient({
         if (!isMounted) return;
 
         setStatus("connected");
-        onConnectionChange?.(true);
+        callbacksRef.current.onConnectionChange?.(true);
       } catch (error) {
         if (!isMounted) return;
 
         setStatus("error");
-        onConnectionChange?.(false);
-        onAudioEnabledChange?.(false);
-        onAudioTogglingChange?.(false);
-        onAudioControllerChange?.(false, null);
-        onListeningControllerChange?.(false, null);
-        onListeningEnabledChange?.(true);
+        callbacksRef.current.onConnectionChange?.(false);
+        callbacksRef.current.onAudioEnabledChange?.(false);
+        callbacksRef.current.onAudioTogglingChange?.(false);
+        callbacksRef.current.onAudioControllerChange?.(false, null);
+        callbacksRef.current.onListeningControllerChange?.(false, null);
+        callbacksRef.current.onListeningEnabledChange?.(true);
         setErrorMessage(
           error instanceof Error ? error.message : "음성 연결 중 알 수 없는 오류가 발생했습니다.",
         );
@@ -334,48 +317,24 @@ export function TownVoiceClient({
       }
 
       meetingRef.current = null;
-      setLocalAudioEnabled(false);
-      onConnectionChange?.(false);
-      onAudioEnabledChange?.(false);
-      onAudioTogglingChange?.(false);
-      onAudioControllerChange?.(false, null);
-      onListeningControllerChange?.(false, null);
+      callbacksRef.current.onConnectionChange?.(false);
+      callbacksRef.current.onAudioEnabledChange?.(false);
+      callbacksRef.current.onAudioTogglingChange?.(false);
+      callbacksRef.current.onAudioControllerChange?.(false, null);
+      callbacksRef.current.onListeningControllerChange?.(false, null);
       listeningEnabledRef.current = true;
-      onListeningEnabledChange?.(true);
+      callbacksRef.current.onListeningEnabledChange?.(true);
     };
-  }, [
-    initMeeting,
-    isSpeaker,
-    nickname,
-    userId,
-    onConnectionChange,
-    onAudioEnabledChange,
-    onAudioControllerChange,
-    onListeningControllerChange,
-    onListeningEnabledChange,
-    onAudioTogglingChange,
-    canUseMic,
-  ]);
+  }, [initMeeting, isSpeaker, nickname, userId, canUseMic]);
 
   return (
-    <div className="space-y-4 rounded-2xl border p-5">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold">타운 음성 방송</h3>
-        <p>현재 역할: {roleLabel}</p>
-        <p>연결 상태: {status}</p>
-        {tokenResult ? <p>preset: {tokenResult.presetName}</p> : null}
-        {errorMessage ? <p className="text-red-600">{errorMessage}</p> : null}
-      </div>
-
+    <>
+      {errorMessage ? <p className="text-red-600">{errorMessage}</p> : null}
       {status === "connected" ? (
         <RealtimeKitProvider value={client}>
-          <VoicePanel
-            isSpeaker={isSpeaker}
-            isListeningEnabled={isListeningEnabled}
-            audioEnabled={localAudioEnabled}
-          />
+          <VoicePanel isSpeaker={isSpeaker} isListeningEnabled={isListeningEnabled} />
         </RealtimeKitProvider>
       ) : null}
-    </div>
+    </>
   );
 }

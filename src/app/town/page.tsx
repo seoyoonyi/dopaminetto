@@ -3,12 +3,11 @@
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
-import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
-import { TownVoiceClient } from "@/features/voice-chat";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
 import { TownToolbar } from "@/widgets/townToolbar";
+import { TownVoiceSection } from "@/widgets/townVoiceSection";
 import { UsersPanel } from "@/widgets/usersPanel";
 
 import { useEffect } from "react";
@@ -27,25 +26,19 @@ export default function TownPage() {
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
-  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
-  const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
-  const setAudioEnabled = useTownPresenceStore((state) => state.setAudioEnabled);
-  const setAudioController = useTownPresenceStore((state) => state.setAudioController);
-  const setListeningController = useTownPresenceStore((state) => state.setListeningController);
-  const setListeningEnabled = useTownPresenceStore((state) => state.setListeningEnabled);
-  const setAudioToggling = useTownPresenceStore((state) => state.setAudioToggling);
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
   useTownPresence();
 
-  // 페이지 언마운트 시 무브먼트 상태 초기화
+  /** 페이지 이탈 시 타운 이동 상태를 초기화해 이전 씬 데이터를 남기지 않는다. */
   useEffect(() => {
     return () => {
       resetMovement();
     };
   }, [resetMovement]);
 
+  /** 인증 사용자 닉네임을 클라이언트 store에 동기화한다. */
   useEffect(() => {
     if (userNickname) {
       setUserNickname(userNickname);
@@ -58,12 +51,6 @@ export default function TownPage() {
     }
   }, [isLoading, userNickname, router]);
 
-  const nicknameFallback = (
-    <div className="flex h-full items-center justify-center text-gray-500">
-      닉네임을 설정해주세요.
-    </div>
-  );
-
   if (isLoading && !userNickname) {
     return (
       <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
@@ -72,40 +59,29 @@ export default function TownPage() {
     );
   }
 
-  const renderPanel = () => {
-    if (activePanel === "users") {
-      return <UsersPanel />;
-    }
-
-    if (!userNickname) {
-      return nicknameFallback;
-    }
-
-    return <ChatPanel />;
-  };
+  const panelContent =
+    activePanel === "users" ? (
+      <UsersPanel />
+    ) : userNickname ? (
+      <ChatPanel />
+    ) : (
+      <div className="flex h-full items-center justify-center text-gray-500">
+        닉네임을 설정해주세요.
+      </div>
+    );
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
-        <div className="flex-1 flex items-center justify-center p-4">
+        <div className="flex flex-1 items-center justify-center p-4">
           <TownEngine />
         </div>
-        <div className="flex h-full w-96 flex-col">{renderPanel()}</div>
+        <div className="flex h-full w-96 flex-col">{panelContent}</div>
       </div>
 
-      {user?.id && userNickname && (
-        <TownVoiceClient
-          userId={user.id}
-          nickname={userNickname}
-          isSpeaker={isSpeaker}
-          onConnectionChange={setVoiceConnected}
-          onAudioEnabledChange={setAudioEnabled}
-          onAudioControllerChange={setAudioController}
-          onAudioTogglingChange={setAudioToggling}
-          onListeningControllerChange={setListeningController}
-          onListeningEnabledChange={setListeningEnabled}
-        />
-      )}
+      {user?.id && userNickname ? (
+        <TownVoiceSection userId={user.id} userNickname={userNickname} />
+      ) : null}
       <TownToolbar />
     </div>
   );

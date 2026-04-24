@@ -26,6 +26,10 @@ export function VoiceControlGroup({
   toggleLocalListening,
   listeningEnabled,
 }: VoiceControlGroupProps) {
+  /**
+   * 음성 역할 상태와 실제 음성 제어 버튼을 한 묶음으로 렌더링한다.
+   * speaker와 listener가 같은 레이아웃 안에서 역할 텍스트만 달리 보여주도록 유지한다.
+   */
   const roleText = isSpeaker ? "방송자" : "청취자";
   const connectionIndicatorText = voiceConnected ? "연결됨" : "연결 중";
 

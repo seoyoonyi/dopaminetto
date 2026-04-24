@@ -16,6 +16,7 @@ export function UsersPanelToggleButton({
   isUsersPanel = false,
   onToggle,
 }: UsersPanelToggleButtonProps) {
+  /** 기존 사용자 패널 토글 버튼과 텍스트 채널 연결 상태 표시는 별도 책임으로 유지한다. */
   const toggleLabel = isUsersPanel ? "채팅 패널로 보기" : "사용자 패널로 보기";
   const toggleText = isUsersPanel ? "채팅" : "사용자";
 

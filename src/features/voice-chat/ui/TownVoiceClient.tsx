@@ -254,21 +254,11 @@ export function TownVoiceClient({
         await initializedMeeting.joinRoom();
         joinedRoom = true;
 
-        console.log("self.roomJoined", initializedMeeting.self.roomJoined);
-        console.log("self.audioEnabled(before)", initializedMeeting.self.audioEnabled);
-        console.log("mediaPermissions(before)", initializedMeeting.self.mediaPermissions);
-
         if (!isMounted) return;
 
         if (!canUseMic && initializedMeeting.self.audioEnabled) {
           await initializedMeeting.self.disableAudio();
         }
-
-        console.log("participants.joined", initializedMeeting.participants.joined);
-        console.log(
-          "participants.audioSubscribed",
-          initializedMeeting.participants.audioSubscribed,
-        );
 
         callbacksRef.current.onAudioControllerChange?.(
           canUseMic,
@@ -281,13 +271,9 @@ export function TownVoiceClient({
 
         if (canUseMic) {
           try {
-            console.log("mediaPermissions(before)", initializedMeeting.self.mediaPermissions);
             await initializedMeeting.self.enableAudio();
-            console.log("self.audioEnabled(after)", initializedMeeting.self.audioEnabled);
-            console.log("mediaPermissions(after)", initializedMeeting.self.mediaPermissions);
           } catch (audioError) {
             console.error("enableAudio error", audioError);
-            console.log("mediaPermissions(error)", initializedMeeting.self.mediaPermissions);
             if (isMounted) {
               setErrorMessage(
                 audioError instanceof Error

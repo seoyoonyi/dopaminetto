@@ -62,16 +62,16 @@ export const useMovementStore = create<MovementStore>()(
       setNickname: (nickname) => set({ nickname }),
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
-      // 접속 시 DB에서 불러온 마지막 저장 위치를 초기값으로 설정한다.
-      // warp와 달리 findSafeSpawnPosition을 거치지 않고 위치를 그대로 적용한다.
-      initializePosition: (position, villageId) =>
+      initializePosition: (position, villageId) => {
+        const safePos = findSafeSpawnPosition(position, get().remotePlayers, villageId);
         set({
-          position,
+          position: safePos,
           villageId,
-          lastSyncedPosition: position,
+          lastSyncedPosition: safePos,
           lastSyncedVillageId: villageId,
           pendingDelta: { x: 0, y: 0 },
-        }),
+        });
+      },
 
       updateRemotePlayer: (player) =>
         set((state) => ({

@@ -33,6 +33,8 @@ export function useSavePlayerPosition(enabled: boolean) {
   const lastSavedRef = useRef<SaveState | null>(null);
   // 동시 저장 요청 방지 플래그
   const isSavingRef = useRef(false);
+  // 저장 중 들어온 요청을 보류했다가 완료 후 재실행하기 위한 플래그
+  const pendingSaveRef = useRef(false);
   // pagehide 시 동기적으로 접근해야 해서 ref에 캐싱
   const accessTokenRef = useRef<string | null>(null);
 
@@ -51,7 +53,11 @@ export function useSavePlayerPosition(enabled: boolean) {
 
   // 위치가 변경된 경우에만 저장하는 내부 함수
   const trySave = async (userId: string, villageId: VillageId, position: Position) => {
-    if (isSavingRef.current) return;
+    if (isSavingRef.current) {
+      // 저장 중에 들어온 요청은 드롭하지 않고 보류 — 완료 후 재실행
+      pendingSaveRef.current = true;
+      return;
+    }
 
     const rx = Math.round(position.x);
     const ry = Math.round(position.y);
@@ -71,6 +77,12 @@ export function useSavePlayerPosition(enabled: boolean) {
       console.error("[useSavePlayerPosition] 저장 실패:", err);
     } finally {
       isSavingRef.current = false;
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        // 등록 시점이 아닌 완료 시점의 최신 상태로 저장
+        const { lastSyncedPosition, lastSyncedVillageId } = useMovementStore.getState();
+        void trySave(userId, lastSyncedVillageId, lastSyncedPosition);
+      }
     }
   };
 

@@ -117,15 +117,15 @@ export function useSavePlayerPosition(enabled: boolean) {
     if (!enabled || !user) return;
 
     const handlePageHide = () => {
-      const { lastSyncedPosition, lastSyncedVillageId } = useMovementStore.getState();
-      const rx = Math.round(lastSyncedPosition.x);
-      const ry = Math.round(lastSyncedPosition.y);
+      const { position, villageId } = useMovementStore.getState();
+      const rx = Math.round(position.x);
+      const ry = Math.round(position.y);
       const last = lastSavedRef.current;
 
       // 이미 최신 상태가 저장되어 있으면 생략
       if (
         last &&
-        last.villageId === lastSyncedVillageId &&
+        last.villageId === villageId &&
         last.position.x === rx &&
         last.position.y === ry
       ) {
@@ -149,7 +149,7 @@ export function useSavePlayerPosition(enabled: boolean) {
         },
         body: JSON.stringify({
           user_id: user.id,
-          village_id: lastSyncedVillageId,
+          village_id: villageId,
           x: rx,
           y: ry,
         }),

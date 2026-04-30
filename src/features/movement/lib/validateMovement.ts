@@ -7,6 +7,17 @@ import {
 } from "@/features/movement/model/types";
 
 /**
+ * DB에서 불러온 저장 위치가 현재 맵 기준으로 유효한지 검증한다.
+ * villageId가 존재하고 x/y가 해당 village 경계 안에 있어야 유효하다.
+ */
+export const isValidSavedPosition = (villageId: string, position: Position): boolean => {
+  const config = VILLAGES[villageId as VillageId];
+  if (!config) return false;
+  const { x1, y1, x2, y2 } = config.boundary;
+  return position.x >= x1 && position.x <= x2 && position.y >= y1 && position.y <= y2;
+};
+
+/**
  * 플레이어의 좌표가 마을을 벗어나지 않도록 경계값 내로 제한(Clamping)합니다.
  */
 const clampPositionToVillage = (position: Position, villageId: VillageId): Position => {

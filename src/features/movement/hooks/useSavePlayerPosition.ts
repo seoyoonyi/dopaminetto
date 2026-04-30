@@ -139,7 +139,7 @@ export function useSavePlayerPosition(enabled: boolean) {
 
       // Supabase 클라이언트 대신 fetch keepalive를 직접 사용
       // pagehide 이후에도 브라우저가 요청을 완료할 수 있다
-      void fetch(`${supabaseUrl}/rest/v1/user_position`, {
+      void fetch(`${supabaseUrl}/rest/v1/user_position?on_conflict=user_id`, {
         method: "POST",
         headers: {
           apikey: supabaseAnonKey,

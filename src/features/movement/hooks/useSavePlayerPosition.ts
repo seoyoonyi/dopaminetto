@@ -86,7 +86,7 @@ export function useSavePlayerPosition(enabled: boolean) {
     }
   };
 
-  // 1. 5초 주기 저장 - 위치가 변경된 경우에만 실행
+  // 1. 5초 주기 저장 - 검증 완료 좌표(lastSyncedPosition) 기준
   useEffect(() => {
     if (!enabled || !user) return;
 
@@ -98,7 +98,7 @@ export function useSavePlayerPosition(enabled: boolean) {
     return () => clearInterval(interval);
   }, [enabled, user]);
 
-  // 2. 빌리지 이동 시 즉시 저장
+  // 2. 빌리지 이동 시 즉시 저장 - 검증 완료 좌표(lastSyncedPosition) 기준
   useEffect(() => {
     if (!enabled || !user) return;
 
@@ -111,7 +111,7 @@ export function useSavePlayerPosition(enabled: boolean) {
     );
   }, [enabled, user]);
 
-  // 3. 페이지 이탈(새로고침/탭 닫기) 시 best-effort 저장
+  // 3. 페이지 이탈(새로고침/탭 닫기) 시 best-effort 저장 - 최신 화면 좌표(position) 기준
   // keepalive fetch를 사용해 페이지가 언로드된 후에도 요청이 완료될 수 있도록 한다.
   useEffect(() => {
     if (!enabled || !user) return;

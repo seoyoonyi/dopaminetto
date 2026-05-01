@@ -26,12 +26,12 @@ export type TownVoiceClientProps = {
   onConnectionChange?: (connected: boolean) => void;
   /** 발표자의 마이크 활성 상태가 변경될 때 호출된다. */
   onAudioEnabledChange?: (enabled: boolean) => void;
-  /** 사용자 패널에서 사용할 마이크 토글 제어기가 준비될 때 호출된다. */
+  /** 툴바 음성 제어 UI에서 사용할 마이크 토글 제어기가 준비될 때 호출된다. */
   onAudioControllerChange?: (
     canToggleAudio: boolean,
     toggleAudio: (() => Promise<void>) | null,
   ) => void;
-  /** 사용자 패널에서 사용할 청취 토글 제어기가 준비될 때 호출된다. */
+  /** 툴바 음성 제어 UI에서 사용할 청취 토글 제어기가 준비될 때 호출된다. */
   onListeningControllerChange?: (
     canToggleListening: boolean,
     toggleListening: (() => Promise<void>) | null,
@@ -53,6 +53,8 @@ type ConnectionStatus =
   | "joining"
   | "connected"
   | "error";
+
+const DEFAULT_LISTENING_ENABLED = true;
 
 /**
  * 음성 채널 연결이 완료된 뒤 오디오를 재생한다.
@@ -99,10 +101,10 @@ export function TownVoiceClient({
   const [client, initMeeting] = useRealtimeKitClient();
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isListeningEnabled, setIsListeningEnabled] = useState(false);
+  const [isListeningEnabled, setIsListeningEnabled] = useState(DEFAULT_LISTENING_ENABLED);
 
   const meetingRef = useRef<typeof client | null>(null);
-  const listeningEnabledRef = useRef(true);
+  const listeningEnabledRef = useRef(DEFAULT_LISTENING_ENABLED);
   /** 마이크 토글 SDK 호출이 진행 중인지 동기적으로 추적하는 ref.
    *  React 리렌더 전에 발생하는 중복 클릭을 state보다 먼저 차단한다. */
   const isAudioTogglingRef = useRef(false);
@@ -152,9 +154,9 @@ export function TownVoiceClient({
         callbacksRef.current.onAudioControllerChange?.(false, null);
         callbacksRef.current.onListeningControllerChange?.(false, null);
 
-        listeningEnabledRef.current = false;
-        setIsListeningEnabled(false);
-        callbacksRef.current.onListeningEnabledChange?.(false);
+        listeningEnabledRef.current = DEFAULT_LISTENING_ENABLED;
+        setIsListeningEnabled(DEFAULT_LISTENING_ENABLED);
+        callbacksRef.current.onListeningEnabledChange?.(DEFAULT_LISTENING_ENABLED);
 
         const tokenResponse = await requestVoiceToken({
           userId,
@@ -231,6 +233,10 @@ export function TownVoiceClient({
           callbacksRef.current.onListeningEnabledChange?.(next);
         };
 
+        if (!isSpeaker) {
+          callbacksRef.current.onListeningControllerChange?.(true, toggleLocalListening);
+        }
+
         /**
          * 발표자가 아닌 경우 마이크를 강제로 끄도록 유지한다.
          * audioUpdate 이벤트 리스너로 등록되어 마이크 상태 변화를 감지한다.
@@ -264,14 +270,11 @@ export function TownVoiceClient({
           canUseMic,
           canUseMic ? toggleLocalAudio : null,
         );
-        callbacksRef.current.onListeningControllerChange?.(
-          !isSpeaker,
-          !isSpeaker ? toggleLocalListening : null,
-        );
-
         if (canUseMic) {
+          callbacksRef.current.onListeningControllerChange?.(false, null);
           try {
             await initializedMeeting.self.enableAudio();
+            callbacksRef.current.onAudioEnabledChange?.(true);
           } catch (audioError) {
             console.error("enableAudio error", audioError);
             if (isMounted) {
@@ -322,8 +325,8 @@ export function TownVoiceClient({
       callbacksRef.current.onAudioTogglingChange?.(false);
       callbacksRef.current.onAudioControllerChange?.(false, null);
       callbacksRef.current.onListeningControllerChange?.(false, null);
-      listeningEnabledRef.current = true;
-      callbacksRef.current.onListeningEnabledChange?.(true);
+      listeningEnabledRef.current = DEFAULT_LISTENING_ENABLED;
+      callbacksRef.current.onListeningEnabledChange?.(DEFAULT_LISTENING_ENABLED);
     };
   }, [initMeeting, isSpeaker, nickname, userId, canUseMic]);
 

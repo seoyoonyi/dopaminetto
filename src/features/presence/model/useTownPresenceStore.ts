@@ -78,11 +78,15 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   toggleLocalListening: null,
 
   setParticipants: (participants, currentUserNickname, currentUserId) => {
-    const sortedParticipants = [...participants].sort((a, b) =>
+    const state = get();
+    const previousMe = state.participants.find((p) => p.userId === currentUserId);
+    const hasCurrentUser = participants.some((p) => p.userId === currentUserId);
+    const stableParticipants =
+      previousMe && !hasCurrentUser ? [...participants, previousMe] : participants;
+    const sortedParticipants = [...stableParticipants].sort((a, b) =>
       a.nickname.localeCompare(b.nickname, "ko"),
     );
     const groupedParticipants = groupParticipantsByVillage(sortedParticipants);
-    const state = get();
     const currentUserIds = sortedParticipants.map((p) => p.userId);
     const currentUserIdSet = new Set(currentUserIds);
 

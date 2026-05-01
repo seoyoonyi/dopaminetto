@@ -32,20 +32,18 @@ export function VoiceControlGroup({
    */
   const roleText = isSpeaker ? "방송자" : "청취자";
   const connectionIndicatorText = voiceConnected ? "연결됨" : "연결 중";
+  const isAudioButtonDisabled = !canToggleAudio || !toggleLocalAudio || isAudioToggling;
+  const isListeningButtonDisabled = !canToggleListening || !toggleLocalListening;
 
   const handleToggleAudio = () => {
-    if (!canToggleAudio || !toggleLocalAudio || isAudioToggling) return;
+    if (isAudioButtonDisabled) return;
     void toggleLocalAudio();
   };
 
   const handleToggleListening = () => {
-    if (!canToggleListening || !toggleLocalListening) return;
+    if (isListeningButtonDisabled) return;
     void toggleLocalListening();
   };
-
-  if (!canToggleAudio && !canToggleListening) {
-    return null;
-  }
 
   return (
     <div className="flex items-center gap-2 w-full">
@@ -60,16 +58,16 @@ export function VoiceControlGroup({
         </span>
       </div>
 
-      {canToggleAudio ? (
+      {isSpeaker ? (
         <Button
           type="button"
           variant={audioEnabled ? "default" : "outline"}
           size="sm"
           aria-label={audioEnabled ? "마이크 끄기" : "마이크 켜기"}
           aria-pressed={audioEnabled}
-          disabled={!toggleLocalAudio || isAudioToggling}
+          disabled={isAudioButtonDisabled}
           onClick={handleToggleAudio}
-          className="flex h-10 min-w-[120px] items-center gap-2 rounded-full px-4 shadow-sm"
+          className="flex h-10 min-w-[120px] cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm disabled:pointer-events-auto disabled:cursor-not-allowed"
         >
           {audioEnabled ? (
             <Mic className="h-4 w-4" aria-hidden />
@@ -78,18 +76,16 @@ export function VoiceControlGroup({
           )}
           <span>{audioEnabled ? "방송 중" : "마이크 켜기"}</span>
         </Button>
-      ) : null}
-
-      {canToggleListening ? (
+      ) : (
         <Button
           type="button"
           variant={listeningEnabled ? "default" : "outline"}
           size="sm"
           aria-label={listeningEnabled ? "청취 중지" : "청취 시작"}
           aria-pressed={listeningEnabled}
-          disabled={!toggleLocalListening}
+          disabled={isListeningButtonDisabled}
           onClick={handleToggleListening}
-          className="flex h-10 min-w-[120px] items-center gap-2 rounded-full px-4 shadow-sm"
+          className="flex h-10 min-w-[120px] cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm disabled:pointer-events-auto disabled:cursor-not-allowed"
         >
           {listeningEnabled ? (
             <Volume2 className="h-4 w-4" aria-hidden />
@@ -98,7 +94,7 @@ export function VoiceControlGroup({
           )}
           <span>{listeningEnabled ? "청취 중" : "청취 시작"}</span>
         </Button>
-      ) : null}
+      )}
     </div>
   );
 }

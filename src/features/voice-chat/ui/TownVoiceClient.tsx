@@ -13,37 +13,14 @@ import { RtkParticipantsAudio } from "@cloudflare/realtimekit-react-ui";
 import { useEffect, useRef, useState } from "react";
 
 import { requestVoiceToken } from "../api/requestVoiceToken";
+import { TownVoiceCallbacks, useTownVoiceCallbacks } from "../hooks/useTownVoiceCallbacks";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
-export type TownVoiceClientProps = {
+export interface TownVoiceClientProps extends TownVoiceCallbacks {
   userId: string;
   nickname: string;
   isSpeaker: boolean;
-  /**
-   * 음성 연결 상태가 변경될 때 호출되는 콜백.
-   * connected가 true이면 연결 완료, false이면 연결 실패 또는 언마운트를 의미한다.
-   */
-  onConnectionChange?: (connected: boolean) => void;
-  /** 발표자의 마이크 활성 상태가 변경될 때 호출된다. */
-  onAudioEnabledChange?: (enabled: boolean) => void;
-  /** 툴바 음성 제어 UI에서 사용할 마이크 토글 제어기가 준비될 때 호출된다. */
-  onAudioControllerChange?: (
-    canToggleAudio: boolean,
-    toggleAudio: (() => Promise<void>) | null,
-  ) => void;
-  /** 툴바 음성 제어 UI에서 사용할 청취 토글 제어기가 준비될 때 호출된다. */
-  onListeningControllerChange?: (
-    canToggleListening: boolean,
-    toggleListening: (() => Promise<void>) | null,
-  ) => void;
-  /** 청취 on/off 상태가 변경될 때 호출된다. */
-  onListeningEnabledChange?: (enabled: boolean) => void;
-  /**
-   * 마이크 토글 SDK 호출의 진행 상태가 변경될 때 호출된다.
-   * true이면 토글 중, false이면 완료(또는 에러)를 의미한다.
-   */
-  onAudioTogglingChange?: (isToggling: boolean) => void;
-};
+}
 
 /** 음성 채널 연결 진행 상태 */
 type ConnectionStatus =
@@ -108,11 +85,14 @@ export function TownVoiceClient({
   /** 마이크 토글 SDK 호출이 진행 중인지 동기적으로 추적하는 ref.
    *  React 리렌더 전에 발생하는 중복 클릭을 state보다 먼저 차단한다. */
   const isAudioTogglingRef = useRef(false);
-  /**
-   * 비동기 연결 흐름, SDK 이벤트 리스너, cleanup에서 최신 콜백을 읽기 위한 참조다.
-   * 메인 연결 effect가 콜백 identity 변경으로 다시 실행되지 않도록 한다.
-   */
-  const callbacksRef = useRef({
+  const {
+    notifyConnectionChange,
+    notifyAudioEnabledChange,
+    notifyAudioControllerChange,
+    notifyListeningControllerChange,
+    notifyListeningEnabledChange,
+    notifyAudioTogglingChange,
+  } = useTownVoiceCallbacks({
     onConnectionChange,
     onAudioEnabledChange,
     onAudioControllerChange,
@@ -123,18 +103,6 @@ export function TownVoiceClient({
 
   const hasNickname = nickname.trim().length > 0;
   const canUseMic = hasNickname && isSpeaker;
-
-  /** 매 커밋 후 최신 콜백으로 ref를 갱신해 stale callback을 방지한다. */
-  useEffect(() => {
-    callbacksRef.current = {
-      onConnectionChange,
-      onAudioEnabledChange,
-      onAudioControllerChange,
-      onListeningControllerChange,
-      onListeningEnabledChange,
-      onAudioTogglingChange,
-    };
-  });
 
   useEffect(() => {
     let isMounted = true;
@@ -149,14 +117,14 @@ export function TownVoiceClient({
       try {
         setStatus("requesting-token");
         setErrorMessage(null);
-        callbacksRef.current.onAudioEnabledChange?.(false);
-        callbacksRef.current.onAudioTogglingChange?.(false);
-        callbacksRef.current.onAudioControllerChange?.(false, null);
-        callbacksRef.current.onListeningControllerChange?.(false, null);
+        notifyAudioEnabledChange(false);
+        notifyAudioTogglingChange(false);
+        notifyAudioControllerChange(false, null);
+        notifyListeningControllerChange(false, null);
 
         listeningEnabledRef.current = DEFAULT_LISTENING_ENABLED;
         setIsListeningEnabled(DEFAULT_LISTENING_ENABLED);
-        callbacksRef.current.onListeningEnabledChange?.(DEFAULT_LISTENING_ENABLED);
+        notifyListeningEnabledChange(DEFAULT_LISTENING_ENABLED);
 
         const tokenResponse = await requestVoiceToken({
           userId,
@@ -209,7 +177,7 @@ export function TownVoiceClient({
           if (!activeMeeting || !canUseMic || !activeMeeting.self.roomJoined) return;
 
           isAudioTogglingRef.current = true;
-          callbacksRef.current.onAudioTogglingChange?.(true);
+          notifyAudioTogglingChange(true);
           try {
             if (activeMeeting.self.audioEnabled) {
               await activeMeeting.self.disableAudio();
@@ -218,7 +186,7 @@ export function TownVoiceClient({
             }
           } finally {
             isAudioTogglingRef.current = false;
-            callbacksRef.current.onAudioTogglingChange?.(false);
+            notifyAudioTogglingChange(false);
           }
         };
 
@@ -230,11 +198,11 @@ export function TownVoiceClient({
           const next = !listeningEnabledRef.current;
           listeningEnabledRef.current = next;
           setIsListeningEnabled(next);
-          callbacksRef.current.onListeningEnabledChange?.(next);
+          notifyListeningEnabledChange(next);
         };
 
         if (!isSpeaker) {
-          callbacksRef.current.onListeningControllerChange?.(true, toggleLocalListening);
+          notifyListeningControllerChange(true, toggleLocalListening);
         }
 
         /**
@@ -242,7 +210,7 @@ export function TownVoiceClient({
          * audioUpdate 이벤트 리스너로 등록되어 마이크 상태 변화를 감지한다.
          */
         const keepAudioDisabled = ({ audioEnabled }: { audioEnabled: boolean }) => {
-          callbacksRef.current.onAudioEnabledChange?.(audioEnabled);
+          notifyAudioEnabledChange(audioEnabled);
 
           if (!canUseMic && audioEnabled) {
             void initializedMeeting.self.disableAudio();
@@ -266,15 +234,12 @@ export function TownVoiceClient({
           await initializedMeeting.self.disableAudio();
         }
 
-        callbacksRef.current.onAudioControllerChange?.(
-          canUseMic,
-          canUseMic ? toggleLocalAudio : null,
-        );
+        notifyAudioControllerChange(canUseMic, canUseMic ? toggleLocalAudio : null);
         if (canUseMic) {
-          callbacksRef.current.onListeningControllerChange?.(false, null);
+          notifyListeningControllerChange(false, null);
           try {
             await initializedMeeting.self.enableAudio();
-            callbacksRef.current.onAudioEnabledChange?.(true);
+            notifyAudioEnabledChange(true);
           } catch (audioError) {
             console.error("enableAudio error", audioError);
             if (isMounted) {
@@ -290,17 +255,17 @@ export function TownVoiceClient({
         if (!isMounted) return;
 
         setStatus("connected");
-        callbacksRef.current.onConnectionChange?.(true);
+        notifyConnectionChange(true);
       } catch (error) {
         if (!isMounted) return;
 
         setStatus("error");
-        callbacksRef.current.onConnectionChange?.(false);
-        callbacksRef.current.onAudioEnabledChange?.(false);
-        callbacksRef.current.onAudioTogglingChange?.(false);
-        callbacksRef.current.onAudioControllerChange?.(false, null);
-        callbacksRef.current.onListeningControllerChange?.(false, null);
-        callbacksRef.current.onListeningEnabledChange?.(true);
+        notifyConnectionChange(false);
+        notifyAudioEnabledChange(false);
+        notifyAudioTogglingChange(false);
+        notifyAudioControllerChange(false, null);
+        notifyListeningControllerChange(false, null);
+        notifyListeningEnabledChange(true);
         setErrorMessage(
           error instanceof Error ? error.message : "음성 연결 중 알 수 없는 오류가 발생했습니다.",
         );
@@ -320,15 +285,27 @@ export function TownVoiceClient({
       }
 
       meetingRef.current = null;
-      callbacksRef.current.onConnectionChange?.(false);
-      callbacksRef.current.onAudioEnabledChange?.(false);
-      callbacksRef.current.onAudioTogglingChange?.(false);
-      callbacksRef.current.onAudioControllerChange?.(false, null);
-      callbacksRef.current.onListeningControllerChange?.(false, null);
+      notifyConnectionChange(false);
+      notifyAudioEnabledChange(false);
+      notifyAudioTogglingChange(false);
+      notifyAudioControllerChange(false, null);
+      notifyListeningControllerChange(false, null);
       listeningEnabledRef.current = DEFAULT_LISTENING_ENABLED;
-      callbacksRef.current.onListeningEnabledChange?.(DEFAULT_LISTENING_ENABLED);
+      notifyListeningEnabledChange(DEFAULT_LISTENING_ENABLED);
     };
-  }, [initMeeting, isSpeaker, nickname, userId, canUseMic]);
+  }, [
+    initMeeting,
+    isSpeaker,
+    nickname,
+    userId,
+    canUseMic,
+    notifyConnectionChange,
+    notifyAudioEnabledChange,
+    notifyAudioControllerChange,
+    notifyListeningControllerChange,
+    notifyListeningEnabledChange,
+    notifyAudioTogglingChange,
+  ]);
 
   return (
     <>

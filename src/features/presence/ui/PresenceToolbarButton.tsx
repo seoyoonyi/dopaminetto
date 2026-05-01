@@ -5,18 +5,19 @@ import { UsersPanelToggleButton } from "./UsersPanelToggleButton";
 import { VoiceControlGroup } from "./VoiceControlGroup";
 
 interface PresenceToolbarButtonProps {
+  isSpeaker: boolean;
   onToggle?: () => void;
   isUsersPanel?: boolean;
 }
 
 export const PresenceToolbarButton = ({
+  isSpeaker,
   onToggle,
   isUsersPanel = false,
 }: PresenceToolbarButtonProps) => {
   const participantCount = useTownPresenceStore((state) => state.participants.length);
   const isConnected = useTownPresenceStore((state) => state.isConnected);
   const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
-  const isSpeaker = useTownPresenceStore((state) => state.isSpeaker);
 
   const canToggleAudio = useTownPresenceStore((state) => state.canToggleAudio);
   const toggleLocalAudio = useTownPresenceStore((state) => state.toggleLocalAudio);

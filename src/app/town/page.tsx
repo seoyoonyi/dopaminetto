@@ -26,6 +26,7 @@ export default function TownPage() {
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
+  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
   const { setUserNickname } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -80,9 +81,9 @@ export default function TownPage() {
       </div>
 
       {user?.id && userNickname ? (
-        <TownVoiceSection userId={user.id} userNickname={userNickname} />
+        <TownVoiceSection userId={user.id} userNickname={userNickname} isSpeaker={isSpeaker} />
       ) : null}
-      <TownToolbar />
+      <TownToolbar isSpeaker={isSpeaker} />
     </div>
   );
 }

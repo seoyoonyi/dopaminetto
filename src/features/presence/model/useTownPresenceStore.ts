@@ -17,7 +17,7 @@ interface TownPresenceState {
   voiceConnected: boolean;
   /** 현재 유저의 발표용 마이크 활성 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
   audioEnabled: boolean;
-  /** 현재 유저가 사용자 패널에서 마이크 토글을 제어할 수 있는지 여부 */
+  /** 현재 유저가 툴바 음성 제어 UI에서 마이크 토글을 제어할 수 있는지 여부 */
   canToggleAudio: boolean;
   /** 현재 유저의 마이크 토글을 수행하는 로컬 제어 함수 */
   toggleLocalAudio: (() => Promise<void>) | null;
@@ -26,7 +26,7 @@ interface TownPresenceState {
    * true인 동안 버튼을 disabled 처리해 중복 클릭을 막는다.
    */
   isAudioToggling: boolean;
-  /** 현재 유저가 사용자 패널에서 청취 토글을 제어할 수 있는지 여부 */
+  /** 현재 유저가 툴바 음성 제어 UI에서 청취 토글을 제어할 수 있는지 여부 */
   canToggleListening: boolean;
   /** 현재 유저의 실제 청취 on/off 상태 */
   listeningEnabled: boolean;
@@ -43,14 +43,14 @@ interface TownPresenceState {
   setVoiceConnected: (voiceConnected: boolean) => void;
   /** 발표용 마이크 활성 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setAudioEnabled: (audioEnabled: boolean) => void;
-  /** 사용자 패널에서 사용할 마이크 토글 제어기를 등록한다. */
+  /** 툴바 음성 제어 UI에서 사용할 마이크 토글 제어기를 등록한다. */
   setAudioController: (
     canToggleAudio: boolean,
     toggleLocalAudio: (() => Promise<void>) | null,
   ) => void;
   /** 마이크 토글 SDK 호출 진행 상태를 업데이트한다. */
   setAudioToggling: (isAudioToggling: boolean) => void;
-  /** 사용자 패널에서 사용할 청취 토글 제어기를 등록한다. */
+  /** 툴바 음성 제어 UI에서 사용할 청취 토글 제어기를 등록한다. */
   setListeningController: (
     canToggleListening: boolean,
     toggleLocalListening: (() => Promise<void>) | null,
@@ -78,12 +78,15 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   toggleLocalListening: null,
 
   setParticipants: (participants, currentUserNickname, currentUserId) => {
-    const sortedParticipants = [...participants].sort((a, b) =>
+    const state = get();
+    const previousMe = state.participants.find((p) => p.userId === currentUserId);
+    const hasCurrentUser = participants.some((p) => p.userId === currentUserId);
+    const stableParticipants =
+      previousMe && !hasCurrentUser ? [...participants, previousMe] : participants;
+    const sortedParticipants = [...stableParticipants].sort((a, b) =>
       a.nickname.localeCompare(b.nickname, "ko"),
     );
     const groupedParticipants = groupParticipantsByVillage(sortedParticipants);
-
-    const state = get();
     const currentUserIds = sortedParticipants.map((p) => p.userId);
     const currentUserIdSet = new Set(currentUserIds);
 
@@ -142,7 +145,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   setAudioEnabled: (audioEnabled) => set({ audioEnabled }),
 
   /**
-   * 사용자 패널에서 사용할 마이크 토글 제어기를 등록한다.
+   * 툴바 음성 제어 UI에서 사용할 마이크 토글 제어기를 등록한다.
    */
   setAudioController: (canToggleAudio, toggleLocalAudio) =>
     set({
@@ -153,7 +156,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   setAudioToggling: (isAudioToggling) => set({ isAudioToggling }),
 
   /**
-   * 사용자 패널에서 사용할 청취 토글 제어기를 등록한다.
+   * 툴바 음성 제어 UI에서 사용할 청취 토글 제어기를 등록한다.
    */
   setListeningController: (canToggleListening, toggleLocalListening) =>
     set({

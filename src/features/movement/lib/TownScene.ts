@@ -1,42 +1,14 @@
+/**
+ * 마을 시나리오를 관리하는 메인 Phaser Scene 클래스
+ * 캐릭터 스프라이트 렌더링, 이동 애니메이션, 이름표 시스템 및 타 플레이어 동기화 로직을 포함
+ * 모든 캐릭터 오브젝트는 발밑(Origin 1.0)을 기준으로 정렬됨
+ */
 import { VILLAGES } from "@/entities/village";
-import { useMovementStore } from "@/features/movement";
+import { CHARACTER_CONFIG, useMovementStore } from "@/features/movement";
 import { RemotePlayer } from "@/features/movement/model/types";
 import * as Phaser from "phaser";
 
 const CAPTURED_KEYS = "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE";
-
-/**
- * 캐릭터 스프라이트 에셋 정보 및 렌더링 규격 설정 상수
- * 이미지 교체 시 이 부분의 수치만 수정하여 전체 시스템에 적용 가능
- */
-export const CHARACTER_CONFIG = {
-  assetKey: "p-boy-sprite",
-  assetUrl: "/assets/images/p-boy-sprite-s.png",
-  imageWidth: 147, // 원본 이미지 전체 가로 크기
-  imageHeight: 348, // 원본 이미지 전체 세로 크기
-  scale: 1, // 화면 표시 배율
-  originY: 1, // 캐릭터 발밑을 기준점으로 설정하여 지면 접지력을 높이고 이름표 위치 고정
-
-  /**
-   * 스프라이트 시트 가로 프레임 개수(3열) 기준 한 칸 너비 계산
-   */
-  get frameWidth() {
-    return this.imageWidth / 3;
-  },
-  /**
-   * 스프라이트 시트 세로 프레임 개수(4행) 기준 한 칸 높이 계산
-   */
-  get frameHeight() {
-    return this.imageHeight / 4;
-  },
-  /**
-   * 캐릭터 발밑(Origin 1.0) 기준 이름표 표시 높이 계산
-   * 프레임 전체 높이보다 약간 위(5px)에 위치하도록 설정
-   */
-  get labelOffsetY() {
-    return this.frameHeight + 5;
-  },
-};
 
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;

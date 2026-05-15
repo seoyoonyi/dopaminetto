@@ -17,15 +17,53 @@ export const INITIAL_POSITION: Position = {
 };
 
 /**
- * 캐릭터 스프라이트 에셋 정보 및 렌더링 규격 설정 상수
+ * 선택 가능한 캐릭터 식별자
  */
-export const CHARACTER_CONFIG = {
-  assetKey: "p-boy-sprite",
-  assetUrl: "/assets/images/p-boy-sprite-s.png",
-  imageWidth: 147, // 원본 이미지 전체 가로 크기
-  imageHeight: 348, // 원본 이미지 전체 세로 크기
-  scale: 1, // 화면 표시 배율
-  originY: 1, // 캐릭터 발밑을 기준점으로 설정하여 지면 접지력을 높이고 이름표 위치 고정
+export type CharacterId = "p-boy" | "p-girl";
+
+export interface CharacterConfig {
+  id: CharacterId;
+  name: string;
+  assetKey: string;
+  assetUrl: string;
+  previewAssetUrl: string;
+  previewImageWidth: number;
+  previewImageHeight: number;
+  imageWidth: number;
+  imageHeight: number;
+  scale: number;
+  originY: number;
+  readonly frameWidth: number;
+  readonly frameHeight: number;
+  readonly labelOffsetY: number;
+}
+
+export const DEFAULT_CHARACTER_ID: CharacterId = "p-boy";
+
+const createCharacterConfig = ({
+  id,
+  name,
+  assetKey,
+  assetUrl,
+  previewAssetUrl,
+  previewImageWidth,
+  previewImageHeight,
+  imageWidth,
+  imageHeight,
+  scale = 1,
+  originY = 1,
+}: Omit<CharacterConfig, "frameWidth" | "frameHeight" | "labelOffsetY">): CharacterConfig => ({
+  id,
+  name,
+  assetKey,
+  assetUrl,
+  previewAssetUrl,
+  previewImageWidth,
+  previewImageHeight,
+  imageWidth,
+  imageHeight,
+  scale,
+  originY,
 
   /**
    * 스프라이트 시트 가로 프레임 개수(3열) 기준 한 칸 너비 계산
@@ -44,6 +82,53 @@ export const CHARACTER_CONFIG = {
    * 프레임 전체 높이보다 약간 위(5px)에 위치하도록 설정
    */
   get labelOffsetY() {
-    return this.frameHeight + 5;
+    return this.frameHeight * this.scale + 5;
   },
+});
+
+/**
+ * 캐릭터 스프라이트 에셋 정보 및 렌더링 규격 설정 상수
+ */
+export const CHARACTER_CONFIGS = {
+  "p-boy": createCharacterConfig({
+    id: "p-boy",
+    name: "캐릭터1",
+    assetKey: "p-boy-sprite",
+    assetUrl: "/assets/images/p-boy-sprite-s.png",
+    previewAssetUrl: "/assets/images/characters/previews/p-boy.webp",
+    previewImageWidth: 169,
+    previewImageHeight: 312,
+    imageWidth: 120,
+    imageHeight: 280,
+    scale: 1,
+    originY: 1,
+  }),
+  "p-girl": createCharacterConfig({
+    id: "p-girl",
+    name: "캐릭터2",
+    assetKey: "p-girl-sprite",
+    assetUrl: "/assets/images/p-girl-sprite-s.png",
+    previewAssetUrl: "/assets/images/characters/previews/p-girl.webp",
+    previewImageWidth: 236,
+    previewImageHeight: 341,
+    imageWidth: 147,
+    imageHeight: 252,
+    scale: 1,
+    originY: 1,
+  }),
+} satisfies Record<CharacterId, CharacterConfig>;
+
+export const CHARACTER_OPTIONS = Object.values(CHARACTER_CONFIGS);
+
+export const resolveCharacterId = (characterId?: string | null): CharacterId => {
+  if (characterId === "p-boy" || characterId === "p-girl") {
+    return characterId;
+  }
+
+  return DEFAULT_CHARACTER_ID;
 };
+
+export const getCharacterConfig = (characterId?: string | null): CharacterConfig =>
+  CHARACTER_CONFIGS[resolveCharacterId(characterId)];
+
+export const CHARACTER_CONFIG = CHARACTER_CONFIGS[DEFAULT_CHARACTER_ID];

@@ -3,6 +3,11 @@
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { VillageId, getVisibleVillages } from "@/entities/village";
 import {
+  createPresencePayload,
+  createSyncPositionPayload,
+  normalizeCharacterId,
+} from "@/features/movement/model/payload";
+import {
   PresenceMetadata,
   SyncLeavePayload,
   SyncPositionPayload,
@@ -43,7 +48,9 @@ export function useMovementSync() {
   const {
     villageId,
     nickname,
+    characterId,
     setNickname,
+    setCharacterId,
     setUserId,
     updateRemotePlayer,
     removeRemotePlayer,
@@ -53,7 +60,9 @@ export function useMovementSync() {
     useShallow((state) => ({
       villageId: state.villageId,
       nickname: state.nickname,
+      characterId: state.characterId,
       setNickname: state.setNickname,
+      setCharacterId: state.setCharacterId,
       setUserId: state.setUserId,
       updateRemotePlayer: state.updateRemotePlayer,
       removeRemotePlayer: state.removeRemotePlayer,
@@ -64,7 +73,7 @@ export function useMovementSync() {
 
   const { data: user } = useUserInfo();
   const channelUserId = user?.id;
-  const { userId: playerId, userNickname } = useUserStore();
+  const { userId: playerId, userNickname, selectedCharacterId } = useUserStore();
 
   const syncStateRef = useRef(createMovementSyncState());
 
@@ -90,7 +99,11 @@ export function useMovementSync() {
         return;
       }
 
-      updateRemotePlayer({ ...player, lastUpdatedAt: Date.now() });
+      updateRemotePlayer({
+        ...player,
+        characterId: normalizeCharacterId(player.characterId),
+        lastUpdatedAt: Date.now(),
+      });
     };
 
     const isRemotePlayerStillPresent = (remoteUserId: string) =>
@@ -198,13 +211,14 @@ export function useMovementSync() {
         return;
       }
 
-      const payload: PresenceMetadata = {
+      const payload: PresenceMetadata = createPresencePayload({
         userId: playerId,
         nickname: state.nickname || "익명",
         joinedAt: syncState.joinedAt,
         villageId: currentTrackedVillageId,
         position: state.lastSyncedPosition,
-      };
+        characterId: state.characterId,
+      });
 
       const payloadSignature = JSON.stringify(payload);
       if (retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
@@ -394,7 +408,8 @@ export function useMovementSync() {
   useEffect(() => {
     if (playerId) setUserId(playerId);
     if (userNickname) setNickname(userNickname);
-  }, [playerId, setNickname, setUserId, userNickname]);
+    setCharacterId(selectedCharacterId);
+  }, [playerId, selectedCharacterId, setCharacterId, setNickname, setUserId, userNickname]);
 
   useEffect(() => {
     const syncState = syncStateRef.current;
@@ -469,7 +484,7 @@ export function useMovementSync() {
 
     syncState.trackedVillageId = villageId;
     void syncState.handlers.trackCurrentPresence();
-  }, [channelUserId, lastSyncedPosition, nickname, playerId, supabase, villageId]);
+  }, [channelUserId, characterId, lastSyncedPosition, nickname, playerId, supabase, villageId]);
 
   useEffect(() => {
     if (!playerId || !nickname) return;
@@ -485,19 +500,20 @@ export function useMovementSync() {
       .send({
         type: "broadcast",
         event: PLAYER_MOVE_EVENT,
-        payload: {
+        payload: createSyncPositionPayload({
           userId: playerId,
           nickname,
+          characterId,
           position: lastSyncedPosition,
           villageId,
-        },
+        }),
       })
       .then((res) => {
         if (res === "error") {
           console.warn("[useMovementSync] Broadcast failed (send error)");
         }
       });
-  }, [lastSyncedPosition, nickname, playerId, villageId]);
+  }, [characterId, lastSyncedPosition, nickname, playerId, villageId]);
 
   useEffect(() => {
     const syncState = syncStateRef.current;

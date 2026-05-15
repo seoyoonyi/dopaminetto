@@ -1,3 +1,4 @@
+import { CharacterId, DEFAULT_CHARACTER_ID } from "@/features/movement/model/config";
 import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -5,7 +6,10 @@ import { persist } from "zustand/middleware";
 interface UserStoreState {
   userId: string;
   userNickname: string;
+  selectedCharacterId: CharacterId;
   setUserNickname: (nickname: string) => void;
+  setSelectedCharacterId: (characterId: CharacterId) => void;
+  setUserProfile: (profile: { nickname: string; characterId: CharacterId }) => void;
   reset: () => void;
 }
 
@@ -14,6 +18,7 @@ export const useUserStore = create<UserStoreState>()(
     (set, get) => ({
       userId: "",
       userNickname: "",
+      selectedCharacterId: DEFAULT_CHARACTER_ID,
       /**
        * 사용자의 닉네임을 설정합니다.
        * userId가 아직 없다면 새 UUID를 생성합니다.
@@ -27,7 +32,21 @@ export const useUserStore = create<UserStoreState>()(
           userId: currentUserId || uuidv4(),
         });
       },
-      reset: () => set({ userId: "", userNickname: "" }),
+      setSelectedCharacterId: (characterId) => set({ selectedCharacterId: characterId }),
+      setUserProfile: ({ nickname, characterId }) => {
+        const currentUserId = get().userId;
+        set({
+          userNickname: nickname,
+          selectedCharacterId: characterId,
+          userId: currentUserId || uuidv4(),
+        });
+      },
+      reset: () =>
+        set({
+          userId: "",
+          userNickname: "",
+          selectedCharacterId: DEFAULT_CHARACTER_ID,
+        }),
     }),
     {
       name: "user-storage",

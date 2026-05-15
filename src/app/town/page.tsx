@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveCharacterId } from "@/features/movement/model/config";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
@@ -26,8 +27,9 @@ export default function TownPage() {
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
+  const characterId = resolveCharacterId(user?.user_metadata?.characterId);
   const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
-  const { setUserNickname } = useUserStore();
+  const { setUserProfile } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
   useTownPresence();
@@ -42,9 +44,9 @@ export default function TownPage() {
   /** 인증 사용자 닉네임을 클라이언트 store에 동기화한다. */
   useEffect(() => {
     if (userNickname) {
-      setUserNickname(userNickname);
+      setUserProfile({ nickname: userNickname, characterId });
     }
-  }, [setUserNickname, userNickname]);
+  }, [characterId, setUserProfile, userNickname]);
 
   useEffect(() => {
     if (!isLoading && !userNickname) {

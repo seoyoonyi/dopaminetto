@@ -4,7 +4,13 @@
  * 모든 캐릭터 오브젝트는 발밑(Origin 1.0)을 기준으로 정렬됨
  */
 import { VILLAGES } from "@/entities/village";
-import { CHARACTER_CONFIG, useMovementStore } from "@/features/movement";
+import {
+  CHARACTER_OPTIONS,
+  CharacterConfig,
+  CharacterId,
+  getCharacterConfig,
+  useMovementStore,
+} from "@/features/movement";
 import { RemotePlayer } from "@/features/movement/model/types";
 import * as Phaser from "phaser";
 
@@ -27,6 +33,7 @@ export class TownScene extends Phaser.Scene {
   private playerNameLabel!: Phaser.GameObjects.Text;
   private localUserId: string = "";
   private debugText!: Phaser.GameObjects.Text;
+  private localCharacterId: CharacterId = "p-boy";
 
   constructor() {
     super("TownScene");
@@ -34,9 +41,11 @@ export class TownScene extends Phaser.Scene {
 
   preload = () => {
     // 플레이어 캐릭터 스프라이트 시트 로드
-    this.load.spritesheet(CHARACTER_CONFIG.assetKey, CHARACTER_CONFIG.assetUrl, {
-      frameWidth: CHARACTER_CONFIG.frameWidth,
-      frameHeight: CHARACTER_CONFIG.frameHeight,
+    CHARACTER_OPTIONS.forEach((character) => {
+      this.load.spritesheet(character.assetKey, character.assetUrl, {
+        frameWidth: character.frameWidth,
+        frameHeight: character.frameHeight,
+      });
     });
   };
 
@@ -45,6 +54,8 @@ export class TownScene extends Phaser.Scene {
     const initialPos = store.position;
     // MovementStore에서 유저 ID 가져오기 (동기화됨)
     this.localUserId = store.userId;
+    this.localCharacterId = store.characterId;
+    const localCharacterConfig = getCharacterConfig(store.characterId);
 
     // 방향별 걷기 애니메이션 등록 (가로 3열, 세로 4행 기준)
     // 프레임 순서: 왼발 → 양발 → 오른발 → 양발 (걷는 발부터 시작하여 짧은 입력에도 발 움직임이 보임)
@@ -55,23 +66,24 @@ export class TownScene extends Phaser.Scene {
       { key: "walk-up", frames: [10, 9, 11, 9] }, // 4행 (위)
     ];
 
-    animConfig.forEach((anim) => {
-      this.anims.create({
-        key: anim.key,
-        frames: this.anims.generateFrameNumbers(CHARACTER_CONFIG.assetKey, { frames: anim.frames }),
-        frameRate: 6,
-        repeat: -1,
+    CHARACTER_OPTIONS.forEach((character) => {
+      animConfig.forEach((anim) => {
+        this.anims.create({
+          key: this.getAnimationKey(character, anim.key),
+          frames: this.anims.generateFrameNumbers(character.assetKey, { frames: anim.frames }),
+          frameRate: 6,
+          repeat: -1,
+        });
       });
     });
 
-    this.player = this.add.sprite(initialPos.x, initialPos.y, CHARACTER_CONFIG.assetKey, 0); // 기본 정지 프레임(정면, 양발)
-    this.player.setScale(CHARACTER_CONFIG.scale);
-    this.player.setOrigin(0.5, CHARACTER_CONFIG.originY); // 기준점을 하단 중앙으로 설정
+    this.player = this.add.sprite(initialPos.x, initialPos.y, localCharacterConfig.assetKey, 0); // 기본 정지 프레임(정면, 양발)
+    this.applyCharacterConfig(this.player, localCharacterConfig);
     this.player.setDepth(10); // 로컬 플레이어를 최상단에
 
     this.playerNameLabel = this.add.text(
       initialPos.x,
-      initialPos.y - CHARACTER_CONFIG.labelOffsetY,
+      initialPos.y - localCharacterConfig.labelOffsetY,
       store.nickname,
       {
         fontSize: "14px",
@@ -137,6 +149,7 @@ export class TownScene extends Phaser.Scene {
         nickname: state.nickname,
         remotePlayers: state.remotePlayers,
         userId: state.userId,
+        characterId: state.characterId,
       }),
       (next, prev) => {
         if (!this.player || !this.playerNameLabel || !this.player.active) return;
@@ -158,6 +171,12 @@ export class TownScene extends Phaser.Scene {
           this.playerNameLabel.setText(next.nickname || "익명");
         }
 
+        if (next.characterId !== prev.characterId) {
+          this.localCharacterId = next.characterId;
+          const characterConfig = getCharacterConfig(next.characterId);
+          this.applyCharacterConfig(this.player, characterConfig);
+        }
+
         // 타 플레이어 위치 업데이트 (참조가 변경된 경우에만)
         if (next.remotePlayers !== prev.remotePlayers) {
           this.updateRemotePlayers(next.remotePlayers);
@@ -168,7 +187,8 @@ export class TownScene extends Phaser.Scene {
           a.position === b.position &&
           a.nickname === b.nickname &&
           a.remotePlayers === b.remotePlayers &&
-          a.userId === b.userId,
+          a.userId === b.userId &&
+          a.characterId === b.characterId,
       },
     );
 
@@ -212,6 +232,7 @@ export class TownScene extends Phaser.Scene {
 
       let sprite = this.remotePlayerSprites.get(userId);
       let nameLabel = this.remotePlayerNames.get(userId);
+      const characterConfig = getCharacterConfig(data.characterId);
 
       if (!sprite) {
         if (!data.position) {
@@ -220,14 +241,13 @@ export class TownScene extends Phaser.Scene {
         }
 
         // 새 플레이어 생성
-        sprite = this.add.sprite(data.position.x, data.position.y, CHARACTER_CONFIG.assetKey, 1);
-        sprite.setScale(CHARACTER_CONFIG.scale);
-        sprite.setOrigin(0.5, CHARACTER_CONFIG.originY); // 리모트 플레이어도 발밑 기준
+        sprite = this.add.sprite(data.position.x, data.position.y, characterConfig.assetKey, 1);
+        this.applyCharacterConfig(sprite, characterConfig);
         this.remotePlayerSprites.set(userId, sprite);
 
         nameLabel = this.add.text(
           data.position.x,
-          data.position.y - CHARACTER_CONFIG.labelOffsetY,
+          data.position.y - characterConfig.labelOffsetY,
           data.nickname,
           {
             fontSize: "14px",
@@ -239,6 +259,10 @@ export class TownScene extends Phaser.Scene {
         nameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
         this.remotePlayerNames.set(userId, nameLabel);
       } else {
+        if (sprite.texture.key !== characterConfig.assetKey) {
+          this.applyCharacterConfig(sprite, characterConfig);
+        }
+
         // 기존 플레이어 닉네임 업데이트
         if (nameLabel && nameLabel.text !== data.nickname) {
           nameLabel.setText(data.nickname);
@@ -257,6 +281,8 @@ export class TownScene extends Phaser.Scene {
    * 타 플레이어 위치 보간(LERP), 애니메이션 처리 및 로컬 플레이어 입력 처리
    */
   update = () => {
+    const store = useMovementStore.getState();
+
     /**
      * 1. 타 플레이어 위치 보간 및 애니메이션 처리
      * 네트워크 지연 고려하여 목표 위치까지 부드럽게 이동(LERP) 및 방향에 맞는 애니메이션 재생
@@ -281,30 +307,32 @@ export class TownScene extends Phaser.Scene {
           if (Math.abs(diffX) > Math.abs(diffY)) {
             if (diffX < 0) {
               sprite.setFlipX(false);
-              sprite.anims.play("walk-left", true);
+              sprite.anims.play(this.getAnimationKeyById(userId, "walk-left"), true);
             } else {
               sprite.setFlipX(false);
-              sprite.anims.play("walk-right", true);
+              sprite.anims.play(this.getAnimationKeyById(userId, "walk-right"), true);
             }
           } else {
             if (diffY < 0) {
-              sprite.anims.play("walk-up", true);
+              sprite.anims.play(this.getAnimationKeyById(userId, "walk-up"), true);
             } else {
-              sprite.anims.play("walk-down", true);
+              sprite.anims.play(this.getAnimationKeyById(userId, "walk-down"), true);
             }
           }
         } else {
           sprite.anims.stop();
           const currentAnim = sprite.anims.currentAnim?.key;
-          if (currentAnim === "walk-left") sprite.setFrame(3);
-          else if (currentAnim === "walk-right") sprite.setFrame(6);
-          else if (currentAnim === "walk-up") sprite.setFrame(9);
+          if (currentAnim?.endsWith("walk-left")) sprite.setFrame(3);
+          else if (currentAnim?.endsWith("walk-right")) sprite.setFrame(6);
+          else if (currentAnim?.endsWith("walk-up")) sprite.setFrame(9);
           else sprite.setFrame(0);
         }
 
         const nameLabel = this.remotePlayerNames.get(userId);
         if (nameLabel) {
-          nameLabel.setPosition(sprite.x, sprite.y - CHARACTER_CONFIG.labelOffsetY);
+          const remotePlayer = store.remotePlayers[userId];
+          const characterConfig = getCharacterConfig(remotePlayer?.characterId);
+          nameLabel.setPosition(sprite.x, sprite.y - characterConfig.labelOffsetY);
         }
       }
     });
@@ -345,24 +373,24 @@ export class TownScene extends Phaser.Scene {
       if (Math.abs(dx) >= Math.abs(dy)) {
         if (dx < 0) {
           this.player.setFlipX(false);
-          this.player.anims.play("walk-left", true);
+          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-left"), true);
         } else {
           this.player.setFlipX(false);
-          this.player.anims.play("walk-right", true);
+          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-right"), true);
         }
       } else {
         if (dy < 0) {
-          this.player.anims.play("walk-up", true);
+          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-up"), true);
         } else {
-          this.player.anims.play("walk-down", true);
+          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-down"), true);
         }
       }
     } else {
       this.player.anims.stop();
       const currentAnim = this.player.anims.currentAnim?.key;
-      if (currentAnim === "walk-left") this.player.setFrame(3);
-      else if (currentAnim === "walk-right") this.player.setFrame(6);
-      else if (currentAnim === "walk-up") this.player.setFrame(9);
+      if (currentAnim?.endsWith("walk-left")) this.player.setFrame(3);
+      else if (currentAnim?.endsWith("walk-right")) this.player.setFrame(6);
+      else if (currentAnim?.endsWith("walk-up")) this.player.setFrame(9);
       else this.player.setFrame(0);
     }
 
@@ -372,7 +400,6 @@ export class TownScene extends Phaser.Scene {
     }
 
     // 디버그 정보 업데이트
-    const store = useMovementStore.getState();
     if (this.debugText) {
       this.debugText.setText([
         `Village: ${store.villageId}`,
@@ -390,8 +417,30 @@ export class TownScene extends Phaser.Scene {
     if (this.playerNameLabel && this.player) {
       this.playerNameLabel.setPosition(
         this.player.x,
-        this.player.y - CHARACTER_CONFIG.labelOffsetY,
+        this.player.y - getCharacterConfig(this.localCharacterId).labelOffsetY,
       );
     }
   };
+
+  private getAnimationKey(character: CharacterConfig, animationKey: string) {
+    return `${character.assetKey}-${animationKey}`;
+  }
+
+  private getAnimationKeyById(userId: string, animationKey: string) {
+    const remotePlayer = this.remotePlayerSprites.has(userId)
+      ? useMovementStore.getState().remotePlayers[userId]
+      : null;
+    const characterConfig = getCharacterConfig(remotePlayer?.characterId ?? this.localCharacterId);
+
+    return this.getAnimationKey(characterConfig, animationKey);
+  }
+
+  private applyCharacterConfig(
+    sprite: Phaser.GameObjects.Sprite,
+    characterConfig: CharacterConfig,
+  ) {
+    sprite.setTexture(characterConfig.assetKey, sprite.frame.name);
+    sprite.setScale(characterConfig.scale);
+    sprite.setOrigin(0.5, characterConfig.originY); // 모든 캐릭터는 발밑 기준으로 정렬
+  }
 }

@@ -1,6 +1,10 @@
 import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
 import { findSafeSpawnPosition, validateMovement } from "@/features/movement/lib/validateMovement";
-import { INITIAL_POSITION } from "@/features/movement/model/config";
+import {
+  CharacterId,
+  DEFAULT_CHARACTER_ID,
+  INITIAL_POSITION,
+} from "@/features/movement/model/config";
 import { MovementState, Position, RemotePlayer } from "@/features/movement/model/types";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
@@ -14,6 +18,7 @@ interface MovementStore extends MovementState {
 
   setUserId: (userId: string) => void;
   setNickname: (nickname: string) => void;
+  setCharacterId: (characterId: CharacterId) => void;
   setPosition: (position: Position) => void;
   setVillage: (villageId: VillageId) => void;
   initializePosition: (position: Position, villageId: VillageId) => void;
@@ -51,6 +56,7 @@ export const useMovementStore = create<MovementStore>()(
       villageId: LOBBY_VILLAGE_ID,
       nickname: "익명",
       userId: "",
+      characterId: DEFAULT_CHARACTER_ID,
       lastSyncedPosition: initialJitter,
       lastSyncedVillageId: LOBBY_VILLAGE_ID,
       remotePlayers: {},
@@ -60,6 +66,7 @@ export const useMovementStore = create<MovementStore>()(
 
       setUserId: (userId) => set({ userId }),
       setNickname: (nickname) => set({ nickname }),
+      setCharacterId: (characterId) => set({ characterId }),
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
       initializePosition: (position, villageId) => {
@@ -242,6 +249,7 @@ export const useMovementStore = create<MovementStore>()(
           villageId: LOBBY_VILLAGE_ID,
           nickname: "익명",
           userId: "",
+          characterId: DEFAULT_CHARACTER_ID,
           lastSyncedPosition: newJitter,
           lastSyncedVillageId: LOBBY_VILLAGE_ID,
           remotePlayers: {},

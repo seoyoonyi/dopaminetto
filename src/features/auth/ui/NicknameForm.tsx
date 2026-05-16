@@ -51,8 +51,8 @@ export function NicknameForm() {
 
   const { mutate: enterTownMutation, isPending } = useMutation({
     mutationFn: handleEnterTown,
-    onSuccess: () => {
-      setUserProfile({ nickname, characterId: selectedCharacterId });
+    onSuccess: (_data, variables) => {
+      setUserProfile(variables);
       queryClient.invalidateQueries({ queryKey: ["userInfo"] });
       toast.success("닉네임이 저장되었습니다!");
       router.push("/town");

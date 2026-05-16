@@ -1,4 +1,4 @@
-import { CharacterId, DEFAULT_CHARACTER_ID } from "@/features/movement/model/config";
+import { CharacterId, DEFAULT_CHARACTER_ID } from "@/shared/constants/character";
 import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";

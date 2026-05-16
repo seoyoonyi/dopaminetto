@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  CHARACTER_OPTIONS,
-  CharacterId,
-  DEFAULT_CHARACTER_ID,
-} from "@/features/movement/model/config";
 import { supabase } from "@/shared/config/supabase.client";
+import { CHARACTER_OPTIONS, CharacterId, DEFAULT_CHARACTER_ID } from "@/shared/constants/character";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { Button } from "@/shared/ui/button";
 import {

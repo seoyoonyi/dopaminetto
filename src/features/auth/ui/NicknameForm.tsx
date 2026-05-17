@@ -1,8 +1,9 @@
 "use client";
 
 import { supabase } from "@/shared/config/supabase.client";
-import { CHARACTER_OPTIONS, CharacterId, DEFAULT_CHARACTER_ID } from "@/shared/constants/character";
+import { CHARACTER_OPTIONS, DEFAULT_CHARACTER_ID } from "@/shared/constants";
 import { useUserStore } from "@/shared/store/useUserStore";
+import type { CharacterId } from "@/shared/types";
 import { Button } from "@/shared/ui/button";
 import {
   Carousel,

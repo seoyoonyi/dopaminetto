@@ -1,4 +1,5 @@
-import { CharacterId, DEFAULT_CHARACTER_ID } from "@/shared/constants/character";
+import { DEFAULT_CHARACTER_ID } from "@/shared/constants";
+import type { CharacterId } from "@/shared/types";
 import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";

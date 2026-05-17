@@ -7,8 +7,8 @@ export {
   DEFAULT_CHARACTER_ID,
   getCharacterConfig,
   resolveCharacterId,
-} from "@/shared/constants/character";
-export type { CharacterConfig, CharacterId } from "@/shared/constants/character";
+} from "@/shared/constants";
+export type { CharacterConfig, CharacterId } from "@/shared/types";
 
 export const GAME_CONFIG = {
   WIDTH: 800,

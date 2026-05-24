@@ -92,5 +92,3 @@ export const resolveCharacterId = (characterId?: string | null): CharacterId => 
 
 export const getCharacterConfig = (characterId?: string | null): CharacterConfig =>
   CHARACTER_CONFIGS[resolveCharacterId(characterId)];
-
-export const CHARACTER_CONFIG = CHARACTER_CONFIGS[DEFAULT_CHARACTER_ID];

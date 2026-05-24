@@ -9,7 +9,6 @@ export { TownEngine } from "./ui/TownEngine";
 
 // 설정 상수
 export {
-  CHARACTER_CONFIG,
   CHARACTER_CONFIGS,
   CHARACTER_OPTIONS,
   DEFAULT_CHARACTER_ID,

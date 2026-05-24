@@ -1,7 +1,6 @@
 import { Position } from "./types";
 
 export {
-  CHARACTER_CONFIG,
   CHARACTER_CONFIGS,
   CHARACTER_OPTIONS,
   DEFAULT_CHARACTER_ID,

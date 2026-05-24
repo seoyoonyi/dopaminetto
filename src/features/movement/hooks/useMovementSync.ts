@@ -2,10 +2,10 @@
 
 import { useSupabase } from "@/app/providers/SupabaseProvider";
 import { VillageId, getVisibleVillages } from "@/entities/village";
+import { resolveCharacterId } from "@/features/movement/model/config";
 import {
   createPresencePayload,
   createSyncPositionPayload,
-  normalizeCharacterId,
 } from "@/features/movement/model/payload";
 import {
   PresenceMetadata,
@@ -101,7 +101,7 @@ export function useMovementSync() {
 
       updateRemotePlayer({
         ...player,
-        characterId: normalizeCharacterId(player.characterId),
+        characterId: resolveCharacterId(player.characterId),
         lastUpdatedAt: Date.now(),
       });
     };

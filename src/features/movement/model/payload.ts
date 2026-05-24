@@ -1,5 +1,5 @@
 import { VillageId } from "@/entities/village";
-import { CharacterId, resolveCharacterId } from "@/features/movement/model/config";
+import { resolveCharacterId } from "@/features/movement/model/config";
 import { Position, PresenceMetadata, SyncPositionPayload } from "@/features/movement/model/types";
 
 interface CreatePresencePayloadParams {
@@ -19,9 +19,6 @@ interface CreateSyncPositionPayloadParams {
   characterId?: string | null;
 }
 
-export const normalizeCharacterId = (characterId?: string | null): CharacterId =>
-  resolveCharacterId(characterId);
-
 export const createPresencePayload = ({
   userId,
   nickname,
@@ -35,7 +32,7 @@ export const createPresencePayload = ({
   joinedAt,
   villageId,
   position,
-  characterId: normalizeCharacterId(characterId),
+  characterId: resolveCharacterId(characterId),
 });
 
 export const createSyncPositionPayload = ({
@@ -49,5 +46,5 @@ export const createSyncPositionPayload = ({
   nickname,
   villageId,
   position,
-  characterId: normalizeCharacterId(characterId),
+  characterId: resolveCharacterId(characterId),
 });

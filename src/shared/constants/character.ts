@@ -82,8 +82,11 @@ export const CHARACTER_CONFIGS = {
 
 export const CHARACTER_OPTIONS = Object.values(CHARACTER_CONFIGS);
 
+const isCharacterId = (characterId?: string | null): characterId is CharacterId =>
+  !!characterId && characterId in CHARACTER_CONFIGS;
+
 export const resolveCharacterId = (characterId?: string | null): CharacterId => {
-  if (characterId === "p-boy" || characterId === "p-girl") {
+  if (isCharacterId(characterId)) {
     return characterId;
   }
 

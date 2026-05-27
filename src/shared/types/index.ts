@@ -7,3 +7,4 @@
 // export type { GlobalState } from './state';
 
 export * from "./presence";
+export type { CharacterConfig, CharacterId } from "./character";

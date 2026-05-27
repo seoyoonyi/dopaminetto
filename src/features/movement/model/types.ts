@@ -1,4 +1,5 @@
 import { VillageId } from "@/entities/village";
+import { CharacterId } from "@/features/movement/model/config";
 
 export const MOVEMENT_EVENT_TYPES = {
   VILLAGE_CHANGE: "VILLAGE_CHANGE",
@@ -17,12 +18,14 @@ export interface MovementState {
   villageId: VillageId;
   nickname: string;
   userId: string;
+  characterId: CharacterId;
   remotePlayers: Record<string, RemotePlayer>;
 }
 
 export interface RemotePlayer {
   userId: string;
   nickname: string;
+  characterId: CharacterId;
   position: Position;
   villageId: VillageId;
   lastUpdatedAt: number;
@@ -34,6 +37,7 @@ export interface RemotePlayer {
 export interface PresenceMetadata {
   userId: string;
   nickname: string;
+  characterId: CharacterId;
   position: Position;
   villageId: VillageId;
   joinedAt: string;
@@ -45,6 +49,7 @@ export interface PresenceMetadata {
 export interface SyncPositionPayload {
   userId: string;
   nickname: string;
+  characterId: CharacterId;
   position: Position;
   villageId: VillageId;
 }

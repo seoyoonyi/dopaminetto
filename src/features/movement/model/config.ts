@@ -1,5 +1,14 @@
 import { Position } from "./types";
 
+export {
+  CHARACTER_CONFIGS,
+  CHARACTER_OPTIONS,
+  DEFAULT_CHARACTER_ID,
+  getCharacterConfig,
+  resolveCharacterId,
+} from "@/shared/constants";
+export type { CharacterConfig, CharacterId } from "@/shared/types";
+
 export const GAME_CONFIG = {
   WIDTH: 800,
   HEIGHT: 600,
@@ -12,6 +21,6 @@ export const LOBBY_CONFIG = {
 
 export const INITIAL_POSITION: Position = {
   x: LOBBY_CONFIG.WIDTH / 2,
-  // 로비 y 범위(600~1200)의 중앙값(900)에서 시작합니다.
+  // 로비 y 범위(600~1200)의 중앙값(900)에서 시작
   y: LOBBY_CONFIG.HEIGHT + LOBBY_CONFIG.HEIGHT / 2,
 };

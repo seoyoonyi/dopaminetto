@@ -6,3 +6,13 @@ export { useMovementStore } from "./model/useMovementStore";
 
 // UI 컴포넌트 레이어
 export { TownEngine } from "./ui/TownEngine";
+
+// 설정 상수
+export {
+  CHARACTER_CONFIGS,
+  CHARACTER_OPTIONS,
+  DEFAULT_CHARACTER_ID,
+  getCharacterConfig,
+  resolveCharacterId,
+} from "./model/config";
+export type { CharacterConfig, CharacterId } from "./model/config";

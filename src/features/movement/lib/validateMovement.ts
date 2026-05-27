@@ -18,7 +18,7 @@ export const isValidSavedPosition = (villageId: string, position: Position): boo
 };
 
 /**
- * 플레이어의 좌표가 마을을 벗어나지 않도록 경계값 내로 제한(Clamping)합니다.
+ * 플레이어의 좌표가 마을을 벗어나지 않도록 경계값 내로 제한(Clamping)한다.
  */
 const clampPositionToVillage = (position: Position, villageId: VillageId): Position => {
   const config = VILLAGES[villageId];
@@ -37,7 +37,7 @@ const clampPositionToVillage = (position: Position, villageId: VillageId): Posit
 };
 
 /**
- * 특정 마을 내부에 설정된 이동 구역(Transition Zone)에 진입했는지 감지합니다.
+ * 특정 마을 내부에 설정된 이동 구역(Transition Zone)에 진입했는지 감지한다.
  */
 const isTransitionDirectionMatched = (
   fromVillageId: VillageId,
@@ -64,9 +64,9 @@ const detectVillageTransition = (position: Position, villageId: VillageId, delta
 };
 
 /**
- * 이동 요청에 대한 최종 검증을 수행합니다.
- * 1. 이동할 좌표가 마을 경계 내에 있는지 확인하고 조정합니다.
- * 2. 다른 마을로 이동하는 구역에 도달했는지 확인합니다.
+ * 이동 요청에 대한 최종 검증을 수행한다.
+ * 1. 이동할 좌표가 마을 경계 내에 있는지 확인하고 조정한다.
+ * 2. 다른 마을로 이동하는 구역에 도달했는지 확인한다.
  */
 export const validateMovement = (
   currentPosition: Position,
@@ -105,9 +105,9 @@ export const validateMovement = (
 };
 
 /**
- * 입장 시 다른 플레이어와 겹치지 않도록 일렬(Linear)로 배치합니다.
- * - 동일한 마을에 있는 플레이어들만 체크합니다.
- * - 이미 자리가 있다면 오른쪽으로 40px씩 이동하며 비어있는 자리를 찾습니다.
+ * 입장 시 다른 플레이어와 겹치지 않도록 일렬(Linear)로 배치한다.
+ * - 동일한 마을에 있는 플레이어들만 체크한다.
+ * - 이미 자리가 있다면 오른쪽으로 80px씩 이동하며 비어있는 자리를 찾는다.
  */
 export const findSafeSpawnPosition = (
   targetPosition: Position,
@@ -122,8 +122,8 @@ export const findSafeSpawnPosition = (
   const safeY = targetPosition.y;
   let attempts = 0;
   const MAX_ATTEMPTS = 20;
-  const OFFSET_X = 40;
-  const OCCUPANCY_THRESHOLD = 30;
+  const OFFSET_X = 80;
+  const OCCUPANCY_THRESHOLD = 70;
 
   while (attempts < MAX_ATTEMPTS) {
     const isOccupied = players.some((p) => {

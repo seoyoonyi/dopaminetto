@@ -3,12 +3,11 @@
 import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
 import { fetchPlayerPosition } from "@/features/movement/lib/playerPositionService";
 import { isValidSavedPosition } from "@/features/movement/lib/validateMovement";
+import type { RestoreStatus } from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 
 import { useEffect, useState } from "react";
-
-export type RestoreStatus = "loading" | "restored" | "fallback";
 
 interface RestorePlayerPositionState {
   isReady: boolean;

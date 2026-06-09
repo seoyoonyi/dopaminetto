@@ -9,10 +9,26 @@ import { useRestorePlayerPosition } from "@/features/movement/hooks/useRestorePl
 import { useSavePlayerPosition } from "@/features/movement/hooks/useSavePlayerPosition";
 import { TownScene } from "@/features/movement/lib/TownScene";
 import { GAME_CONFIG } from "@/features/movement/model/config";
+import {
+  FALLBACK_SPAWN_STABILIZE_MS,
+  resolveTownEntryGate,
+} from "@/features/movement/model/entryGate";
+import type { RestoreStatus } from "@/features/movement/model/types";
 import { MovementOverlay } from "@/features/movement/ui/MovementOverlay";
+import { TownEntryPreparing } from "@/features/movement/ui/TownEntryPreparing";
 import * as Phaser from "phaser";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+
+/**
+ * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
+ * 위치 복원 상태와 연동하여 게임 인스턴스의 초기화 타이밍을 제어함
+ */
+
+/**
+ * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
+ * 위치 복원 상태와 연동하여 게임 인스턴스의 초기화 타이밍을 제어함
+ */
 
 /**
  * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
@@ -26,12 +42,24 @@ import React, { useEffect, useRef } from "react";
 export const TownEngine = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const [fallbackWaitElapsed, setFallbackWaitElapsed] = useState(false);
+  const [previousRestoreStatus, setPreviousRestoreStatus] = useState<RestoreStatus>("loading");
 
   /**
    * 위치 복원 완료 여부 조회
    * true가 되기 전까지 엔진 마운트를 보류하여 캐릭터 위치 오류 방지
    */
-  const { isReady } = useRestorePlayerPosition();
+  const { isReady, restoreStatus } = useRestorePlayerPosition();
+  if (previousRestoreStatus !== restoreStatus) {
+    setPreviousRestoreStatus(restoreStatus);
+    setFallbackWaitElapsed(false);
+  }
+
+  const entryGate = resolveTownEntryGate({
+    isReady,
+    restoreStatus,
+    fallbackWaitElapsed,
+  });
 
   /**
    * 위치 복원 완료 후에만 현재 위치 저장 활성화
@@ -43,8 +71,22 @@ export const TownEngine = () => {
    */
   useMovementSync();
 
+  /**
+   * fallback spawn은 realtime presence 반영 전 잠깐 겹쳐 보일 수 있어
+   * 엔진을 즉시 표시하지 않고 짧은 준비 상태를 유지한다.
+   */
   useEffect(() => {
-    if (!isReady || !gameContainerRef.current || gameRef.current) return;
+    if (!isReady || restoreStatus !== "fallback" || fallbackWaitElapsed) return;
+
+    const timeout = setTimeout(() => {
+      setFallbackWaitElapsed(true);
+    }, FALLBACK_SPAWN_STABILIZE_MS);
+
+    return () => clearTimeout(timeout);
+  }, [fallbackWaitElapsed, isReady, restoreStatus]);
+
+  useEffect(() => {
+    if (!entryGate.canMountEngine || !gameContainerRef.current || gameRef.current) return;
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
@@ -65,15 +107,16 @@ export const TownEngine = () => {
         gameRef.current = null;
       }
     };
-  }, [isReady]);
+  }, [entryGate.canMountEngine]);
 
   return (
     <div
       className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden rounded-lg shadow-2xl border-4 border-gray-800"
       style={{ imageRendering: "pixelated" }}
     >
+      {entryGate.showPreparing ? <TownEntryPreparing /> : null}
       <div ref={gameContainerRef} />
-      <MovementOverlay />
+      {entryGate.canMountEngine ? <MovementOverlay /> : null}
     </div>
   );
 };

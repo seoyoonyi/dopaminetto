@@ -8,6 +8,13 @@ import { useUserInfo } from "@/shared/hooks/useUserInfo";
 
 import { useEffect, useState } from "react";
 
+export type RestoreStatus = "loading" | "restored" | "fallback";
+
+interface RestorePlayerPositionState {
+  isReady: boolean;
+  restoreStatus: RestoreStatus;
+}
+
 /**
  * 접속 시 Supabase user_position 테이블에서 마지막 저장 위치를 조회하고,
  * 유효하면 스토어에 초기 위치로 적용한다.
@@ -16,7 +23,10 @@ import { useEffect, useState } from "react";
  * 기본 위치에 잠깐 나타났다가 저장 위치로 이동하는 텔레포트 현상을 방지한다.
  */
 export function useRestorePlayerPosition() {
-  const [isReady, setIsReady] = useState(false);
+  const [restoreState, setRestoreState] = useState<RestorePlayerPositionState>({
+    isReady: false,
+    restoreStatus: "loading",
+  });
   const { data: user, isLoading: isUserLoading } = useUserInfo();
   const initializePosition = useMovementStore((state) => state.initializePosition);
 
@@ -49,24 +59,23 @@ export function useRestorePlayerPosition() {
           if (saved && isValidSavedPosition(saved.village_id, { x: saved.x, y: saved.y })) {
             // 유효한 저장 위치가 있으면 스토어에 반영
             initializePosition({ x: saved.x, y: saved.y }, saved.village_id as VillageId);
+            setRestoreState({ isReady: true, restoreStatus: "restored" });
           } else {
             // 저장 위치가 없거나 유효하지 않으면 기본 스폰 위치도 안전 보정 경로를 거친다.
             initializeDefaultSpawn();
+            setRestoreState({ isReady: true, restoreStatus: "fallback" });
           }
         } else {
           initializeDefaultSpawn();
+          setRestoreState({ isReady: true, restoreStatus: "fallback" });
         }
       } catch (err) {
         if (isCancelled) return;
 
         // 조회 실패 시 기본 위치로 진입, 실패는 로깅
         initializeDefaultSpawn();
+        setRestoreState({ isReady: true, restoreStatus: "fallback" });
         console.error("[useRestorePlayerPosition] 위치 조회 실패:", err);
-      } finally {
-        if (isCancelled) return;
-
-        // 성공/실패 모두 엔진 마운트를 허용
-        setIsReady(true);
       }
     })();
 
@@ -75,5 +84,5 @@ export function useRestorePlayerPosition() {
     };
   }, [user, isUserLoading, initializePosition]);
 
-  return { isReady };
+  return restoreState;
 }

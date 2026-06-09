@@ -16,19 +16,10 @@ import {
 import type { RestoreStatus } from "@/features/movement/model/types";
 import { MovementOverlay } from "@/features/movement/ui/MovementOverlay";
 import { TownEntryPreparing } from "@/features/movement/ui/TownEntryPreparing";
+import { cn } from "@/lib/utils";
 import * as Phaser from "phaser";
 
 import React, { useEffect, useRef, useState } from "react";
-
-/**
- * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
- * 위치 복원 상태와 연동하여 게임 인스턴스의 초기화 타이밍을 제어함
- */
-
-/**
- * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
- * 위치 복원 상태와 연동하여 게임 인스턴스의 초기화 타이밍을 제어함
- */
 
 /**
  * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
@@ -43,6 +34,7 @@ export const TownEngine = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [fallbackWaitElapsed, setFallbackWaitElapsed] = useState(false);
+  const [engineVisible, setEngineVisible] = useState(false);
   const [previousRestoreStatus, setPreviousRestoreStatus] = useState<RestoreStatus>("loading");
 
   /**
@@ -53,6 +45,7 @@ export const TownEngine = () => {
   if (previousRestoreStatus !== restoreStatus) {
     setPreviousRestoreStatus(restoreStatus);
     setFallbackWaitElapsed(false);
+    setEngineVisible(false);
   }
 
   const entryGate = resolveTownEntryGate({
@@ -100,8 +93,12 @@ export const TownEngine = () => {
     };
 
     gameRef.current = new Phaser.Game(config);
+    const frameId = requestAnimationFrame(() => {
+      setEngineVisible(true);
+    });
 
     return () => {
+      cancelAnimationFrame(frameId);
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
@@ -115,7 +112,13 @@ export const TownEngine = () => {
       style={{ imageRendering: "pixelated" }}
     >
       {entryGate.showPreparing ? <TownEntryPreparing /> : null}
-      <div ref={gameContainerRef} />
+      <div
+        ref={gameContainerRef}
+        className={cn(
+          entryGate.shouldFadeIn && "opacity-0 transition-opacity duration-300",
+          entryGate.shouldFadeIn && engineVisible && "opacity-100",
+        )}
+      />
       {entryGate.canMountEngine ? <MovementOverlay /> : null}
     </div>
   );

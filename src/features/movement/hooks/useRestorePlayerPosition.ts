@@ -1,6 +1,6 @@
 "use client";
 
-import { VillageId } from "@/entities/village";
+import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
 import { fetchPlayerPosition } from "@/features/movement/lib/playerPositionService";
 import { isValidSavedPosition } from "@/features/movement/lib/validateMovement";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
@@ -24,27 +24,55 @@ export function useRestorePlayerPosition() {
     // 유저 정보 로딩 중에는 대기
     if (isUserLoading) return;
 
+    let isCancelled = false;
+
     // async IIFE로 감싸 setState가 마이크로태스크에서 호출되도록 한다.
     // (useEffect 내 동기 setState는 불필요한 렌더 연쇄를 유발할 수 있다)
     void (async () => {
+      /**
+       * 저장 위치가 없거나 복원할 수 없을 때는 useMovementStore의 현재 초기 위치를
+       * 안전 스폰 보정 경로로 확정해 기존 randomized fallback을 유지한다.
+       */
+      const initializeDefaultSpawn = () => {
+        if (isCancelled) return;
+
+        const { position } = useMovementStore.getState();
+        initializePosition(position, LOBBY_VILLAGE_ID);
+      };
+
       try {
         if (user) {
           const saved = await fetchPlayerPosition(user.id);
 
+          if (isCancelled) return;
+
           if (saved && isValidSavedPosition(saved.village_id, { x: saved.x, y: saved.y })) {
             // 유효한 저장 위치가 있으면 스토어에 반영
             initializePosition({ x: saved.x, y: saved.y }, saved.village_id as VillageId);
+          } else {
+            // 저장 위치가 없거나 유효하지 않으면 기본 스폰 위치도 안전 보정 경로를 거친다.
+            initializeDefaultSpawn();
           }
-          // 저장 위치가 없거나 유효하지 않으면 기본 스폰 위치(로비) 유지
+        } else {
+          initializeDefaultSpawn();
         }
       } catch (err) {
+        if (isCancelled) return;
+
         // 조회 실패 시 기본 위치로 진입, 실패는 로깅
+        initializeDefaultSpawn();
         console.error("[useRestorePlayerPosition] 위치 조회 실패:", err);
       } finally {
+        if (isCancelled) return;
+
         // 성공/실패 모두 엔진 마운트를 허용
         setIsReady(true);
       }
     })();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [user, isUserLoading, initializePosition]);
 
   return { isReady };

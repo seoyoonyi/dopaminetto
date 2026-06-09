@@ -15,6 +15,9 @@ import { RemotePlayer } from "@/features/movement/model/types";
 import * as Phaser from "phaser";
 
 const CAPTURED_KEYS = "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE";
+const CHARACTER_DEPTH_BASE = 1000;
+const NAME_LABEL_DEPTH_OFFSET = 1;
+const DEBUG_TEXT_DEPTH = 10000;
 
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -79,7 +82,6 @@ export class TownScene extends Phaser.Scene {
 
     this.player = this.add.sprite(initialPos.x, initialPos.y, localCharacterConfig.assetKey, 0); // 기본 정지 프레임(정면, 양발)
     this.applyCharacterConfig(this.player, localCharacterConfig);
-    this.player.setDepth(10); // 로컬 플레이어를 최상단에
 
     this.playerNameLabel = this.add.text(
       initialPos.x,
@@ -93,7 +95,7 @@ export class TownScene extends Phaser.Scene {
       },
     );
     this.playerNameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
-    this.playerNameLabel.setDepth(11);
+    this.syncCharacterDepth(this.player, this.playerNameLabel);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D") as {
@@ -120,7 +122,7 @@ export class TownScene extends Phaser.Scene {
         backgroundColor: "#000000aa",
       })
       .setScrollFactor(0)
-      .setDepth(100);
+      .setDepth(DEBUG_TEXT_DEPTH);
 
     // 마을 경계선 및 이름 초기화 (한 번만 생성)
     Object.values(VILLAGES).forEach((village) => {
@@ -258,6 +260,7 @@ export class TownScene extends Phaser.Scene {
         );
         nameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
         this.remotePlayerNames.set(userId, nameLabel);
+        this.syncCharacterDepth(sprite, nameLabel);
       } else {
         if (sprite.texture.key !== characterConfig.assetKey) {
           this.applyCharacterConfig(sprite, characterConfig);
@@ -333,6 +336,7 @@ export class TownScene extends Phaser.Scene {
           const remotePlayer = store.remotePlayers[userId];
           const characterConfig = getCharacterConfig(remotePlayer?.characterId);
           nameLabel.setPosition(sprite.x, sprite.y - characterConfig.labelOffsetY);
+          this.syncCharacterDepth(sprite, nameLabel);
         }
       }
     });
@@ -419,6 +423,7 @@ export class TownScene extends Phaser.Scene {
         this.player.x,
         this.player.y - getCharacterConfig(this.localCharacterId).labelOffsetY,
       );
+      this.syncCharacterDepth(this.player, this.playerNameLabel);
     }
   };
 
@@ -442,5 +447,18 @@ export class TownScene extends Phaser.Scene {
     sprite.setTexture(characterConfig.assetKey, sprite.frame.name);
     sprite.setScale(characterConfig.scale);
     sprite.setOrigin(0.5, characterConfig.originY); // 모든 캐릭터는 발밑 기준으로 정렬
+  }
+
+  /**
+   * 캐릭터의 발밑 y좌표를 기준으로 렌더링 순서를 맞춘다.
+   * 같은 공간에 여러 캐릭터가 있을 때 아래쪽 캐릭터가 위에 그려져 공중에 가려져 보이지 않게 한다.
+   */
+  private syncCharacterDepth(
+    sprite: Phaser.GameObjects.Sprite,
+    nameLabel?: Phaser.GameObjects.Text,
+  ) {
+    const spriteDepth = CHARACTER_DEPTH_BASE + sprite.y;
+    sprite.setDepth(spriteDepth);
+    nameLabel?.setDepth(spriteDepth + NAME_LABEL_DEPTH_OFFSET);
   }
 }

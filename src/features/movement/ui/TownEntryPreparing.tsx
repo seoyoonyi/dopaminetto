@@ -1,3 +1,6 @@
+/**
+ * 위치 복원 또는 fallback spawn 안정화 중 표시하는 타운 입장 준비 화면
+ */
 export function TownEntryPreparing() {
   return (
     <section

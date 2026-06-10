@@ -42,6 +42,11 @@ export const TownEngine = () => {
    * true가 되기 전까지 엔진 마운트를 보류하여 캐릭터 위치 오류 방지
    */
   const { isReady, restoreStatus } = useRestorePlayerPosition();
+
+  /**
+   * restore 상태가 바뀌면 fallback gate의 파생 상태를 함께 초기화한다.
+   * useEffect 내 동기 setState 대신 React 권장 이전 값 비교 패턴을 사용한다.
+   */
   if (previousRestoreStatus !== restoreStatus) {
     setPreviousRestoreStatus(restoreStatus);
     setFallbackWaitElapsed(false);

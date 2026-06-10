@@ -1,7 +1,3 @@
-/**
- * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
- * 위치 복원 상태와 연동하여 게임 인스턴스의 초기화 타이밍을 제어함
- */
 "use client";
 
 import { useMovementSync } from "@/features/movement/hooks/useMovementSync";

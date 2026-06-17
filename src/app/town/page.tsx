@@ -119,7 +119,9 @@ function BlockedTownPage() {
           </div>
         </div>
         <aside className="flex h-full w-96 items-center justify-center border-l bg-gray-50 p-6">
-          <SingleTownTabBlockedNotice />
+          <p className="text-center text-sm leading-6 text-gray-500">
+            채팅은 기존 탭에서 이용 중입니다.
+          </p>
         </aside>
       </div>
     </div>

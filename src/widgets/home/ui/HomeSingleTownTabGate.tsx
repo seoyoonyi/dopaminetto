@@ -14,5 +14,10 @@ export function HomeSingleTownTabGate() {
     return <SingleTownTabBlockedNotice />;
   }
 
-  return <NicknameForm />;
+  return (
+    <>
+      <h1 className="font-display text-2xl text-center mb-4">도파민또</h1>
+      <NicknameForm />
+    </>
+  );
 }

@@ -4,6 +4,7 @@ import { resolveCharacterId } from "@/features/movement/model/config";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
+import { SingleTownTabBlockedNotice, useSingleTownTabEntry } from "@/features/singleTownTab";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
@@ -24,6 +25,24 @@ const TownEngine = dynamic(
 );
 
 export default function TownPage() {
+  const entryStatus = useSingleTownTabEntry();
+
+  if (entryStatus === "checking") {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
+        <p>타운 입장 상태를 확인하는 중...</p>
+      </div>
+    );
+  }
+
+  if (entryStatus === "blocked") {
+    return <BlockedTownPage />;
+  }
+
+  return <ActiveTownPage />;
+}
+
+function ActiveTownPage() {
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
@@ -86,6 +105,23 @@ export default function TownPage() {
         <TownVoiceSection userId={user.id} userNickname={userNickname} isSpeaker={isSpeaker} />
       ) : null}
       <TownToolbar isSpeaker={isSpeaker} />
+    </div>
+  );
+}
+
+function BlockedTownPage() {
+  return (
+    <div className="flex h-screen flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1">
+        <div className="flex flex-1 items-center justify-center p-4">
+          <div className="flex h-full w-full items-center justify-center rounded-lg border-4 border-gray-800 bg-black p-6 shadow-2xl">
+            <SingleTownTabBlockedNotice className="rounded-lg bg-white p-6" />
+          </div>
+        </div>
+        <aside className="flex h-full w-96 items-center justify-center border-l bg-gray-50 p-6">
+          <SingleTownTabBlockedNotice />
+        </aside>
+      </div>
     </div>
   );
 }

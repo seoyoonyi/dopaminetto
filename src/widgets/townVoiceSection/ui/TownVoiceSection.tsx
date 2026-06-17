@@ -1,7 +1,7 @@
 "use client";
 
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
-import { TownVoiceClient } from "@/features/voice-chat";
+import { TownVoiceClient } from "@/features/voiceChat";
 
 interface TownVoiceSectionProps {
   userId: string;

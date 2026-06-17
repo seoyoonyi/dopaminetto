@@ -25,7 +25,7 @@ interface GetTownTabBlockStateParams {
 }
 
 /**
- * localStorage에 저장된 타운 탭 lock을 읽고, 깨진 값은 lock 없음으로 처리합니다.
+ * localStorage에 저장된 타운 탭 lock을 읽고, 깨진 값은 lock 없음으로 처리한다.
  */
 export function readTownTabLock(storage: Storage): TownTabLock | null {
   return parseTownTabLock(storage.getItem(TOWN_TAB_LOCK_STORAGE_KEY));
@@ -36,7 +36,7 @@ export function writeTownTabLock(storage: Storage, lock: TownTabLock) {
 }
 
 /**
- * /town 진입 탭이 lock을 획득하거나 갱신합니다. 다른 활성 탭이 있으면 기존 lock을 덮어쓰지 않습니다.
+ * /town 진입 탭이 lock을 획득하거나 갱신한다. 다른 활성 탭이 있으면 기존 lock을 덮어쓰지 않는다.
  */
 export function claimTownTabLock({
   storage,
@@ -54,7 +54,7 @@ export function claimTownTabLock({
 }
 
 /**
- * 첫 진입 화면은 타운 lock을 만들지 않고, 다른 활성 타운 탭이 있는지만 읽습니다.
+ * 첫 진입 화면은 타운 lock을 만들지 않고, 다른 활성 타운 탭이 있는지만 읽는다.
  */
 export function getTownTabBlockState({
   storage,
@@ -68,7 +68,7 @@ export function getTownTabBlockState({
 }
 
 /**
- * 현재 탭이 소유한 lock만 해제해 다른 탭의 활성 lock을 지우지 않도록 합니다.
+ * 현재 탭이 소유한 lock만 해제해 다른 탭의 활성 lock을 지우지 않도록 한다.
  */
 export function releaseTownTabLock({ storage, tabId }: ReleaseTownTabLockParams) {
   const lock = readTownTabLock(storage);

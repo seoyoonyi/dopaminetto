@@ -1,7 +1,7 @@
 import type { TownTabLock, TownTabLockState } from "./types";
 
 /**
- * 다른 탭이 비정상 종료되어 release를 못 해도 현재 탭이 다시 입장할 수 있게 하는 lock 유효 시간입니다.
+ * 다른 탭이 비정상 종료되어 release를 못 해도 현재 탭이 다시 입장할 수 있게 하는 lock 유효 시간이다.
  */
 export const DEFAULT_TOWN_TAB_LOCK_TTL_MS = 5_000;
 export const TOWN_TAB_LOCK_STORAGE_KEY = "dopaminetto:town-tab-lock";
@@ -26,7 +26,7 @@ export function serializeTownTabLock(lock: TownTabLock): string {
 }
 
 /**
- * localStorage 값은 사용자가 직접 수정하거나 이전 버전 값이 남을 수 있어, 유효하지 않으면 lock 없음으로 처리합니다.
+ * localStorage 값은 사용자가 직접 수정하거나 이전 버전 값이 남을 수 있어, 유효하지 않으면 lock 없음으로 처리한다.
  */
 export function parseTownTabLock(value: string | null): TownTabLock | null {
   if (!value) return null;
@@ -55,7 +55,7 @@ export function parseTownTabLock(value: string | null): TownTabLock | null {
 }
 
 /**
- * 현재 탭이 타운 lock을 획득할 수 있는지, 이미 소유 중인지, 다른 활성 탭 때문에 차단되는지 판정합니다.
+ * 현재 탭이 타운 lock을 획득할 수 있는지, 이미 소유 중인지, 다른 활성 탭 때문에 차단되는지 판정한다.
  */
 export function resolveTownTabLockState({
   lock,

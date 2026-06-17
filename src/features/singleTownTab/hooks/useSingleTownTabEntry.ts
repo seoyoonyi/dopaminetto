@@ -19,7 +19,7 @@ function createBrowserTabId() {
 }
 
 /**
- * /town에서 현재 탭을 활성 타운 탭으로 등록하고, heartbeat와 pagehide로 lock 생명주기를 관리합니다.
+ * /town에서 현재 탭을 활성 타운 탭으로 등록하고, 주기적으로 lock을 갱신하며 탭 종료 시 해제한다.
  */
 export function useSingleTownTabEntry(): SingleTownTabEntryStatus {
   const [status, setStatus] = useState<SingleTownTabEntryStatus>("checking");

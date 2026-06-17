@@ -17,7 +17,7 @@ function createBrowserTabId() {
 export type SingleTownTabBlockStatus = "checking" | TownTabBlockState;
 
 /**
- * 첫 진입 화면에서 기존 타운 탭의 lock만 확인하고, 현재 탭을 타운 탭으로 등록하지 않습니다.
+ * 첫 진입 화면에서 기존 타운 탭의 lock만 확인하고, 현재 탭을 타운 탭으로 등록하지 않는다.
  */
 export function useSingleTownTabBlockStatus(): SingleTownTabBlockStatus {
   const [status, setStatus] = useState<SingleTownTabBlockStatus>("checking");

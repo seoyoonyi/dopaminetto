@@ -25,9 +25,11 @@ export function useSingleTownTabEntry(): SingleTownTabEntryStatus {
     };
 
     const tabId = getOrCreateTownTabId(window.sessionStorage, createBrowserTabId);
+    const instanceId = createBrowserTabId();
     const claimResult = claimTownTabLock({
       storage: window.localStorage,
       tabId,
+      instanceId,
       now: Date.now(),
     });
 
@@ -46,6 +48,7 @@ export function useSingleTownTabEntry(): SingleTownTabEntryStatus {
       const heartbeatResult = claimTownTabLock({
         storage: window.localStorage,
         tabId,
+        instanceId,
         now: Date.now(),
       });
 
@@ -59,6 +62,7 @@ export function useSingleTownTabEntry(): SingleTownTabEntryStatus {
       releaseTownTabLock({
         storage: window.localStorage,
         tabId,
+        instanceId,
       });
     };
 

@@ -10,13 +10,15 @@ export const TOWN_TAB_ID_STORAGE_KEY = "dopaminetto:town-tab-id";
 interface ResolveTownTabLockStateParams {
   lock: TownTabLock | null;
   tabId: string;
+  instanceId: string;
   now: number;
   ttlMs?: number;
 }
 
-export function createTownTabLock(tabId: string, now: number): TownTabLock {
+export function createTownTabLock(tabId: string, instanceId: string, now: number): TownTabLock {
   return {
     tabId,
+    instanceId,
     updatedAt: now,
   };
 }
@@ -38,12 +40,15 @@ export function parseTownTabLock(value: string | null): TownTabLock | null {
       typeof parsed === "object" &&
       parsed !== null &&
       "tabId" in parsed &&
+      "instanceId" in parsed &&
       "updatedAt" in parsed &&
       typeof parsed.tabId === "string" &&
+      typeof parsed.instanceId === "string" &&
       typeof parsed.updatedAt === "number"
     ) {
       return {
         tabId: parsed.tabId,
+        instanceId: parsed.instanceId,
         updatedAt: parsed.updatedAt,
       };
     }
@@ -60,11 +65,12 @@ export function parseTownTabLock(value: string | null): TownTabLock | null {
 export function resolveTownTabLockState({
   lock,
   tabId,
+  instanceId,
   now,
   ttlMs = DEFAULT_TOWN_TAB_LOCK_TTL_MS,
 }: ResolveTownTabLockStateParams): TownTabLockState {
   if (!lock) return "available";
-  if (lock.tabId === tabId) return "owned";
+  if (lock.tabId === tabId && lock.instanceId === instanceId) return "owned";
 
   const isActive = now - lock.updatedAt <= ttlMs;
 

@@ -10,17 +10,20 @@ import type { TownTabBlockState, TownTabLock, TownTabLockState } from "./types";
 interface ClaimTownTabLockParams {
   storage: Storage;
   tabId: string;
+  instanceId: string;
   now: number;
 }
 
 interface ReleaseTownTabLockParams {
   storage: Storage;
   tabId: string;
+  instanceId: string;
 }
 
 interface GetTownTabBlockStateParams {
   storage: Storage;
   tabId: string;
+  instanceId: string;
   now: number;
 }
 
@@ -41,14 +44,15 @@ export function writeTownTabLock(storage: Storage, lock: TownTabLock) {
 export function claimTownTabLock({
   storage,
   tabId,
+  instanceId,
   now,
 }: ClaimTownTabLockParams): Exclude<TownTabLockState, "available"> {
   const lock = readTownTabLock(storage);
-  const state = resolveTownTabLockState({ lock, tabId, now });
+  const state = resolveTownTabLockState({ lock, tabId, instanceId, now });
 
   if (state === "blocked") return "blocked";
 
-  writeTownTabLock(storage, createTownTabLock(tabId, now));
+  writeTownTabLock(storage, createTownTabLock(tabId, instanceId, now));
 
   return "owned";
 }
@@ -59,10 +63,11 @@ export function claimTownTabLock({
 export function getTownTabBlockState({
   storage,
   tabId,
+  instanceId,
   now,
 }: GetTownTabBlockStateParams): TownTabBlockState {
   const lock = readTownTabLock(storage);
-  const state = resolveTownTabLockState({ lock, tabId, now });
+  const state = resolveTownTabLockState({ lock, tabId, instanceId, now });
 
   return state === "blocked" ? "blocked" : "active";
 }
@@ -70,10 +75,10 @@ export function getTownTabBlockState({
 /**
  * 현재 탭이 소유한 lock만 해제해 다른 탭의 활성 lock을 지우지 않도록 한다.
  */
-export function releaseTownTabLock({ storage, tabId }: ReleaseTownTabLockParams) {
+export function releaseTownTabLock({ storage, tabId, instanceId }: ReleaseTownTabLockParams) {
   const lock = readTownTabLock(storage);
 
-  if (lock?.tabId === tabId) {
+  if (lock?.tabId === tabId && lock.instanceId === instanceId) {
     storage.removeItem(TOWN_TAB_LOCK_STORAGE_KEY);
   }
 }

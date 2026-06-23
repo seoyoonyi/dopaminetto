@@ -16,9 +16,11 @@ export function useSingleTownTabBlockStatus(): SingleTownTabBlockStatus {
 
   useEffect(() => {
     const tabId = getOrCreateTownTabId(window.sessionStorage, createBrowserTabId);
+    const instanceId = createBrowserTabId();
     const nextStatus = getTownTabBlockState({
       storage: window.localStorage,
       tabId,
+      instanceId,
       now: Date.now(),
     });
     const pendingStatusId = window.setTimeout(() => {

@@ -2,21 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { getOrCreateTownTabId } from "../model/townTabIdentity";
+import { createBrowserTabId, getOrCreateTownTabId } from "../model/townTabIdentity";
 import { DEFAULT_TOWN_TAB_LOCK_TTL_MS } from "../model/townTabLock";
 import { claimTownTabLock, releaseTownTabLock } from "../model/townTabLockStorage";
 
 export type SingleTownTabEntryStatus = "checking" | "active" | "blocked";
 
 const TOWN_TAB_HEARTBEAT_MS = Math.floor(DEFAULT_TOWN_TAB_LOCK_TTL_MS / 2);
-
-function createBrowserTabId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random()}`;
-}
 
 /**
  * /town에서 현재 탭을 활성 타운 탭으로 등록하고, 주기적으로 lock을 갱신하며 탭 종료 시 해제한다.

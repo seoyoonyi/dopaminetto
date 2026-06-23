@@ -2,17 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { getOrCreateTownTabId } from "../model/townTabIdentity";
+import { createBrowserTabId, getOrCreateTownTabId } from "../model/townTabIdentity";
 import { getTownTabBlockState } from "../model/townTabLockStorage";
 import type { TownTabBlockState } from "../model/types";
-
-function createBrowserTabId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random()}`;
-}
 
 export type SingleTownTabBlockStatus = "checking" | TownTabBlockState;
 

@@ -14,6 +14,7 @@ import {
   SyncPositionPayload,
 } from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { getVillageChannelName } from "@/shared/lib/realtime";
 import {
@@ -37,6 +38,8 @@ import {
   createMovementSyncState,
   getVillageSetKey,
 } from "../lib/movementSyncState";
+
+const MOVEMENT_PRESENCE_VILLAGE_DEBOUNCE_MS = 1500;
 
 /**
  * 현재 village + 인접 village 범위를 기준으로 Realtime/Phaser visibility를 동기화한다.
@@ -75,6 +78,10 @@ export function useMovementSync() {
   const { data: user } = useUserInfo();
   const channelUserId = user?.id;
   const { userId: playerId, userNickname, selectedCharacterId } = useUserStore();
+  const debouncedTrackedVillageId = useDebouncedValue(
+    villageId,
+    MOVEMENT_PRESENCE_VILLAGE_DEBOUNCE_MS,
+  );
 
   const syncStateRef = useRef(createMovementSyncState());
 
@@ -466,7 +473,7 @@ export function useMovementSync() {
     if (!supabase || !channelUserId || !playerId) return;
 
     const prevTrackedVillageId = syncState.trackedVillageId;
-    if (prevTrackedVillageId && prevTrackedVillageId !== villageId) {
+    if (prevTrackedVillageId && prevTrackedVillageId !== debouncedTrackedVillageId) {
       syncState.trackRequestId += 1;
       syncState.lastPresenceSignature = "";
 
@@ -483,9 +490,17 @@ export function useMovementSync() {
       }
     }
 
-    syncState.trackedVillageId = villageId;
+    syncState.trackedVillageId = debouncedTrackedVillageId;
     void syncState.handlers.trackCurrentPresence();
-  }, [channelUserId, characterId, lastSyncedPosition, nickname, playerId, supabase, villageId]);
+  }, [
+    channelUserId,
+    characterId,
+    debouncedTrackedVillageId,
+    lastSyncedPosition,
+    nickname,
+    playerId,
+    supabase,
+  ]);
 
   useEffect(() => {
     if (!playerId || !nickname) return;

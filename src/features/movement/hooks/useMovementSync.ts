@@ -5,6 +5,7 @@ import { VillageId, getVisibleVillages } from "@/entities/village";
 import { resolveCharacterId } from "@/features/movement/model/config";
 import {
   createPresencePayload,
+  createPresenceTrackSignature,
   createSyncPositionPayload,
 } from "@/features/movement/model/payload";
 import {
@@ -220,7 +221,7 @@ export function useMovementSync() {
         characterId: state.characterId,
       });
 
-      const payloadSignature = JSON.stringify(payload);
+      const payloadSignature = createPresenceTrackSignature(payload);
       if (retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
         return;
       }

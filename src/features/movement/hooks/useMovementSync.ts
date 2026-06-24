@@ -14,6 +14,7 @@ import {
   SyncPositionPayload,
 } from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
+import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { getVillageChannelName } from "@/shared/lib/realtime";
@@ -38,8 +39,6 @@ import {
   createMovementSyncState,
   getVillageSetKey,
 } from "../lib/movementSyncState";
-
-const MOVEMENT_PRESENCE_VILLAGE_DEBOUNCE_MS = 1500;
 
 /**
  * 현재 village + 인접 village 범위를 기준으로 Realtime/Phaser visibility를 동기화한다.
@@ -80,7 +79,7 @@ export function useMovementSync() {
   const { userId: playerId, userNickname, selectedCharacterId } = useUserStore();
   const debouncedTrackedVillageId = useDebouncedValue(
     villageId,
-    MOVEMENT_PRESENCE_VILLAGE_DEBOUNCE_MS,
+    PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS,
   );
 
   const syncStateRef = useRef(createMovementSyncState());

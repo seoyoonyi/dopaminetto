@@ -4,6 +4,7 @@ import { create } from "zustand";
 
 import { groupParticipantsByVillage } from "../lib/groupByVillage";
 import { PresenceParticipant } from "../types";
+import { resolvePresenceParticipants } from "./presenceParticipants";
 
 const DEPARTURE_FALLBACK_MS = 8000;
 
@@ -81,88 +82,68 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   listeningEnabled: true,
   toggleLocalListening: null,
 
-  setParticipants: (participants, currentUserNickname, currentUserId) => {
+  setParticipants: (participants, _currentUserNickname, currentUserId) => {
     const state = get();
-    const previousMe = state.participants.find((p) => p.userId === currentUserId);
-    const hasCurrentUser = participants.some((p) => p.userId === currentUserId);
-    const stableParticipants =
-      previousMe && !hasCurrentUser ? [...participants, previousMe] : participants;
-    const snapshotUserIdSet = new Set(stableParticipants.map((p) => p.userId));
     const pendingDepartures = new Map(state.pendingDepartures);
-
-    pendingDepartures.forEach((timerId, userId) => {
-      if (snapshotUserIdSet.has(userId)) {
-        clearTimeout(timerId);
-        pendingDepartures.delete(userId);
-      }
+    const resolvedParticipants = resolvePresenceParticipants({
+      currentUserId,
+      hasInitialized: state.hasInitialized,
+      nextParticipants: participants,
+      pendingDepartureUserIds: new Set(pendingDepartures.keys()),
+      previousParticipants: state.participants,
+      previousUserIds: state.previousUserIds,
     });
 
-    const participantById = new Map(stableParticipants.map((p) => [p.userId, p]));
+    resolvedParticipants.recoveredPendingDepartureUserIds.forEach((userId) => {
+      const timerId = pendingDepartures.get(userId);
+      if (!timerId) return;
 
-    if (!state.hasInitialized && state.previousUserIds.size > 0) {
-      state.previousUserIds.forEach((userId) => {
-        if (snapshotUserIdSet.has(userId) || pendingDepartures.has(userId)) {
+      clearTimeout(timerId);
+      pendingDepartures.delete(userId);
+    });
+
+    resolvedParticipants.departureCandidates.forEach((previousParticipant) => {
+      const userId = previousParticipant.userId;
+      const timerId = setTimeout(() => {
+        const latestState = get();
+        if (!latestState.pendingDepartures.has(userId)) {
           return;
         }
 
-        const previousParticipant = state.participants.find((p) => p.userId === userId);
-        if (!previousParticipant) {
-          return;
-        }
+        const nextPendingDepartures = new Map(latestState.pendingDepartures);
+        nextPendingDepartures.delete(userId);
 
-        const timerId = setTimeout(() => {
-          const latestState = get();
-          if (!latestState.pendingDepartures.has(userId)) {
-            return;
-          }
+        const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
+        const nextUserIdSet = new Set(nextParticipants.map((p) => p.userId));
 
-          const nextPendingDepartures = new Map(latestState.pendingDepartures);
-          nextPendingDepartures.delete(userId);
+        toast(`${previousParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
 
-          const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
-          const nextUserIdSet = new Set(nextParticipants.map((p) => p.userId));
+        set({
+          participants: nextParticipants,
+          groupedParticipants: groupParticipantsByVillage(nextParticipants),
+          lastSyncedAt: new Date().toISOString(),
+          previousUserIds: nextUserIdSet,
+          pendingDepartures: nextPendingDepartures,
+        });
+      }, DEPARTURE_FALLBACK_MS);
 
-          toast(`${previousParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
-
-          set({
-            participants: nextParticipants,
-            groupedParticipants: groupParticipantsByVillage(nextParticipants),
-            lastSyncedAt: new Date().toISOString(),
-            previousUserIds: nextUserIdSet,
-            pendingDepartures: nextPendingDepartures,
-          });
-        }, DEPARTURE_FALLBACK_MS);
-
-        pendingDepartures.set(userId, timerId);
-      });
-    }
-
-    pendingDepartures.forEach((_, userId) => {
-      const previousParticipant = state.participants.find((p) => p.userId === userId);
-      if (previousParticipant && !participantById.has(userId)) {
-        participantById.set(userId, previousParticipant);
-      }
+      pendingDepartures.set(userId, timerId);
     });
 
-    const displayParticipants = Array.from(participantById.values());
-    const sortedDisplayParticipants = [...displayParticipants].sort((a, b) =>
-      a.nickname.localeCompare(b.nickname, "ko"),
+    const groupedParticipants = groupParticipantsByVillage(
+      resolvedParticipants.displayParticipants,
     );
-    const groupedParticipants = groupParticipantsByVillage(sortedDisplayParticipants);
-    const currentUserIds = sortedDisplayParticipants.map((p) => p.userId);
-    const currentUserIdSet = new Set(currentUserIds);
 
-    // 닉네임 대신 userId로 정확하게 자신을 식별 (유저 제안 사항)
-    const me = sortedDisplayParticipants.find((p) => p.userId === currentUserId);
-
-    if (state.hasInitialized && me) {
-      toast(`${me.nickname} 입장했습니다.`, { duration: 3000 });
+    if (resolvedParticipants.initialJoinParticipant) {
+      toast(`${resolvedParticipants.initialJoinParticipant.nickname} 입장했습니다.`, {
+        duration: 3000,
+      });
 
       set({
-        participants: sortedDisplayParticipants,
+        participants: resolvedParticipants.displayParticipants,
         groupedParticipants,
         lastSyncedAt: new Date().toISOString(),
-        previousUserIds: currentUserIdSet,
+        previousUserIds: resolvedParticipants.currentUserIdSet,
         pendingDepartures,
         hasInitialized: false,
       });
@@ -170,22 +151,15 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       return;
     }
 
-    if (!state.hasInitialized && state.previousUserIds.size > 0) {
-      snapshotUserIdSet.forEach((userId) => {
-        if (!state.previousUserIds.has(userId)) {
-          const participant = stableParticipants.find((p) => p.userId === userId);
-          if (participant) {
-            toast(`${participant.nickname} 입장했습니다.`, { duration: 3000 });
-          }
-        }
-      });
-    }
+    resolvedParticipants.joinToastParticipants.forEach((participant) => {
+      toast(`${participant.nickname} 입장했습니다.`, { duration: 3000 });
+    });
 
     set({
-      participants: sortedDisplayParticipants,
+      participants: resolvedParticipants.displayParticipants,
       groupedParticipants,
       lastSyncedAt: new Date().toISOString(),
-      previousUserIds: currentUserIdSet,
+      previousUserIds: resolvedParticipants.currentUserIdSet,
       pendingDepartures,
     });
   },

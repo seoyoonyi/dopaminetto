@@ -3,6 +3,7 @@
 import { LOBBY_VILLAGE_ID, VILLAGES, VillageId } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
+import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
@@ -13,8 +14,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useEffect } from "react";
 
 import { PresenceParticipant } from "../types";
-
-const TOWN_PRESENCE_VILLAGE_DEBOUNCE_MS = 1500;
 
 // Supabase Presence payload의 villageId를 런타임에서 검증해 내부 VillageId 타입으로 좁힌다.
 const isVillageId = (value: unknown): value is VillageId =>
@@ -58,7 +57,7 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
 
 /**
  * Supabase Presence `town:main` 채널을 구독해
- * 접속 중인 사용자 목록과 연결 상태를 제공하는 훅입니다.
+ * 접속 중인 사용자 목록과 연결 상태를 제공하는 훅이다.
  */
 export const useTownPresenceView = () => {
   const participants = useTownPresenceStore((state) => state.participants);
@@ -76,7 +75,7 @@ export const useTownPresence = () => {
   const userNickname = user?.user_metadata?.nickname as string | undefined;
 
   const villageId = useMovementStore((state) => state.villageId);
-  const debouncedVillageId = useDebouncedValue(villageId, TOWN_PRESENCE_VILLAGE_DEBOUNCE_MS);
+  const debouncedVillageId = useDebouncedValue(villageId, PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS);
 
   const {
     channel,

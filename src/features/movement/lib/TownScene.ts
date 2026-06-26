@@ -3,11 +3,12 @@
  * 캐릭터 스프라이트 렌더링, 이동 애니메이션, 이름표 시스템 및 타 플레이어 동기화 로직을 포함
  * 모든 캐릭터 오브젝트는 발밑(Origin 1.0)을 기준으로 정렬됨
  */
-import { VILLAGES } from "@/entities/village";
+import type { MapImageLayer } from "@/entities/village";
 import {
   CHARACTER_OPTIONS,
   CharacterConfig,
   CharacterId,
+  GAME_CONFIG,
   getCharacterConfig,
   useMovementStore,
 } from "@/features/movement";
@@ -15,9 +16,13 @@ import { RemotePlayer } from "@/features/movement/model/types";
 import * as Phaser from "phaser";
 
 const CAPTURED_KEYS = "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE";
+const MAP_BACKGROUND_KEY = "town-map-background";
+const MAP_FRONT_KEY = "town-map-front";
+const BACKGROUND_DEPTH = 0;
 const CHARACTER_DEPTH_BASE = 1000;
-const NAME_LABEL_DEPTH_OFFSET = 1;
-const DEBUG_TEXT_DEPTH = 10000;
+const FRONT_DEPTH = 8000;
+const NAME_LABEL_DEPTH_BASE = 9000;
+const DEBUG_TEXT_DEPTH = 20000;
 
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -28,7 +33,6 @@ export class TownScene extends Phaser.Scene {
     S: Phaser.Input.Keyboard.Key;
     D: Phaser.Input.Keyboard.Key;
   };
-  private boundsGraphics!: Phaser.GameObjects.Graphics;
   private unsubscribeStore?: () => void;
   private remotePlayerSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private remotePlayerNames: Map<string, Phaser.GameObjects.Text> = new Map();
@@ -43,6 +47,18 @@ export class TownScene extends Phaser.Scene {
   }
 
   preload = () => {
+    const mapLoader = useMovementStore.getState().mapLoader;
+    const backgroundImage = mapLoader?.getBackgroundImage();
+    const frontImage = mapLoader?.getFrontImage();
+
+    if (backgroundImage?.visible) {
+      this.load.image(MAP_BACKGROUND_KEY, backgroundImage.url);
+    }
+
+    if (frontImage?.visible) {
+      this.load.image(MAP_FRONT_KEY, frontImage.url);
+    }
+
     // 플레이어 캐릭터 스프라이트 시트 로드
     CHARACTER_OPTIONS.forEach((character) => {
       this.load.spritesheet(character.assetKey, character.assetUrl, {
@@ -54,11 +70,23 @@ export class TownScene extends Phaser.Scene {
 
   create = () => {
     const store = useMovementStore.getState();
+    const mapLoader = store.mapLoader;
     const initialPos = store.position;
     // MovementStore에서 유저 ID 가져오기 (동기화됨)
     this.localUserId = store.userId;
     this.localCharacterId = store.characterId;
     const localCharacterConfig = getCharacterConfig(store.characterId);
+
+    if (mapLoader) {
+      const backgroundImage = mapLoader.getBackgroundImage();
+      if (backgroundImage?.visible) {
+        this.renderImageLayer(backgroundImage, MAP_BACKGROUND_KEY, BACKGROUND_DEPTH);
+      }
+
+      const bounds = mapLoader.getMapBounds();
+      this.cameras.main.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+      this.cameras.main.setZoom(GAME_CONFIG.CAMERA_ZOOM);
+    }
 
     // 방향별 걷기 애니메이션 등록 (가로 3열, 세로 4행 기준)
     // 프레임 순서: 왼발 → 양발 → 오른발 → 양발 (걷는 발부터 시작하여 짧은 입력에도 발 움직임이 보임)
@@ -109,10 +137,13 @@ export class TownScene extends Phaser.Scene {
     // 채팅창 포커스 시 update 루프에서 동적으로 제어
     this.input.keyboard!.addCapture(CAPTURED_KEYS);
 
-    this.boundsGraphics = this.add.graphics();
+    const frontImage = mapLoader?.getFrontImage();
+    if (frontImage?.visible) {
+      this.renderImageLayer(frontImage, MAP_FRONT_KEY, FRONT_DEPTH);
+    }
 
-    // 배경색 설정 (마을 사이 공백용)
-    this.cameras.main.setBackgroundColor("#2c3e50");
+    // 배경색 설정 (맵 이미지 로드 실패/바깥 영역용)
+    this.cameras.main.setBackgroundColor("#c8aa78");
 
     // 디버그 텍스트 추가
     this.debugText = this.add
@@ -123,24 +154,6 @@ export class TownScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(DEBUG_TEXT_DEPTH);
-
-    // 마을 경계선 및 이름 초기화 (한 번만 생성)
-    Object.values(VILLAGES).forEach((village) => {
-      this.boundsGraphics.lineStyle(2, Phaser.Display.Color.HexStringToColor(village.color).color);
-      this.boundsGraphics.strokeRect(
-        village.boundary.x1,
-        village.boundary.y1,
-        village.boundary.x2 - village.boundary.x1,
-        village.boundary.y2 - village.boundary.y1,
-      );
-
-      this.add
-        .text(village.boundary.x1 + 10, village.boundary.y1 + 10, village.name, {
-          fontSize: "12px",
-          color: village.color,
-        })
-        .setDepth(5);
-    });
 
     this.updateRemotePlayers(store.remotePlayers);
 
@@ -449,6 +462,14 @@ export class TownScene extends Phaser.Scene {
     sprite.setOrigin(0.5, characterConfig.originY); // 모든 캐릭터는 발밑 기준으로 정렬
   }
 
+  private renderImageLayer(imageLayer: MapImageLayer, assetKey: string, depth: number) {
+    this.add
+      .image(imageLayer.x, imageLayer.y, assetKey)
+      .setOrigin(0, 0)
+      .setDepth(depth)
+      .setVisible(imageLayer.visible);
+  }
+
   /**
    * 캐릭터의 발밑 y좌표를 기준으로 렌더링 순서를 맞춘다.
    * 같은 공간에 여러 캐릭터가 있을 때 아래쪽 캐릭터가 위에 그려져 공중에 가려져 보이지 않게 한다.
@@ -459,6 +480,6 @@ export class TownScene extends Phaser.Scene {
   ) {
     const spriteDepth = CHARACTER_DEPTH_BASE + sprite.y;
     sprite.setDepth(spriteDepth);
-    nameLabel?.setDepth(spriteDepth + NAME_LABEL_DEPTH_OFFSET);
+    nameLabel?.setDepth(NAME_LABEL_DEPTH_BASE + sprite.y);
   }
 }

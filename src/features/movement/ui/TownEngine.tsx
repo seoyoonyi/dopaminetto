@@ -3,6 +3,7 @@
 import { useMovementSync } from "@/features/movement/hooks/useMovementSync";
 import { useRestorePlayerPosition } from "@/features/movement/hooks/useRestorePlayerPosition";
 import { useSavePlayerPosition } from "@/features/movement/hooks/useSavePlayerPosition";
+import { useTownMapLoader } from "@/features/movement/hooks/useTownMapLoader";
 import { TownScene } from "@/features/movement/lib/TownScene";
 import { GAME_CONFIG } from "@/features/movement/model/config";
 import {
@@ -34,10 +35,16 @@ export const TownEngine = () => {
   const [previousRestoreStatus, setPreviousRestoreStatus] = useState<RestoreStatus>("loading");
 
   /**
+   * Tiled TMJ 맵 로드 완료 후 위치 복원/엔진 마운트를 진행한다.
+   */
+  const { isReady: isMapReady } = useTownMapLoader();
+
+  /**
    * 위치 복원 완료 여부 조회
    * true가 되기 전까지 엔진 마운트를 보류하여 캐릭터 위치 오류 방지
    */
   const { isReady, restoreStatus } = useRestorePlayerPosition();
+  const isTownReady = isMapReady && isReady;
 
   /**
    * restore 상태가 바뀌면 fallback gate의 파생 상태를 함께 초기화한다.
@@ -50,7 +57,7 @@ export const TownEngine = () => {
   }
 
   const entryGate = resolveTownEntryGate({
-    isReady,
+    isReady: isTownReady,
     restoreStatus,
     fallbackWaitElapsed,
   });
@@ -58,26 +65,26 @@ export const TownEngine = () => {
   /**
    * 위치 복원 완료 후에만 현재 위치 저장 활성화
    */
-  useSavePlayerPosition(isReady);
+  useSavePlayerPosition(isTownReady);
 
   /**
    * 플레이어 간 위치 및 상태 동기화 훅
    */
-  useMovementSync();
+  useMovementSync(isTownReady);
 
   /**
    * fallback spawn은 realtime presence 반영 전 잠깐 겹쳐 보일 수 있어
    * 엔진을 즉시 표시하지 않고 짧은 준비 상태를 유지한다.
    */
   useEffect(() => {
-    if (!isReady || restoreStatus !== "fallback" || fallbackWaitElapsed) return;
+    if (!isTownReady || restoreStatus !== "fallback" || fallbackWaitElapsed) return;
 
     const timeout = setTimeout(() => {
       setFallbackWaitElapsed(true);
     }, FALLBACK_SPAWN_STABILIZE_MS);
 
     return () => clearTimeout(timeout);
-  }, [fallbackWaitElapsed, isReady, restoreStatus]);
+  }, [fallbackWaitElapsed, isTownReady, restoreStatus]);
 
   useEffect(() => {
     if (!entryGate.canMountEngine || !gameContainerRef.current || gameRef.current) return;
@@ -91,6 +98,10 @@ export const TownEngine = () => {
       backgroundColor: "#222",
       pixelArt: true, // 도트 그래픽 보간(안티앨리어싱) 방지
       roundPixels: true, // 소수점 좌표 렌더링 시 외곽선 뭉개짐(번짐) 방지
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
     };
 
     gameRef.current = new Phaser.Game(config);
@@ -109,13 +120,15 @@ export const TownEngine = () => {
 
   return (
     <div
-      className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden rounded-lg shadow-2xl border-4 border-gray-800"
+      className="relative w-full h-full flex items-center justify-center bg-[#c8aa78] overflow-hidden rounded-lg shadow-2xl border-4 border-gray-800"
       style={{ imageRendering: "pixelated" }}
     >
       {entryGate.showPreparing ? <TownEntryPreparing /> : null}
       <div
         ref={gameContainerRef}
         className={cn(
+          "h-full w-full",
+          !entryGate.canMountEngine && "pointer-events-none opacity-0",
           entryGate.shouldFadeIn && "opacity-0 transition-opacity duration-300",
           entryGate.shouldFadeIn && engineVisible && "opacity-100",
         )}

@@ -28,10 +28,11 @@ export function useRestorePlayerPosition() {
   });
   const { data: user, isLoading: isUserLoading } = useUserInfo();
   const initializePosition = useMovementStore((state) => state.initializePosition);
+  const mapLoader = useMovementStore((state) => state.mapLoader);
 
   useEffect(() => {
     // 유저 정보 로딩 중에는 대기
-    if (isUserLoading) return;
+    if (isUserLoading || !mapLoader) return;
 
     let isCancelled = false;
 
@@ -45,8 +46,9 @@ export function useRestorePlayerPosition() {
       const initializeDefaultSpawn = () => {
         if (isCancelled) return;
 
-        const { position } = useMovementStore.getState();
-        initializePosition(position, LOBBY_VILLAGE_ID);
+        const spawnPoint = mapLoader.getSpawnPoint(LOBBY_VILLAGE_ID);
+        const fallbackPosition = spawnPoint ?? useMovementStore.getState().position;
+        initializePosition(fallbackPosition, LOBBY_VILLAGE_ID);
       };
 
       try {
@@ -55,7 +57,10 @@ export function useRestorePlayerPosition() {
 
           if (isCancelled) return;
 
-          if (saved && isValidSavedPosition(saved.village_id, { x: saved.x, y: saved.y })) {
+          if (
+            saved &&
+            isValidSavedPosition(saved.village_id, { x: saved.x, y: saved.y }, mapLoader)
+          ) {
             // 유효한 저장 위치가 있으면 스토어에 반영
             initializePosition({ x: saved.x, y: saved.y }, saved.village_id as VillageId);
             setRestoreState({ isReady: true, restoreStatus: "restored" });
@@ -81,7 +86,7 @@ export function useRestorePlayerPosition() {
     return () => {
       isCancelled = true;
     };
-  }, [user, isUserLoading, initializePosition]);
+  }, [user, isUserLoading, initializePosition, mapLoader]);
 
   return restoreState;
 }

@@ -43,7 +43,7 @@ import {
 /**
  * 현재 village + 인접 village 범위를 기준으로 Realtime/Phaser visibility를 동기화한다.
  */
-export function useMovementSync() {
+export function useMovementSync(enabled = true) {
   const supabase = useSupabase();
   // Presence leave 반영이 지연될 수 있어 remote player 제거 전 짧게 여러 번 재확인한다.
   const MAX_REMOTE_PLAYER_REMOVAL_RETRIES = 8;
@@ -413,15 +413,25 @@ export function useMovementSync() {
   ]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     if (playerId) setUserId(playerId);
     if (userNickname) setNickname(userNickname);
     setCharacterId(selectedCharacterId);
-  }, [playerId, selectedCharacterId, setCharacterId, setNickname, setUserId, userNickname]);
+  }, [
+    enabled,
+    playerId,
+    selectedCharacterId,
+    setCharacterId,
+    setNickname,
+    setUserId,
+    userNickname,
+  ]);
 
   useEffect(() => {
     const syncState = syncStateRef.current;
 
-    if (!supabase || !channelUserId) {
+    if (!enabled || !supabase || !channelUserId) {
       syncState.handlers.cleanupAllChannels();
       return;
     }
@@ -464,9 +474,11 @@ export function useMovementSync() {
     villagesToSubscribe.forEach((targetVillageId) => {
       syncState.handlers.attachVillageChannel(targetVillageId);
     });
-  }, [channelUserId, removeRemotePlayersOutsideVillages, supabase, villageId]);
+  }, [channelUserId, enabled, removeRemotePlayersOutsideVillages, supabase, villageId]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     const syncState = syncStateRef.current;
 
     if (!supabase || !channelUserId || !playerId) return;
@@ -495,6 +507,7 @@ export function useMovementSync() {
     channelUserId,
     characterId,
     debouncedTrackedVillageId,
+    enabled,
     lastSyncedPosition,
     nickname,
     playerId,
@@ -502,6 +515,7 @@ export function useMovementSync() {
   ]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!playerId || !nickname) return;
 
     const channelName = getVillageChannelName(villageId);
@@ -528,7 +542,7 @@ export function useMovementSync() {
           console.warn("[useMovementSync] Broadcast failed (send error)");
         }
       });
-  }, [characterId, lastSyncedPosition, nickname, playerId, villageId]);
+  }, [characterId, enabled, lastSyncedPosition, nickname, playerId, villageId]);
 
   useEffect(() => {
     const syncState = syncStateRef.current;

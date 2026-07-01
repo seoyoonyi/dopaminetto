@@ -1,4 +1,4 @@
-import { TRANSITION_ZONES, VILLAGES, VillageId } from "@/entities/village";
+import { MapLoader, Rect, VillageId, isVillageId } from "@/entities/village";
 import {
   MOVEMENT_EVENT_TYPES,
   Position,
@@ -6,100 +6,146 @@ import {
   ValidationResult,
 } from "@/features/movement/model/types";
 
+const PLAYER_COLLISION = {
+  halfWidth: 6,
+  height: 12,
+} as const;
+
 /**
  * DB에서 불러온 저장 위치가 현재 맵 기준으로 유효한지 검증한다.
- * villageId가 존재하고 x/y가 해당 village 경계 안에 있어야 유효하다.
+ * villageId가 존재하고 TMJ 기반 village area와 충돌/맵 경계 기준을 통과해야 유효하다.
  */
-export const isValidSavedPosition = (villageId: string, position: Position): boolean => {
-  const config = VILLAGES[villageId as VillageId];
-  if (!config) return false;
-  const { x1, y1, x2, y2 } = config.boundary;
-  return position.x >= x1 && position.x <= x2 && position.y >= y1 && position.y <= y2;
+export const isValidSavedPosition = (
+  villageId: string,
+  position: Position,
+  mapLoader: MapLoader | null,
+): boolean => {
+  if (!mapLoader || !isVillageId(villageId)) return false;
+  if (!isPositionWalkable(position, mapLoader)) return false;
+  return mapLoader.getVillageAt(position) === villageId;
 };
 
 /**
- * 플레이어의 좌표가 마을을 벗어나지 않도록 경계값 내로 제한(Clamping)한다.
+ * 플레이어의 발밑 좌표를 기준으로 실제 충돌 박스를 만든다.
  */
-const clampPositionToVillage = (position: Position, villageId: VillageId): Position => {
-  const config = VILLAGES[villageId];
-  if (config) {
-    const { x1, y1, x2, y2 } = config.boundary;
-    return {
-      x: Math.max(x1, Math.min(x2, position.x)),
-      y: Math.max(y1, Math.min(y2, position.y)),
-    };
-  }
+const createPlayerRect = (position: Position): Rect => ({
+  x: position.x - PLAYER_COLLISION.halfWidth,
+  y: position.y - PLAYER_COLLISION.height,
+  width: PLAYER_COLLISION.halfWidth * 2,
+  height: PLAYER_COLLISION.height,
+});
+
+const rectsIntersect = (a: Rect, b: Rect) =>
+  a.width > 0 &&
+  a.height > 0 &&
+  b.width > 0 &&
+  b.height > 0 &&
+  a.x < b.x + b.width &&
+  a.x + a.width > b.x &&
+  a.y < b.y + b.height &&
+  a.y + a.height > b.y;
+
+/**
+ * 플레이어가 맵 이미지 밖으로 나가지 않도록 TMJ 기반 맵 영역 안으로 제한한다.
+ */
+const clampPositionToMap = (position: Position, mapLoader: MapLoader): Position => {
+  const bounds = mapLoader.getMapBounds();
 
   return {
-    x: Math.max(0, Math.min(800, position.x)),
-    y: Math.max(0, Math.min(600, position.y)),
+    x: Math.max(
+      bounds.x + PLAYER_COLLISION.halfWidth,
+      Math.min(bounds.x + bounds.width - PLAYER_COLLISION.halfWidth, position.x),
+    ),
+    y: Math.max(bounds.y + PLAYER_COLLISION.height, Math.min(bounds.y + bounds.height, position.y)),
   };
 };
 
-/**
- * 특정 마을 내부에 설정된 이동 구역(Transition Zone)에 진입했는지 감지한다.
- */
-const isTransitionDirectionMatched = (
-  fromVillageId: VillageId,
-  toVillageId: VillageId,
-  delta: Position,
-) => {
-  if (fromVillageId === "lobby" && toVillageId !== "lobby") return delta.y < 0;
-  if (fromVillageId !== "lobby" && toVillageId === "lobby") return delta.y > 0;
-  if (fromVillageId === "village-a" && toVillageId === "village-b") return delta.x > 0;
-  if (fromVillageId === "village-b" && toVillageId === "village-a") return delta.x < 0;
-  return true;
+const isPositionColliding = (position: Position, mapLoader: MapLoader) => {
+  const playerRect = createPlayerRect(position);
+  return mapLoader.getCollisionRects().some((rect) => rectsIntersect(playerRect, rect));
 };
 
-const detectVillageTransition = (position: Position, villageId: VillageId, delta: Position) => {
-  return TRANSITION_ZONES.find(
-    (tz) =>
-      tz.fromVillageId === villageId &&
-      isTransitionDirectionMatched(tz.fromVillageId, tz.toVillageId, delta) &&
-      position.x >= tz.triggerZone.x1 &&
-      position.x <= tz.triggerZone.x2 &&
-      position.y >= tz.triggerZone.y1 &&
-      position.y <= tz.triggerZone.y2,
+const isPositionWalkable = (position: Position, mapLoader: MapLoader) => {
+  const clampedPosition = clampPositionToMap(position, mapLoader);
+  const isInsideMap = clampedPosition.x === position.x && clampedPosition.y === position.y;
+  return isInsideMap && !isPositionColliding(position, mapLoader);
+};
+
+const resolveAxisMovement = (
+  currentPosition: Position,
+  delta: Position,
+  mapLoader: MapLoader,
+): Position => {
+  const nextPosition = clampPositionToMap(
+    {
+      x: currentPosition.x + delta.x,
+      y: currentPosition.y + delta.y,
+    },
+    mapLoader,
   );
+
+  if (!isPositionColliding(nextPosition, mapLoader)) {
+    return nextPosition;
+  }
+
+  const xOnlyPosition = clampPositionToMap(
+    { x: currentPosition.x + delta.x, y: currentPosition.y },
+    mapLoader,
+  );
+
+  if (!isPositionColliding(xOnlyPosition, mapLoader)) {
+    return xOnlyPosition;
+  }
+
+  const yOnlyPosition = clampPositionToMap(
+    { x: currentPosition.x, y: currentPosition.y + delta.y },
+    mapLoader,
+  );
+
+  if (!isPositionColliding(yOnlyPosition, mapLoader)) {
+    return yOnlyPosition;
+  }
+
+  return currentPosition;
 };
 
 /**
  * 이동 요청에 대한 최종 검증을 수행한다.
- * 1. 이동할 좌표가 마을 경계 내에 있는지 확인하고 조정한다.
- * 2. 다른 마을로 이동하는 구역에 도달했는지 확인한다.
+ * 1. TMJ Collision/맵 경계 기준으로 이동 가능 좌표를 계산한다.
+ * 2. TMJ Trigger의 VillageArea 진입 여부로 현재 village를 계산한다.
  */
 export const validateMovement = (
   currentPosition: Position,
   currentVillageId: VillageId,
   delta: Position,
+  mapLoader: MapLoader | null,
 ): ValidationResult => {
-  const rawNextPosition = {
-    x: currentPosition.x + delta.x,
-    y: currentPosition.y + delta.y,
-  };
+  if (!mapLoader) {
+    return {
+      nextPosition: currentPosition,
+      nextVillageId: currentVillageId,
+      event: { type: MOVEMENT_EVENT_TYPES.NONE },
+    };
+  }
 
-  const clampedPosition = clampPositionToVillage(rawNextPosition, currentVillageId);
+  const nextPosition = resolveAxisMovement(currentPosition, delta, mapLoader);
+  const nextVillageId = mapLoader.getVillageAt(nextPosition);
 
-  const transition = detectVillageTransition(clampedPosition, currentVillageId, delta);
-
-  if (transition) {
-    // 경계 보행 이동은 연속 월드처럼 보여야 하므로 절대 좌표를 유지한 채 village만 전환한다.
-    const nextPosition = clampPositionToVillage(rawNextPosition, transition.toVillageId);
-
+  if (nextVillageId !== currentVillageId) {
     return {
       nextPosition,
-      nextVillageId: transition.toVillageId,
+      nextVillageId,
       event: {
         type: MOVEMENT_EVENT_TYPES.VILLAGE_CHANGE,
         fromVillageId: currentVillageId,
-        toVillageId: transition.toVillageId,
+        toVillageId: nextVillageId,
       },
     };
   }
 
   return {
-    nextPosition: clampedPosition,
-    nextVillageId: currentVillageId,
+    nextPosition,
+    nextVillageId,
     event: { type: MOVEMENT_EVENT_TYPES.NONE },
   };
 };
@@ -113,10 +159,9 @@ export const findSafeSpawnPosition = (
   targetPosition: Position,
   remotePlayers: Record<string, RemotePlayer> = {},
   currentVillageId: VillageId,
+  mapLoader: MapLoader | null,
 ): Position => {
   const players = Object.values(remotePlayers).filter((p) => p.villageId === currentVillageId);
-
-  if (players.length === 0) return targetPosition;
 
   let safeX = targetPosition.x;
   const safeY = targetPosition.y;
@@ -126,18 +171,21 @@ export const findSafeSpawnPosition = (
   const OCCUPANCY_THRESHOLD = 70;
 
   while (attempts < MAX_ATTEMPTS) {
+    const candidate = mapLoader
+      ? clampPositionToMap({ x: safeX, y: safeY }, mapLoader)
+      : { x: safeX, y: safeY };
+    const isBlockedByMap = mapLoader ? !isPositionWalkable(candidate, mapLoader) : false;
     const isOccupied = players.some((p) => {
-      const dx = p.position.x - safeX;
-      const dy = p.position.y - safeY;
+      const dx = p.position.x - candidate.x;
+      const dy = p.position.y - candidate.y;
       return Math.sqrt(dx * dx + dy * dy) < OCCUPANCY_THRESHOLD;
     });
 
-    if (!isOccupied) break;
+    if (!isBlockedByMap && !isOccupied) return candidate;
 
     safeX += OFFSET_X;
     attempts++;
   }
 
-  const finalPosition = { x: safeX, y: safeY };
-  return clampPositionToVillage(finalPosition, currentVillageId);
+  return mapLoader ? clampPositionToMap(targetPosition, mapLoader) : targetPosition;
 };

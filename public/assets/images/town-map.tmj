@@ -2887,6 +2887,32 @@
                  "width":0,
                  "x":767.099936075005,
                  "y":718.090773492435
+                }, 
+                {
+                 "height":0,
+                 "id":426,
+                 "name":"village-a",
+                 "opacity":1,
+                 "point":true,
+                 "rotation":0,
+                 "type":"SpawnPoint",
+                 "visible":true,
+                 "width":0,
+                 "x":396.924120773493,
+                 "y":297.410381092389
+                }, 
+                {
+                 "height":0,
+                 "id":427,
+                 "name":"village-b",
+                 "opacity":1,
+                 "point":true,
+                 "rotation":0,
+                 "type":"SpawnPoint",
+                 "visible":true,
+                 "width":0,
+                 "x":1164.76308944928,
+                 "y":372.045685853218
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -2895,7 +2921,7 @@
          "y":0
         }],
  "nextlayerid":9,
- "nextobjectid":426,
+ "nextobjectid":428,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.2",

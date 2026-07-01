@@ -30,7 +30,7 @@ export interface VillageArea extends Rect {
 
 export interface SpawnPoint {
   id: number;
-  name: string;
+  name: VillageId;
   type: "SpawnPoint";
   x: number;
   y: number;

@@ -1,4 +1,4 @@
-import { isVillageId } from "../config/villageData";
+import { PLAYABLE_VILLAGE_IDS, VILLAGE_IDS, isVillageId } from "../config/villageData";
 import {
   CollisionRect,
   LOBBY_VILLAGE_ID,
@@ -69,7 +69,7 @@ export class MapLoader {
   private readonly options: MapLoaderOptions;
   private readonly collisionRects: CollisionRect[];
   private readonly villageAreas: VillageArea[];
-  private readonly spawnPoints: Map<string, SpawnPoint>;
+  private readonly spawnPoints: Map<VillageId, SpawnPoint>;
   private readonly backgroundImage: MapImageLayer;
   private readonly frontImage: MapImageLayer;
   private mapBounds: MapBounds;
@@ -82,6 +82,7 @@ export class MapLoader {
     this.collisionRects = this.parseCollisionRects();
     this.villageAreas = this.parseVillageAreas();
     this.spawnPoints = this.parseSpawnPoints();
+    this.validateVillageReferences();
     this.mapBounds = this.createMapBounds();
   }
 
@@ -107,6 +108,8 @@ export class MapLoader {
   }
 
   getSpawnPoint(name: string): SpawnPoint | undefined {
+    if (!isVillageId(name)) return undefined;
+
     const spawnPoint = this.spawnPoints.get(name);
     return spawnPoint ? { ...spawnPoint } : undefined;
   }
@@ -165,28 +168,38 @@ export class MapLoader {
     const layer = this.requireLayer(OBJECT_LAYER_NAMES.TRIGGER, "objectgroup");
 
     return this.getLayerObjects(layer)
-      .filter((object) => object.type === VILLAGE_AREA_TYPE && isVillageId(object.name ?? ""))
-      .map((object) => ({
-        id: object.id ?? 0,
-        name: object.name as VillageId,
-        type: VILLAGE_AREA_TYPE,
-        x: object.x ?? 0,
-        y: object.y ?? 0,
-        width: object.width ?? 0,
-        height: object.height ?? 0,
-      }));
+      .filter((object) => object.type === VILLAGE_AREA_TYPE)
+      .map((object) => {
+        const name = this.parseVillageObjectName(object, VILLAGE_AREA_TYPE);
+
+        return {
+          id: object.id ?? 0,
+          name,
+          type: VILLAGE_AREA_TYPE,
+          x: object.x ?? 0,
+          y: object.y ?? 0,
+          width: object.width ?? 0,
+          height: object.height ?? 0,
+        };
+      });
   }
 
-  private parseSpawnPoints(): Map<string, SpawnPoint> {
+  private parseSpawnPoints(): Map<VillageId, SpawnPoint> {
     const layer = this.requireLayer(OBJECT_LAYER_NAMES.SPAWN, "objectgroup");
-    const spawnPoints = new Map<string, SpawnPoint>();
+    const spawnPoints = new Map<VillageId, SpawnPoint>();
 
     this.getLayerObjects(layer)
-      .filter((object) => object.type === SPAWN_POINT_TYPE && object.name)
+      .filter((object) => object.type === SPAWN_POINT_TYPE)
       .forEach((object) => {
-        spawnPoints.set(object.name!, {
+        const name = this.parseVillageObjectName(object, SPAWN_POINT_TYPE);
+
+        if (spawnPoints.has(name)) {
+          throw new Error(`[MapLoader] SpawnPoint VillageId가 중복되었습니다: ${name}`);
+        }
+
+        spawnPoints.set(name, {
           id: object.id ?? 0,
-          name: object.name!,
+          name,
           type: SPAWN_POINT_TYPE,
           x: object.x ?? 0,
           y: object.y ?? 0,
@@ -194,6 +207,89 @@ export class MapLoader {
       });
 
     return spawnPoints;
+  }
+
+  private validateVillageReferences() {
+    this.assertUniqueVillageIds(
+      VILLAGE_AREA_TYPE,
+      this.villageAreas.map((area) => area.name),
+    );
+    this.assertVillageIdsMatch({
+      objectType: VILLAGE_AREA_TYPE,
+      actualIds: this.villageAreas.map((area) => area.name),
+      expectedIds: PLAYABLE_VILLAGE_IDS,
+      description: "Trigger 레이어의 VillageArea는 lobby를 제외한 VILLAGE_IDS와 일치해야 합니다.",
+    });
+    this.assertVillageIdsMatch({
+      objectType: SPAWN_POINT_TYPE,
+      actualIds: Array.from(this.spawnPoints.keys()),
+      expectedIds: VILLAGE_IDS,
+      description: "Spawn 레이어의 SpawnPoint는 VILLAGE_IDS와 일치해야 합니다.",
+    });
+  }
+
+  private parseVillageObjectName(
+    object: TiledObject,
+    objectType: typeof VILLAGE_AREA_TYPE | typeof SPAWN_POINT_TYPE,
+  ): VillageId {
+    const objectId = object.id ?? "unknown";
+
+    if (!object.name) {
+      throw new Error(
+        `[MapLoader] ${objectType}에 VillageId name이 없습니다: objectId=${objectId}`,
+      );
+    }
+
+    if (!isVillageId(object.name)) {
+      throw new Error(
+        `[MapLoader] ${objectType}의 name이 등록되지 않은 VillageId입니다: ${object.name}`,
+      );
+    }
+
+    return object.name;
+  }
+
+  private assertUniqueVillageIds(objectType: string, villageIds: VillageId[]) {
+    const seenIds = new Set<VillageId>();
+    const duplicateIds = villageIds.filter((villageId) => {
+      if (seenIds.has(villageId)) return true;
+
+      seenIds.add(villageId);
+      return false;
+    });
+
+    if (duplicateIds.length > 0) {
+      throw new Error(
+        `[MapLoader] ${objectType} VillageId가 중복되었습니다: ${this.formatVillageIds(duplicateIds)}`,
+      );
+    }
+  }
+
+  private assertVillageIdsMatch({
+    objectType,
+    actualIds,
+    expectedIds,
+    description,
+  }: {
+    objectType: string;
+    actualIds: VillageId[];
+    expectedIds: readonly VillageId[];
+    description: string;
+  }) {
+    const actualIdSet = new Set(actualIds);
+    const expectedIdSet = new Set(expectedIds);
+    const missingIds = expectedIds.filter((villageId) => !actualIdSet.has(villageId));
+    const unexpectedIds = actualIds.filter((villageId) => !expectedIdSet.has(villageId));
+
+    if (missingIds.length === 0 && unexpectedIds.length === 0) return;
+
+    throw new Error(
+      `[MapLoader] ${objectType} VillageId 불일치: 누락=${this.formatVillageIds(missingIds)}, 예상외=${this.formatVillageIds(unexpectedIds)}. ${description}`,
+    );
+  }
+
+  private formatVillageIds(villageIds: readonly VillageId[]) {
+    return villageIds.length > 0 ? Array.from(new Set(villageIds)).join(", ") : "없음";
   }
 
   private findLayer(name: string, type: TiledLayerType): TiledLayer | undefined {

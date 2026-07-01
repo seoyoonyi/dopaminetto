@@ -13,15 +13,27 @@ const loadTownMap = () => {
   return new MapLoader(loadTownMapJson(), { tmjUrl: "/assets/images/town-map.tmj" });
 };
 
-const removeLayer = (tmj: { layers: Array<{ name?: string }> }, layerName: string) => ({
+type TestTiledObject = {
+  name?: string;
+  type?: string;
+};
+
+type TestTiledLayer = {
+  name?: string;
+  image?: string;
+  objects?: TestTiledObject[];
+};
+
+type TestTiledMapJson = {
+  layers: TestTiledLayer[];
+};
+
+const removeLayer = (tmj: TestTiledMapJson, layerName: string) => ({
   ...tmj,
   layers: tmj.layers.filter((layer) => layer.name !== layerName),
 });
 
-const removeImage = (
-  tmj: { layers: Array<{ name?: string; image?: string }> },
-  layerName: string,
-) => ({
+const removeImage = (tmj: TestTiledMapJson, layerName: string) => ({
   ...tmj,
   layers: tmj.layers.map((layer) =>
     layer.name === layerName
@@ -32,6 +44,50 @@ const removeImage = (
       : layer,
   ),
 });
+
+const updateLayerObjects = (
+  tmj: TestTiledMapJson,
+  layerName: string,
+  updater: (objects: TestTiledObject[]) => TestTiledObject[],
+) => ({
+  ...tmj,
+  layers: tmj.layers.map((layer) =>
+    layer.name === layerName
+      ? {
+          ...layer,
+          objects: updater(layer.objects ?? []),
+        }
+      : layer,
+  ),
+});
+
+const removeObject = (
+  tmj: TestTiledMapJson,
+  layerName: string,
+  objectName: string,
+  objectType: string,
+) =>
+  updateLayerObjects(tmj, layerName, (objects) =>
+    objects.filter((object) => object.name !== objectName || object.type !== objectType),
+  );
+
+const renameObject = (
+  tmj: TestTiledMapJson,
+  layerName: string,
+  objectName: string,
+  objectType: string,
+  nextName: string,
+) =>
+  updateLayerObjects(tmj, layerName, (objects) =>
+    objects.map((object) =>
+      object.name === objectName && object.type === objectType
+        ? {
+            ...object,
+            name: nextName,
+          }
+        : object,
+    ),
+  );
 
 describe("MapLoader", () => {
   it("parses image layers from TMJ", () => {
@@ -91,6 +147,18 @@ describe("MapLoader", () => {
       x: expect.any(Number),
       y: expect.any(Number),
     });
+    expect(mapLoader.getSpawnPoint("village-a")).toMatchObject({
+      name: "village-a",
+      type: "SpawnPoint",
+      x: expect.any(Number),
+      y: expect.any(Number),
+    });
+    expect(mapLoader.getSpawnPoint("village-b")).toMatchObject({
+      name: "village-b",
+      type: "SpawnPoint",
+      x: expect.any(Number),
+      y: expect.any(Number),
+    });
     expect(mapLoader.getSpawnPoint("missing")).toBeUndefined();
   });
 
@@ -126,4 +194,24 @@ describe("MapLoader", () => {
       }).toThrow(`[MapLoader] 이미지 레이어에 image 값이 없습니다: ${layerName}`);
     },
   );
+
+  it("throws a clear error when a VillageArea is missing for a playable village", () => {
+    expect(() => {
+      new MapLoader(removeObject(loadTownMapJson(), "Trigger", "village-b", "VillageArea"));
+    }).toThrow("[MapLoader] VillageArea VillageId 불일치: 누락=village-b");
+  });
+
+  it("throws a clear error when a SpawnPoint is missing for a village", () => {
+    expect(() => {
+      new MapLoader(removeObject(loadTownMapJson(), "Spawn", "village-a", "SpawnPoint"));
+    }).toThrow("[MapLoader] SpawnPoint VillageId 불일치: 누락=village-a");
+  });
+
+  it("throws a clear error when map objects reference an unknown VillageId", () => {
+    expect(() => {
+      new MapLoader(
+        renameObject(loadTownMapJson(), "Trigger", "village-a", "VillageArea", "unknown-village"),
+      );
+    }).toThrow("[MapLoader] VillageArea의 name이 등록되지 않은 VillageId입니다: unknown-village");
+  });
 });

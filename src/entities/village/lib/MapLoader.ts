@@ -70,15 +70,15 @@ export class MapLoader {
   private readonly collisionRects: CollisionRect[];
   private readonly villageAreas: VillageArea[];
   private readonly spawnPoints: Map<string, SpawnPoint>;
-  private readonly backgroundImage?: MapImageLayer;
-  private readonly frontImage?: MapImageLayer;
+  private readonly backgroundImage: MapImageLayer;
+  private readonly frontImage: MapImageLayer;
   private mapBounds: MapBounds;
 
   constructor(tmj: TiledMapJson, options: MapLoaderOptions = {}) {
     this.tmj = tmj;
     this.options = options;
-    this.backgroundImage = this.parseImageLayer(IMAGE_LAYER_NAMES.BACKGROUND);
-    this.frontImage = this.parseImageLayer(IMAGE_LAYER_NAMES.FRONT);
+    this.backgroundImage = this.parseRequiredImageLayer(IMAGE_LAYER_NAMES.BACKGROUND);
+    this.frontImage = this.parseRequiredImageLayer(IMAGE_LAYER_NAMES.FRONT);
     this.collisionRects = this.parseCollisionRects();
     this.villageAreas = this.parseVillageAreas();
     this.spawnPoints = this.parseSpawnPoints();
@@ -111,12 +111,12 @@ export class MapLoader {
     return spawnPoint ? { ...spawnPoint } : undefined;
   }
 
-  getBackgroundImage(): MapImageLayer | undefined {
-    return this.backgroundImage ? { ...this.backgroundImage } : undefined;
+  getBackgroundImage(): MapImageLayer {
+    return { ...this.backgroundImage };
   }
 
-  getFrontImage(): MapImageLayer | undefined {
-    return this.frontImage ? { ...this.frontImage } : undefined;
+  getFrontImage(): MapImageLayer {
+    return { ...this.frontImage };
   }
 
   getMapBounds(): MapBounds {
@@ -128,10 +128,12 @@ export class MapLoader {
     return villageArea?.name ?? LOBBY_VILLAGE_ID;
   }
 
-  private parseImageLayer(name: MapImageLayer["name"]): MapImageLayer | undefined {
-    const layer = this.findLayer(name, "imagelayer");
+  private parseRequiredImageLayer(name: MapImageLayer["name"]): MapImageLayer {
+    const layer = this.requireLayer(name, "imagelayer");
 
-    if (!layer?.image) return undefined;
+    if (!layer.image) {
+      throw new Error(`[MapLoader] 이미지 레이어에 image 값이 없습니다: ${name}`);
+    }
 
     return {
       name,
@@ -146,7 +148,7 @@ export class MapLoader {
   }
 
   private parseCollisionRects(): CollisionRect[] {
-    const layer = this.findLayer(OBJECT_LAYER_NAMES.COLLISION, "objectgroup");
+    const layer = this.requireLayer(OBJECT_LAYER_NAMES.COLLISION, "objectgroup");
 
     return this.getLayerObjects(layer).map((object) => ({
       id: object.id ?? 0,
@@ -160,7 +162,7 @@ export class MapLoader {
   }
 
   private parseVillageAreas(): VillageArea[] {
-    const layer = this.findLayer(OBJECT_LAYER_NAMES.TRIGGER, "objectgroup");
+    const layer = this.requireLayer(OBJECT_LAYER_NAMES.TRIGGER, "objectgroup");
 
     return this.getLayerObjects(layer)
       .filter((object) => object.type === VILLAGE_AREA_TYPE && isVillageId(object.name ?? ""))
@@ -176,7 +178,7 @@ export class MapLoader {
   }
 
   private parseSpawnPoints(): Map<string, SpawnPoint> {
-    const layer = this.findLayer(OBJECT_LAYER_NAMES.SPAWN, "objectgroup");
+    const layer = this.requireLayer(OBJECT_LAYER_NAMES.SPAWN, "objectgroup");
     const spawnPoints = new Map<string, SpawnPoint>();
 
     this.getLayerObjects(layer)
@@ -198,11 +200,21 @@ export class MapLoader {
     return this.tmj.layers?.find((layer) => layer.name === name && layer.type === type);
   }
 
-  private getLayerObjects(layer?: TiledLayer): TiledObject[] {
-    const offsetX = layer?.offsetx ?? 0;
-    const offsetY = layer?.offsety ?? 0;
+  private requireLayer(name: string, type: TiledLayerType): TiledLayer {
+    const layer = this.findLayer(name, type);
 
-    return (layer?.objects ?? []).map((object) => ({
+    if (!layer) {
+      throw new Error(`[MapLoader] 필수 TMJ 레이어가 없습니다: ${name}`);
+    }
+
+    return layer;
+  }
+
+  private getLayerObjects(layer: TiledLayer): TiledObject[] {
+    const offsetX = layer.offsetx ?? 0;
+    const offsetY = layer.offsety ?? 0;
+
+    return (layer.objects ?? []).map((object) => ({
       ...object,
       x: (object.x ?? 0) + offsetX,
       y: (object.y ?? 0) + offsetY,
@@ -237,9 +249,7 @@ export class MapLoader {
   private async loadImageLayerDimensions() {
     if (typeof Image === "undefined") return;
 
-    const layers = [this.backgroundImage, this.frontImage].filter((layer): layer is MapImageLayer =>
-      Boolean(layer),
-    );
+    const layers = [this.backgroundImage, this.frontImage];
 
     await Promise.all(
       layers.map(async (layer) => {

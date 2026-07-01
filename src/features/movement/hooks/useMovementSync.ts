@@ -5,6 +5,7 @@ import { VillageId, getVisibleVillages } from "@/entities/village";
 import { resolveCharacterId } from "@/features/movement/model/config";
 import {
   createPresencePayload,
+  createPresenceTrackSignature,
   createSyncPositionPayload,
 } from "@/features/movement/model/payload";
 import {
@@ -13,6 +14,8 @@ import {
   SyncPositionPayload,
 } from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
+import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { getVillageChannelName } from "@/shared/lib/realtime";
 import {
@@ -74,6 +77,10 @@ export function useMovementSync() {
   const { data: user } = useUserInfo();
   const channelUserId = user?.id;
   const { userId: playerId, userNickname, selectedCharacterId } = useUserStore();
+  const debouncedTrackedVillageId = useDebouncedValue(
+    villageId,
+    PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS,
+  );
 
   const syncStateRef = useRef(createMovementSyncState());
 
@@ -220,7 +227,7 @@ export function useMovementSync() {
         characterId: state.characterId,
       });
 
-      const payloadSignature = JSON.stringify(payload);
+      const payloadSignature = createPresenceTrackSignature(payload);
       if (retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
         return;
       }
@@ -465,7 +472,7 @@ export function useMovementSync() {
     if (!supabase || !channelUserId || !playerId) return;
 
     const prevTrackedVillageId = syncState.trackedVillageId;
-    if (prevTrackedVillageId && prevTrackedVillageId !== villageId) {
+    if (prevTrackedVillageId && prevTrackedVillageId !== debouncedTrackedVillageId) {
       syncState.trackRequestId += 1;
       syncState.lastPresenceSignature = "";
 
@@ -482,9 +489,17 @@ export function useMovementSync() {
       }
     }
 
-    syncState.trackedVillageId = villageId;
+    syncState.trackedVillageId = debouncedTrackedVillageId;
     void syncState.handlers.trackCurrentPresence();
-  }, [channelUserId, characterId, lastSyncedPosition, nickname, playerId, supabase, villageId]);
+  }, [
+    channelUserId,
+    characterId,
+    debouncedTrackedVillageId,
+    lastSyncedPosition,
+    nickname,
+    playerId,
+    supabase,
+  ]);
 
   useEffect(() => {
     if (!playerId || !nickname) return;

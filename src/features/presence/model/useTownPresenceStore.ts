@@ -4,6 +4,9 @@ import { create } from "zustand";
 
 import { groupParticipantsByVillage } from "../lib/groupByVillage";
 import { PresenceParticipant } from "../types";
+import { resolvePresenceParticipants } from "./presenceParticipants";
+
+const DEPARTURE_FALLBACK_MS = 8000;
 
 interface TownPresenceState {
   participants: PresenceParticipant[];
@@ -12,7 +15,8 @@ interface TownPresenceState {
   lastSyncedAt?: string;
   localJoinedAt: string;
   previousUserIds: Set<string>;
-  hasInitialized: boolean;
+  pendingDepartures: Map<string, ReturnType<typeof setTimeout>>;
+  isAwaitingInitialJoin: boolean;
   /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
   voiceConnected: boolean;
   /** 현재 유저의 발표용 마이크 활성 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
@@ -33,11 +37,7 @@ interface TownPresenceState {
   /** 현재 유저의 청취 on/off를 수행하는 로컬 제어 함수 */
   toggleLocalListening: (() => Promise<void>) | null;
 
-  setParticipants: (
-    participants: PresenceParticipant[],
-    currentUserNickname: string,
-    currentUserId: string,
-  ) => void;
+  setParticipants: (participants: PresenceParticipant[], currentUserId: string) => void;
   setConnectionState: (isConnected: boolean) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
@@ -67,7 +67,8 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   lastSyncedAt: undefined,
   localJoinedAt: new Date().toISOString(),
   previousUserIds: new Set(),
-  hasInitialized: true,
+  pendingDepartures: new Map(),
+  isAwaitingInitialJoin: true,
   voiceConnected: false,
   audioEnabled: false,
   canToggleAudio: false,
@@ -77,61 +78,85 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   listeningEnabled: true,
   toggleLocalListening: null,
 
-  setParticipants: (participants, currentUserNickname, currentUserId) => {
+  setParticipants: (participants, currentUserId) => {
     const state = get();
-    const previousMe = state.participants.find((p) => p.userId === currentUserId);
-    const hasCurrentUser = participants.some((p) => p.userId === currentUserId);
-    const stableParticipants =
-      previousMe && !hasCurrentUser ? [...participants, previousMe] : participants;
-    const sortedParticipants = [...stableParticipants].sort((a, b) =>
-      a.nickname.localeCompare(b.nickname, "ko"),
+    const pendingDepartures = new Map(state.pendingDepartures);
+    const resolvedParticipants = resolvePresenceParticipants({
+      currentUserId,
+      isAwaitingInitialJoin: state.isAwaitingInitialJoin,
+      nextParticipants: participants,
+      pendingDepartureUserIds: new Set(pendingDepartures.keys()),
+      previousParticipants: state.participants,
+      previousUserIds: state.previousUserIds,
+    });
+
+    resolvedParticipants.recoveredPendingDepartureUserIds.forEach((userId) => {
+      const timerId = pendingDepartures.get(userId);
+      if (!timerId) return;
+
+      clearTimeout(timerId);
+      pendingDepartures.delete(userId);
+    });
+
+    resolvedParticipants.departureCandidates.forEach((previousParticipant) => {
+      const userId = previousParticipant.userId;
+      const timerId = setTimeout(() => {
+        const latestState = get();
+        if (!latestState.pendingDepartures.has(userId)) {
+          return;
+        }
+
+        const nextPendingDepartures = new Map(latestState.pendingDepartures);
+        nextPendingDepartures.delete(userId);
+
+        const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
+        const nextUserIdSet = new Set(nextParticipants.map((p) => p.userId));
+
+        toast(`${previousParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
+
+        set({
+          participants: nextParticipants,
+          groupedParticipants: groupParticipantsByVillage(nextParticipants),
+          lastSyncedAt: new Date().toISOString(),
+          previousUserIds: nextUserIdSet,
+          pendingDepartures: nextPendingDepartures,
+        });
+      }, DEPARTURE_FALLBACK_MS);
+
+      pendingDepartures.set(userId, timerId);
+    });
+
+    const groupedParticipants = groupParticipantsByVillage(
+      resolvedParticipants.displayParticipants,
     );
-    const groupedParticipants = groupParticipantsByVillage(sortedParticipants);
-    const currentUserIds = sortedParticipants.map((p) => p.userId);
-    const currentUserIdSet = new Set(currentUserIds);
 
-    // 닉네임 대신 userId로 정확하게 자신을 식별 (유저 제안 사항)
-    const me = sortedParticipants.find((p) => p.userId === currentUserId);
-
-    if (state.hasInitialized && me) {
-      toast(`${me.nickname} 입장했습니다.`, { duration: 3000 });
+    if (resolvedParticipants.initialJoinParticipant) {
+      toast(`${resolvedParticipants.initialJoinParticipant.nickname} 입장했습니다.`, {
+        duration: 3000,
+      });
 
       set({
-        participants: sortedParticipants,
+        participants: resolvedParticipants.displayParticipants,
         groupedParticipants,
         lastSyncedAt: new Date().toISOString(),
-        previousUserIds: currentUserIdSet,
-        hasInitialized: false,
+        previousUserIds: resolvedParticipants.currentUserIdSet,
+        pendingDepartures,
+        isAwaitingInitialJoin: false,
       });
 
       return;
     }
 
-    if (!state.hasInitialized && state.previousUserIds.size > 0) {
-      currentUserIdSet.forEach((userId) => {
-        if (!state.previousUserIds.has(userId)) {
-          const participant = sortedParticipants.find((p) => p.userId === userId);
-          if (participant) {
-            toast(`${participant.nickname} 입장했습니다.`, { duration: 3000 });
-          }
-        }
-      });
-
-      state.previousUserIds.forEach((userId) => {
-        if (!currentUserIdSet.has(userId)) {
-          const previousParticipant = state.participants.find((p) => p.userId === userId);
-          if (previousParticipant) {
-            toast(`${previousParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
-          }
-        }
-      });
-    }
+    resolvedParticipants.joinToastParticipants.forEach((participant) => {
+      toast(`${participant.nickname} 입장했습니다.`, { duration: 3000 });
+    });
 
     set({
-      participants: sortedParticipants,
+      participants: resolvedParticipants.displayParticipants,
       groupedParticipants,
       lastSyncedAt: new Date().toISOString(),
-      previousUserIds: currentUserIdSet,
+      previousUserIds: resolvedParticipants.currentUserIdSet,
+      pendingDepartures,
     });
   },
 
@@ -169,14 +194,19 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
    */
   setListeningEnabled: (listeningEnabled) => set({ listeningEnabled }),
 
-  reset: () =>
+  reset: () => {
+    get().pendingDepartures.forEach((timerId) => {
+      clearTimeout(timerId);
+    });
+
     set({
       participants: [],
       groupedParticipants: {},
       isConnected: false,
       lastSyncedAt: undefined,
       previousUserIds: new Set(),
-      hasInitialized: true,
+      pendingDepartures: new Map(),
+      isAwaitingInitialJoin: true,
       voiceConnected: false,
       audioEnabled: false,
       canToggleAudio: false,
@@ -185,5 +215,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       canToggleListening: false,
       listeningEnabled: true,
       toggleLocalListening: null,
-    }),
+    });
+  },
 }));

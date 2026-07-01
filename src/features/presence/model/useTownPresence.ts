@@ -172,7 +172,7 @@ export const useTownPresence = () => {
       if (channel) {
         const state = channel.presenceState();
         const mapped = mapPresenceState(state);
-        setParticipantsState(mapped, userNickname || "", userId || "");
+        setParticipantsState(mapped, userId || "");
       }
     };
 
@@ -184,7 +184,7 @@ export const useTownPresence = () => {
     return () => {
       unsubscribe();
     };
-  }, [channel, subscribeToPresence, setParticipantsState, userNickname, userId]);
+  }, [channel, subscribeToPresence, setParticipantsState, userId]);
 
   // 4. 연결 피드백 토스트
   useEffect(() => {

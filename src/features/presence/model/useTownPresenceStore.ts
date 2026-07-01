@@ -16,7 +16,7 @@ interface TownPresenceState {
   localJoinedAt: string;
   previousUserIds: Set<string>;
   pendingDepartures: Map<string, ReturnType<typeof setTimeout>>;
-  hasInitialized: boolean;
+  isAwaitingInitialJoin: boolean;
   /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
   voiceConnected: boolean;
   /** 현재 유저의 발표용 마이크 활성 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
@@ -37,11 +37,7 @@ interface TownPresenceState {
   /** 현재 유저의 청취 on/off를 수행하는 로컬 제어 함수 */
   toggleLocalListening: (() => Promise<void>) | null;
 
-  setParticipants: (
-    participants: PresenceParticipant[],
-    currentUserNickname: string,
-    currentUserId: string,
-  ) => void;
+  setParticipants: (participants: PresenceParticipant[], currentUserId: string) => void;
   setConnectionState: (isConnected: boolean) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
@@ -72,7 +68,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   localJoinedAt: new Date().toISOString(),
   previousUserIds: new Set(),
   pendingDepartures: new Map(),
-  hasInitialized: true,
+  isAwaitingInitialJoin: true,
   voiceConnected: false,
   audioEnabled: false,
   canToggleAudio: false,
@@ -82,12 +78,12 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
   listeningEnabled: true,
   toggleLocalListening: null,
 
-  setParticipants: (participants, _currentUserNickname, currentUserId) => {
+  setParticipants: (participants, currentUserId) => {
     const state = get();
     const pendingDepartures = new Map(state.pendingDepartures);
     const resolvedParticipants = resolvePresenceParticipants({
       currentUserId,
-      hasInitialized: state.hasInitialized,
+      isAwaitingInitialJoin: state.isAwaitingInitialJoin,
       nextParticipants: participants,
       pendingDepartureUserIds: new Set(pendingDepartures.keys()),
       previousParticipants: state.participants,
@@ -145,7 +141,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
         lastSyncedAt: new Date().toISOString(),
         previousUserIds: resolvedParticipants.currentUserIdSet,
         pendingDepartures,
-        hasInitialized: false,
+        isAwaitingInitialJoin: false,
       });
 
       return;
@@ -210,7 +206,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => ({
       lastSyncedAt: undefined,
       previousUserIds: new Set(),
       pendingDepartures: new Map(),
-      hasInitialized: true,
+      isAwaitingInitialJoin: true,
       voiceConnected: false,
       audioEnabled: false,
       canToggleAudio: false,

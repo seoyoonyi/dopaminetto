@@ -5,7 +5,7 @@ interface ResolvePresenceParticipantsParams {
   previousParticipants: PresenceParticipant[];
   previousUserIds: Set<string>;
   pendingDepartureUserIds: Set<string>;
-  hasInitialized: boolean;
+  isAwaitingInitialJoin: boolean;
   currentUserId: string;
 }
 
@@ -25,7 +25,7 @@ export function resolvePresenceParticipants({
   previousParticipants,
   previousUserIds,
   pendingDepartureUserIds,
-  hasInitialized,
+  isAwaitingInitialJoin,
   currentUserId,
 }: ResolvePresenceParticipantsParams): ResolvedPresenceParticipants {
   const previousMe = previousParticipants.find((p) => p.userId === currentUserId);
@@ -41,7 +41,7 @@ export function resolvePresenceParticipants({
   );
 
   const departureCandidates =
-    !hasInitialized && previousUserIds.size > 0
+    !isAwaitingInitialJoin && previousUserIds.size > 0
       ? Array.from(previousUserIds).flatMap((userId) => {
           if (snapshotUserIdSet.has(userId) || activePendingDepartureUserIds.has(userId)) {
             return [];
@@ -70,11 +70,11 @@ export function resolvePresenceParticipants({
     a.nickname.localeCompare(b.nickname, "ko"),
   );
   const currentUserIdSet = new Set(displayParticipants.map((p) => p.userId));
-  const initialJoinParticipant = hasInitialized
+  const initialJoinParticipant = isAwaitingInitialJoin
     ? displayParticipants.find((p) => p.userId === currentUserId)
     : undefined;
   const joinToastParticipants =
-    !hasInitialized && previousUserIds.size > 0
+    !isAwaitingInitialJoin && previousUserIds.size > 0
       ? Array.from(snapshotUserIdSet).flatMap((userId) => {
           if (previousUserIds.has(userId)) {
             return [];

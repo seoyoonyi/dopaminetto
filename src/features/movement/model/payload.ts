@@ -35,6 +35,21 @@ export const createPresencePayload = ({
   characterId: resolveCharacterId(characterId),
 });
 
+export const createPresenceTrackSignature = ({
+  userId,
+  nickname,
+  joinedAt,
+  villageId,
+  characterId,
+}: PresenceMetadata) =>
+  JSON.stringify({
+    userId,
+    nickname,
+    joinedAt,
+    villageId,
+    characterId,
+  });
+
 export const createSyncPositionPayload = ({
   userId,
   nickname,

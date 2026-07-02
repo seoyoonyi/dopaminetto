@@ -8,6 +8,8 @@ export const MOVEMENT_EVENT_TYPES = {
 
 export type MovementEventType = (typeof MOVEMENT_EVENT_TYPES)[keyof typeof MOVEMENT_EVENT_TYPES];
 
+export type RestoreStatus = "loading" | "restored" | "fallback";
+
 export interface Position {
   x: number;
   y: number;

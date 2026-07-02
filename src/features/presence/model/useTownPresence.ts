@@ -3,6 +3,8 @@
 import { LOBBY_VILLAGE_ID, VILLAGES, VillageId } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
+import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
+import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { PresenceStateItem, PresenceTrackPayload } from "@/shared/types/presence";
@@ -55,7 +57,7 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
 
 /**
  * Supabase Presence `town:main` 채널을 구독해
- * 접속 중인 사용자 목록과 연결 상태를 제공하는 훅입니다.
+ * 접속 중인 사용자 목록과 연결 상태를 제공하는 훅이다.
  */
 export const useTownPresenceView = () => {
   const participants = useTownPresenceStore((state) => state.participants);
@@ -73,6 +75,7 @@ export const useTownPresence = () => {
   const userNickname = user?.user_metadata?.nickname as string | undefined;
 
   const villageId = useMovementStore((state) => state.villageId);
+  const debouncedVillageId = useDebouncedValue(villageId, PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS);
 
   const {
     channel,
@@ -115,7 +118,7 @@ export const useTownPresence = () => {
         userId,
         nickname: userNickname || "익명",
         joinedAt: localJoinedAt,
-        villageId,
+        villageId: debouncedVillageId,
         username: userNickname,
         isSpeaker,
         voiceConnected,
@@ -156,7 +159,7 @@ export const useTownPresence = () => {
     channel,
     userId,
     userNickname,
-    villageId,
+    debouncedVillageId,
     reconnect,
     localJoinedAt,
     isSpeaker,
@@ -169,7 +172,7 @@ export const useTownPresence = () => {
       if (channel) {
         const state = channel.presenceState();
         const mapped = mapPresenceState(state);
-        setParticipantsState(mapped, userNickname || "", userId || "");
+        setParticipantsState(mapped, userId || "");
       }
     };
 
@@ -181,7 +184,7 @@ export const useTownPresence = () => {
     return () => {
       unsubscribe();
     };
-  }, [channel, subscribeToPresence, setParticipantsState, userNickname, userId]);
+  }, [channel, subscribeToPresence, setParticipantsState, userId]);
 
   // 4. 연결 피드백 토스트
   useEffect(() => {

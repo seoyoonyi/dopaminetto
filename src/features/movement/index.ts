@@ -12,6 +12,7 @@ export {
   CHARACTER_CONFIGS,
   CHARACTER_OPTIONS,
   DEFAULT_CHARACTER_ID,
+  GAME_CONFIG,
   getCharacterConfig,
   resolveCharacterId,
 } from "./model/config";

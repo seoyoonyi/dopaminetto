@@ -1,4 +1,5 @@
 import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
+import type { MapLoader } from "@/entities/village";
 import { findSafeSpawnPosition, validateMovement } from "@/features/movement/lib/validateMovement";
 import {
   CharacterId,
@@ -15,10 +16,12 @@ interface MovementStore extends MovementState {
   pendingDelta: Position; // 아직 서버에 안 보낸 누적 이동량
   lastSyncedPosition: Position; // 서버 검증 완료된 최종 위치
   lastSyncedVillageId: VillageId;
+  mapLoader: MapLoader | null;
 
   setUserId: (userId: string) => void;
   setNickname: (nickname: string) => void;
   setCharacterId: (characterId: CharacterId) => void;
+  setMapLoader: (mapLoader: MapLoader | null) => void;
   setPosition: (position: Position) => void;
   setVillage: (villageId: VillageId) => void;
   initializePosition: (position: Position, villageId: VillageId) => void;
@@ -63,14 +66,17 @@ export const useMovementStore = create<MovementStore>()(
       isValidating: false,
       validationLatency: 0,
       pendingDelta: { x: 0, y: 0 },
+      mapLoader: null,
 
       setUserId: (userId) => set({ userId }),
       setNickname: (nickname) => set({ nickname }),
       setCharacterId: (characterId) => set({ characterId }),
+      setMapLoader: (mapLoader) => set({ mapLoader }),
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
       initializePosition: (position, villageId) => {
-        const safePos = findSafeSpawnPosition(position, get().remotePlayers, villageId);
+        const { mapLoader, remotePlayers } = get();
+        const safePos = findSafeSpawnPosition(position, remotePlayers, villageId, mapLoader);
         set({
           position: safePos,
           villageId,
@@ -121,7 +127,8 @@ export const useMovementStore = create<MovementStore>()(
        * 좌표/마을 동시 전환 및 델타 리셋
        */
       warp: (position, villageId) => {
-        const safePos = findSafeSpawnPosition(position, get().remotePlayers, villageId);
+        const { mapLoader, remotePlayers } = get();
+        const safePos = findSafeSpawnPosition(position, remotePlayers, villageId, mapLoader);
         set({
           position: safePos,
           villageId,
@@ -135,9 +142,9 @@ export const useMovementStore = create<MovementStore>()(
        * 낙관적 업데이트 및 이동량 누적
        */
       updatePosition: (delta) => {
-        const { position, villageId, pendingDelta } = get();
+        const { position, villageId, pendingDelta, mapLoader } = get();
 
-        const result = validateMovement(position, villageId, delta);
+        const result = validateMovement(position, villageId, delta, mapLoader);
         const actualDeltaX = result.nextPosition.x - position.x;
         const actualDeltaY = result.nextPosition.y - position.y;
 
@@ -170,7 +177,7 @@ export const useMovementStore = create<MovementStore>()(
        * 서버 동기화 및 Reconciliation(보정) 실행
        */
       flush: async () => {
-        const { pendingDelta, lastSyncedPosition, lastSyncedVillageId } = get();
+        const { pendingDelta, lastSyncedPosition, lastSyncedVillageId, mapLoader } = get();
         if (isSyncing || (pendingDelta.x === 0 && pendingDelta.y === 0)) return;
 
         isSyncing = true;
@@ -185,7 +192,12 @@ export const useMovementStore = create<MovementStore>()(
         try {
           const startTime = performance.now();
           // [API 입점 예정지] fetch/socket 통신 연결부
-          const validationResult = validateMovement(basePosition, baseVillageId, snapshotDelta);
+          const validationResult = validateMovement(
+            basePosition,
+            baseVillageId,
+            snapshotDelta,
+            mapLoader,
+          );
           const endTime = performance.now();
 
           set({
@@ -200,6 +212,7 @@ export const useMovementStore = create<MovementStore>()(
               validationResult.nextPosition,
               get().remotePlayers,
               validationResult.nextVillageId,
+              mapLoader,
             );
             set({
               position: safePos,
@@ -217,6 +230,7 @@ export const useMovementStore = create<MovementStore>()(
             validationResult.nextPosition,
             validationResult.nextVillageId,
             currentBuffer,
+            mapLoader,
           );
 
           set({
@@ -256,6 +270,7 @@ export const useMovementStore = create<MovementStore>()(
           isValidating: false,
           validationLatency: 0,
           pendingDelta: { x: 0, y: 0 },
+          mapLoader: null,
         });
       },
     };

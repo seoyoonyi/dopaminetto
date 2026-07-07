@@ -17,3 +17,17 @@ export {
   resolveCharacterId,
 } from "./model/config";
 export type { CharacterConfig, CharacterId } from "./model/config";
+
+export {
+  LOCAL_ACTION_ANIMATIONS,
+  LOCAL_ACTION_KEY_BINDINGS,
+  getActionFrameNumbers,
+  getCharacterActionConfig,
+  getLocalActionAnimationKey,
+  resolveLocalActionInput,
+} from "./model/actionAnimation";
+export type {
+  LocalActionId,
+  LocalActionInputId,
+  LocalActionInputResult,
+} from "./model/actionAnimation";

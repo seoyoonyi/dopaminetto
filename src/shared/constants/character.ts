@@ -1,6 +1,8 @@
-import type { CharacterConfig, CharacterId } from "@/shared/types";
+import type { CharacterActionConfig, CharacterConfig, CharacterId } from "@/shared/types";
 
 export const DEFAULT_CHARACTER_ID: CharacterId = "p-boy";
+const ACTION_ATLAS_FRAME_WIDTH = 40;
+const ACTION_ATLAS_FRAME_HEIGHT = 70;
 
 const createCharacterConfig = ({
   id,
@@ -81,6 +83,28 @@ export const CHARACTER_CONFIGS = {
 } satisfies Record<CharacterId, CharacterConfig>;
 
 export const CHARACTER_OPTIONS = Object.values(CHARACTER_CONFIGS);
+
+/**
+ * 캐릭터별 액션 스프라이트 에셋 정보 및 렌더링 규격 설정 상수
+ */
+export const CHARACTER_ACTION_CONFIGS = {
+  "p-boy": {
+    assetKey: "p-boy-actions",
+    assetUrl: "/assets/images/p-boy-sprite-actions-final-s.png",
+    frameWidth: ACTION_ATLAS_FRAME_WIDTH,
+    frameHeight: ACTION_ATLAS_FRAME_HEIGHT,
+    originY: 69 / ACTION_ATLAS_FRAME_HEIGHT,
+    visibleHeight: 68,
+  },
+  "p-girl": {
+    assetKey: "p-girl-actions",
+    assetUrl: "/assets/images/p-boy-sprite-actions-final-s.png",
+    frameWidth: ACTION_ATLAS_FRAME_WIDTH,
+    frameHeight: ACTION_ATLAS_FRAME_HEIGHT,
+    originY: 69 / ACTION_ATLAS_FRAME_HEIGHT,
+    visibleHeight: 68,
+  },
+} satisfies Record<CharacterId, CharacterActionConfig>;
 
 const isCharacterId = (characterId?: string | null): characterId is CharacterId =>
   !!characterId && characterId in CHARACTER_CONFIGS;

@@ -24,7 +24,7 @@ import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import * as Phaser from "phaser";
 
-const CAPTURED_KEYS = "W,A,S,D,H,ZERO,UP,DOWN,LEFT,RIGHT,SPACE";
+const CAPTURED_KEYS = "W,A,S,D,H,X,ZERO,UP,DOWN,LEFT,RIGHT,SPACE";
 const MAP_BACKGROUND_KEY = "town-map-background";
 const MAP_FRONT_KEY = "town-map-front";
 const BACKGROUND_DEPTH = 0;

@@ -4,6 +4,7 @@ import type { CharacterActionConfig, CharacterId } from "@/shared/types";
 export const LOCAL_ACTION_KEY_BINDINGS = {
   dance: "ZERO",
   happy: "H",
+  sit: "X",
 } as const;
 
 const LOCAL_ACTION_ATLAS_COLUMNS = 5;
@@ -28,6 +29,14 @@ export const LOCAL_ACTION_ANIMATIONS = {
      * 기본자세에서 한 번 뜬 뒤 다시 기본자세로 돌아오게 한다.
      */
     frameSequence: [0, 1, 0],
+  },
+  sit: {
+    key: "sit",
+    row: 2,
+    frames: 4,
+    fps: 4,
+    repeat: -1,
+    originYOffset: 0,
   },
 } as const;
 

@@ -88,13 +88,21 @@ export default function MessageField({
       setMessage(trimmed);
     }
 
-    textareaRef.current?.blur();
+    // 연속 채팅이 가능하도록 전송 후에도 포커스를 유지한다.
+    // 이동키 캡처 제어는 TownScene.update()에서 activeElement를 매 프레임 확인해 처리하므로
+    // 여기서 blur를 호출할 필요가 없다.
+    textareaRef.current?.focus();
   };
 
-  const handleEnterKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage();
+      return;
+    }
+
+    if (e.key === "Escape") {
+      textareaRef.current?.blur();
     }
   };
 
@@ -133,7 +141,7 @@ export default function MessageField({
             ref={textareaRef}
             value={message}
             onChange={updateMessage}
-            onKeyDown={handleEnterKey}
+            onKeyDown={handleKeyDown}
             placeholder={PLACEHOLDER_TEXT}
             rows={1}
             disabled={isPrivateChannel}

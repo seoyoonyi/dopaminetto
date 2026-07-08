@@ -20,6 +20,7 @@ import {
   resolveLocalActionInput,
   useMovementStore,
 } from "@/features/movement";
+import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
 import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import * as Phaser from "phaser";
@@ -53,6 +54,7 @@ export class TownScene extends Phaser.Scene {
   private debugText!: Phaser.GameObjects.Text;
   private localCharacterId: CharacterId = "p-boy";
   private activeLocalActionId: LocalActionId | null = null;
+  private wasInputFocused = false;
 
   constructor() {
     super("TownScene");
@@ -409,23 +411,19 @@ export class TownScene extends Phaser.Scene {
     // 2. 로컬 플레이어 입력 처리
     const speed = 4;
 
-    // 입력 필드 포커스 시:
-    // 1. removeCapture로 Phaser의 키 캡처를 해제하여 브라우저가 키 이벤트를 처리하도록 함
-    // 2. 캐릭터 이동 로직 실행 방지
-    const activeElement = document.activeElement;
-    const isInputFocused =
-      activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA");
+    const isInputFocused = isEditableElementFocused();
 
-    if (this.input.keyboard) {
+    // 포커스 상태가 실제로 바뀐 프레임에만 캡처를 토글 (매 프레임 addCapture/removeCapture 호출 방지)
+    if (this.input.keyboard && isInputFocused !== this.wasInputFocused) {
       if (isInputFocused) {
-        // 채팅창 포커스 시: 키 캡처 해제하여 브라우저가 키 입력을 처리하도록 함
         this.input.keyboard.removeCapture(CAPTURED_KEYS);
-        return;
       } else {
-        // 게임 플레이 시: 키 캡처 활성화하여 Phaser가 키 입력을 독점하도록 함
         this.input.keyboard.addCapture(CAPTURED_KEYS);
       }
+      this.wasInputFocused = isInputFocused;
     }
+
+    if (isInputFocused) return;
 
     let dx = 0;
     let dy = 0;

@@ -5,6 +5,7 @@ import { useRestorePlayerPosition } from "@/features/movement/hooks/useRestorePl
 import { useSavePlayerPosition } from "@/features/movement/hooks/useSavePlayerPosition";
 import { useTownMapLoader } from "@/features/movement/hooks/useTownMapLoader";
 import { TownScene } from "@/features/movement/lib/TownScene";
+import { blurActiveEditableElement } from "@/features/movement/lib/domFocus";
 import { GAME_CONFIG } from "@/features/movement/model/config";
 import {
   FALLBACK_SPAWN_STABILIZE_MS,
@@ -136,8 +137,11 @@ export const TownEngine = () => {
       ) : entryGate.showPreparing ? (
         <TownEntryPreparing />
       ) : null}
+      {/* Phaser가 캔버스 mousedown에서 preventDefault를 호출해 브라우저의 기본 blur 동작까지
+          막으므로, 맵 클릭 시 채팅 입력창에서 명시적으로 빠져나오도록 처리 */}
       <div
         ref={gameContainerRef}
+        onPointerDown={blurActiveEditableElement}
         className={cn(
           "h-full w-full",
           !entryGate.canMountEngine && "pointer-events-none opacity-0",

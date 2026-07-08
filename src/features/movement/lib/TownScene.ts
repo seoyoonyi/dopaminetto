@@ -362,7 +362,9 @@ export class TownScene extends Phaser.Scene {
     // 2. 캐릭터 이동 로직 실행 방지
     const activeElement = document.activeElement;
     const isInputFocused =
-      activeElement && (activeElement.tagName === "INPUT" || activeElement.tagName === "TEXTAREA");
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      (activeElement as HTMLElement | null)?.isContentEditable === true;
 
     if (this.input.keyboard) {
       if (isInputFocused) {

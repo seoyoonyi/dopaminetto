@@ -5,6 +5,12 @@
  */
 import type { MapImageLayer } from "@/entities/village";
 import {
+  AMBIENT_AUDIO_KEYS,
+  AMBIENT_AUDIO_URLS,
+  CampfireAmbientController,
+  resolveCampfireSources,
+} from "@/features/ambientSound";
+import {
   CHARACTER_OPTIONS,
   CharacterConfig,
   CharacterId,
@@ -43,6 +49,7 @@ export class TownScene extends Phaser.Scene {
   private debugText!: Phaser.GameObjects.Text;
   private localCharacterId: CharacterId = "p-boy";
   private wasInputFocused = false;
+  private campfireAmbientController?: CampfireAmbientController;
 
   constructor() {
     super("TownScene");
@@ -68,6 +75,9 @@ export class TownScene extends Phaser.Scene {
         frameHeight: character.frameHeight,
       });
     });
+
+    // 모닥불 환경음 로드
+    this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
   };
 
   create = () => {
@@ -157,6 +167,12 @@ export class TownScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(DEBUG_TEXT_DEPTH);
 
+    // 모닥불 환경음 컨트롤러 초기화 (마을별 영역 중심에 배치, 사운드 인스턴스는 1회만 생성되어 재사용됨)
+    this.campfireAmbientController = new CampfireAmbientController(
+      this,
+      mapLoader ? resolveCampfireSources(mapLoader) : [],
+    );
+
     this.updateRemotePlayers(store.remotePlayers);
 
     // Zustand 스토어 구독: 필요한 필드만 선택하여 불필요한 리렌더링 방지
@@ -218,6 +234,7 @@ export class TownScene extends Phaser.Scene {
       this.remotePlayerSprites.clear();
       this.remotePlayerNames.clear();
       this.remotePlayerTargets.clear();
+      this.campfireAmbientController?.destroy();
     });
   };
 
@@ -436,6 +453,10 @@ export class TownScene extends Phaser.Scene {
       );
       this.syncCharacterDepth(this.player, this.playerNameLabel);
     }
+
+    // 4. 모닥불 환경음 거리 기반 볼륨 갱신
+    // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용
+    this.campfireAmbientController?.update(this.player, useMovementStore.getState().villageId);
   };
 
   private getAnimationKey(character: CharacterConfig, animationKey: string) {

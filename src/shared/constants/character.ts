@@ -3,6 +3,7 @@ import type { CharacterActionConfig, CharacterConfig, CharacterId } from "@/shar
 export const DEFAULT_CHARACTER_ID: CharacterId = "p-boy";
 const ACTION_ATLAS_FRAME_WIDTH = 40;
 const ACTION_ATLAS_FRAME_HEIGHT = 70;
+const P_GIRL_ACTION_ATLAS_FRAME_WIDTH = 49;
 
 const createCharacterConfig = ({
   id,
@@ -98,11 +99,11 @@ export const CHARACTER_ACTION_CONFIGS = {
   },
   "p-girl": {
     assetKey: "p-girl-actions",
-    assetUrl: "/assets/images/p-boy-sprite-actions-final-s.png",
-    frameWidth: ACTION_ATLAS_FRAME_WIDTH,
+    assetUrl: "/assets/images/p-girl-sprite-actions-final-s.png",
+    frameWidth: P_GIRL_ACTION_ATLAS_FRAME_WIDTH,
     frameHeight: ACTION_ATLAS_FRAME_HEIGHT,
     originY: 69 / ACTION_ATLAS_FRAME_HEIGHT,
-    visibleHeight: 68,
+    visibleHeight: 63,
   },
 } satisfies Record<CharacterId, CharacterActionConfig>;
 

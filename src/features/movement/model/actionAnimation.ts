@@ -26,9 +26,8 @@ export const LOCAL_ACTION_ANIMATIONS = {
     repeat: 0,
     originYOffset: 0.1,
     /**
-     * 기본자세에서 한 번 뜬 뒤 다시 기본자세로 돌아오게 한다.
+     * 4프레임 전체를 사용해 기본자세와 점프 동작을 두 번 보여준다.
      */
-    frameSequence: [0, 1, 0],
   },
   sit: {
     key: "sit",
@@ -65,10 +64,6 @@ export function getLocalActionAnimationKey(
 export function getActionFrameNumbers(actionId: LocalActionId): number[] {
   const action = LOCAL_ACTION_ANIMATIONS[actionId];
   const startFrame = action.row * LOCAL_ACTION_ATLAS_COLUMNS;
-
-  if ("frameSequence" in action) {
-    return action.frameSequence.map((frameOffset) => startFrame + frameOffset);
-  }
 
   return Array.from({ length: action.frames }, (_, index) => startFrame + index);
 }

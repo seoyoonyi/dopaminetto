@@ -25,8 +25,8 @@ export const AMBIENT_AUDIO_URLS = {
  * 해당 사운드용 AmbientSoundController 인스턴스를 생성할 때 넘기면 된다(TownScene 참고).
  */
 export const CAMPFIRE_SOUND_CONFIG: AmbientSoundFalloffConfig = {
-  innerRadius: 120, // 이 거리(px) 이내는 항상 maxVolume
-  outerRadius: 300, // 이 거리(px) 이상은 항상 0 (무음)
+  innerRadius: 120,
+  outerRadius: 300,
   maxVolume: 1.0,
   // 프레임마다 currentVolume을 targetVolume 쪽으로 얼마나 당길지 결정하는 ms 단위 보간 속도.
   // delta(ms) * 이 값을 Phaser.Math.Linear의 t로 사용해, 60fps 기준 약 300~500ms에 걸쳐

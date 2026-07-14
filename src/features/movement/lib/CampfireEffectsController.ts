@@ -54,13 +54,11 @@ export class CampfireEffectsController {
     visuals.forEach((visual) => {
       const depth = characterDepthBase + visual.y + visual.depthOffset;
 
-      // 돌 바닥: 정적 Image, Tiled 좌표 그대로(충돌 기준과 동일한 좌표)
       const base = scene.add.image(visual.x, visual.y, CAMPFIRE_BASE_ASSET_KEY);
       base.setOrigin(CAMPFIRE_BASE_ORIGIN.x, CAMPFIRE_BASE_ORIGIN.y);
       base.setScale(CAMPFIRE_SCALE);
       base.setDepth(depth);
 
-      // 불꽃: 애니메이션 Sprite, FLAME_OFFSET_X/Y로만 위치 미세 조정 가능
       const flame = scene.add.sprite(
         visual.x + FLAME_OFFSET_X,
         visual.y + FLAME_OFFSET_Y,

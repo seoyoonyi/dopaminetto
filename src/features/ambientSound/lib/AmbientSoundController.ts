@@ -140,9 +140,6 @@ export class AmbientSoundController {
     });
   }
 
-  /**
-   * Scene 종료 시 모든 사운드 인스턴스와 등록한 이벤트 리스너를 정리한다.
-   */
   destroy() {
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     document.removeEventListener("pointerdown", this.handleUserInteraction);

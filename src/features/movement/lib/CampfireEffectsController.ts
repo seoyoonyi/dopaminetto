@@ -12,7 +12,6 @@ export const CAMPFIRE_FLAME_FRAME_HEIGHT = 165;
 const CAMPFIRE_ANIMATION_KEY = "campfire-burning";
 const CAMPFIRE_ANIMATION_FRAME_COUNT = 4;
 const CAMPFIRE_ANIMATION_FRAME_RATE = 8;
-const CAMPFIRE_SCALE = 0.4;
 // 분리 전 단일 스프라이트가 쓰던 origin(0.52, 0.53)이 가리키던 "돌 바닥 기준점"을
 // campfire-base.png / campfire-flame.png 각각의 크롭 좌표계로 환산한 값(분리 스크립트의
 // crop 원점 기준 역산). 이 값 덕분에 두 이미지를 같은 Tiled 좌표에 겹쳐 그리면 분리 이전과
@@ -56,7 +55,7 @@ export class CampfireEffectsController {
 
       const base = scene.add.image(visual.x, visual.y, CAMPFIRE_BASE_ASSET_KEY);
       base.setOrigin(CAMPFIRE_BASE_ORIGIN.x, CAMPFIRE_BASE_ORIGIN.y);
-      base.setScale(CAMPFIRE_SCALE);
+      base.setScale(visual.scale);
       base.setDepth(depth);
 
       const flame = scene.add.sprite(
@@ -66,7 +65,7 @@ export class CampfireEffectsController {
         0,
       );
       flame.setOrigin(CAMPFIRE_FLAME_ORIGIN.x, CAMPFIRE_FLAME_ORIGIN.y);
-      flame.setScale(CAMPFIRE_SCALE);
+      flame.setScale(visual.scale);
       flame.setDepth(depth);
 
       if (scene.anims.exists(visual.animationKey)) {

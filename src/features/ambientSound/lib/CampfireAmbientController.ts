@@ -17,9 +17,18 @@ interface CampfireInstance {
  */
 export class CampfireAmbientController {
   private readonly campfires: CampfireInstance[];
+  private readonly soundManager: Phaser.Sound.WebAudioSoundManager;
+  private readonly handleVisibilityChange: () => void;
+  private readonly handleUserInteraction: () => void;
 
   constructor(scene: Phaser.Scene, sources: AmbientSoundSource[]) {
     // 기본 사운드 매니저(WebAudioSoundManager)를 사용한다고 가정하고 볼륨 제어를 위해 캐스팅
+    this.soundManager = scene.sound as Phaser.Sound.WebAudioSoundManager;
+
+    // 탭 전환/창 포커스 아웃 시 Phaser가 모닥불 사운드를 자동 정지시키지 않도록 비활성화.
+    // 기본값(true)이면 onBlur에서 AudioContext.suspend()가 호출되어 루프 재생이 끊긴다
+    this.soundManager.pauseOnBlur = false;
+
     this.campfires = sources.map((source) => ({
       source,
       sound: scene.sound.add(AMBIENT_AUDIO_KEYS.CAMPFIRE, {
@@ -27,6 +36,28 @@ export class CampfireAmbientController {
       }) as Phaser.Sound.WebAudioSound,
       isAudible: false,
     }));
+
+    // pauseOnBlur를 껐어도 브라우저가 백그라운드 탭의 AudioContext를 자체적으로
+    // suspended 상태로 전환하는 경우가 있어, 탭 복귀/사용자 상호작용 시점에 명시적으로 resume한다
+    this.handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        this.resumeAudioContextIfSuspended();
+      }
+    };
+    this.handleUserInteraction = () => {
+      this.resumeAudioContextIfSuspended();
+    };
+
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    document.addEventListener("pointerdown", this.handleUserInteraction);
+    document.addEventListener("keydown", this.handleUserInteraction);
+  }
+
+  private resumeAudioContextIfSuspended() {
+    const context = this.soundManager.context;
+    if (context && context.state === "suspended") {
+      void context.resume();
+    }
   }
 
   /**
@@ -76,9 +107,12 @@ export class CampfireAmbientController {
   }
 
   /**
-   * Scene 종료 시 모든 모닥불 사운드 인스턴스를 정리한다.
+   * Scene 종료 시 모든 모닥불 사운드 인스턴스와 등록한 이벤트 리스너를 정리한다.
    */
   destroy() {
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    document.removeEventListener("pointerdown", this.handleUserInteraction);
+    document.removeEventListener("keydown", this.handleUserInteraction);
     this.campfires.forEach((campfire) => campfire.sound.destroy());
     this.campfires.length = 0;
   }

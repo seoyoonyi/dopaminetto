@@ -36,9 +36,10 @@ interface TiledLayer {
 
 interface TiledObjectProperty {
   name: string;
-  type?: string;
   value: string | number | boolean;
 }
+
+type TiledObjectPropertyMap = Map<string, string | number | boolean>;
 
 interface TiledObject {
   id?: number;
@@ -251,22 +252,16 @@ export class MapLoader {
     });
   }
 
-  private parseObjectProperties(object: TiledObject): Map<string, string | number | boolean> {
+  private parseObjectProperties(object: TiledObject): TiledObjectPropertyMap {
     return new Map((object.properties ?? []).map((property) => [property.name, property.value]));
   }
 
-  private readStringProperty(
-    properties: Map<string, string | number | boolean>,
-    name: string,
-  ): string | undefined {
+  private readStringProperty(properties: TiledObjectPropertyMap, name: string): string | undefined {
     const value = properties.get(name);
     return typeof value === "string" ? value : undefined;
   }
 
-  private readNumberProperty(
-    properties: Map<string, string | number | boolean>,
-    name: string,
-  ): number | undefined {
+  private readNumberProperty(properties: TiledObjectPropertyMap, name: string): number | undefined {
     const value = properties.get(name);
     return typeof value === "number" ? value : undefined;
   }

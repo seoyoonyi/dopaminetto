@@ -10,20 +10,20 @@ export const AMBIENT_AUDIO_URLS = {
 
 /**
  * 모닥불 환경음의 거리 기반 감쇠 파라미터 (px, 맵 좌표 기준)
- * INNER_RADIUS 이내는 최대 볼륨, 가청 반경(OUTER_RADIUS)을 벗어나면 재생을 중지한다.
- *
- * 가청 반경은 이 상수로 고정하지 않고 마을별로 동적으로 계산한다(resolveCampfireSources 참고).
- * 마을(VillageArea) 중심에서 가장 먼 모서리까지의 거리(대각선의 절반) + OUTER_RADIUS_MARGIN으로
- * 계산해, Tiled에서 village-a 영역 크기/위치를 바꿔도 항상 영역 전체를 커버하도록 보장한다.
- * 다만 실제 가청 여부는 이 반경뿐 아니라 플레이어의 현재 villageId가 모닥불의 villageId와
- * 일치하는지로도 게이트되므로(CampfireAmbientController), 반경이 넓어져도 다른 마을이나
- * lobby로 소리가 새어나가지는 않는다.
+ * 소스 좌표는 Tiled Effects 레이어의 실제 campfire Point Object 좌표를 그대로 사용한다
+ * (resolveCampfireSources 참고). INNER_RADIUS 이내는 항상 MAX_VOLUME, OUTER_RADIUS 이상은 항상 0이며,
+ * 그 사이 구간은 선형으로 감소한다.
+ * 실제 가청 여부는 거리뿐 아니라 플레이어의 현재 villageId가 모닥불의 villageId와 일치하는지로도
+ * 게이트되므로(CampfireAmbientController), village-a 영역 밖(다른 마을, lobby)으로는 소리가 새어나가지 않는다.
  */
 export const CAMPFIRE_SOUND_CONFIG = {
-  INNER_RADIUS: 150, // 이 거리 이내는 항상 최대 볼륨
-  OUTER_RADIUS_MARGIN: 50, // 마을 대각선 절반 거리에 더할 여유 마진
-  MIN_OUTER_RADIUS: 300, // 마을이 매우 작아져도 최소한 이 거리까지는 페이드 구간을 유지
-  MAX_VOLUME: 0.5,
+  INNER_RADIUS: 120, // 이 거리(px) 이내는 항상 MAX_VOLUME
+  OUTER_RADIUS: 300, // 이 거리(px) 이상은 항상 0 (무음)
+  MAX_VOLUME: 1.0,
+  // 프레임마다 currentVolume을 targetVolume 쪽으로 얼마나 당길지 결정하는 ms 단위 보간 속도.
+  // delta(ms) * 이 값을 Phaser.Math.Linear의 t로 사용해, 60fps 기준 약 300~500ms에 걸쳐
+  // 목표 볼륨에 자연스럽게 도달하도록(급격한 볼륨 변화 방지) 튜닝된 값
+  VOLUME_SMOOTHING_RATE: 0.006,
 } as const;
 
 /**

@@ -9,6 +9,12 @@ import {
   VillageArea,
   VillageId,
 } from "../model/types";
+import {
+  TiledObjectProperty,
+  parseObjectProperties,
+  readNumberProperty,
+  readStringProperty,
+} from "./tiledObjectProperties";
 
 type TiledLayerType = "imagelayer" | "objectgroup" | string;
 
@@ -33,13 +39,6 @@ interface TiledLayer {
   visible?: boolean;
   objects?: TiledObject[];
 }
-
-interface TiledObjectProperty {
-  name: string;
-  value: string | number | boolean;
-}
-
-type TiledObjectPropertyMap = Map<string, string | number | boolean>;
 
 interface TiledObject {
   id?: number;
@@ -208,20 +207,20 @@ export class MapLoader {
         (object) => object.name === CAMPFIRE_OBJECT_NAME || object.type === CAMPFIRE_OBJECT_TYPE,
       )
       .map((object) => {
-        const properties = this.parseObjectProperties(object);
+        const properties = parseObjectProperties(object.properties);
 
         return {
           id: object.id ?? 0,
           name: object.name ?? CAMPFIRE_OBJECT_NAME,
           x: object.x ?? 0,
           y: object.y ?? 0,
-          animationKey: this.readStringProperty(properties, "animationKey"),
-          scale: this.readNumberProperty(properties, "scale"),
-          depthOffset: this.readNumberProperty(properties, "depthOffset"),
-          colliderWidth: this.readNumberProperty(properties, "colliderWidth"),
-          colliderHeight: this.readNumberProperty(properties, "colliderHeight"),
-          colliderOffsetX: this.readNumberProperty(properties, "colliderOffsetX"),
-          colliderOffsetY: this.readNumberProperty(properties, "colliderOffsetY"),
+          animationKey: readStringProperty(properties, "animationKey"),
+          scale: readNumberProperty(properties, "scale"),
+          depthOffset: readNumberProperty(properties, "depthOffset"),
+          colliderWidth: readNumberProperty(properties, "colliderWidth"),
+          colliderHeight: readNumberProperty(properties, "colliderHeight"),
+          colliderOffsetX: readNumberProperty(properties, "colliderOffsetX"),
+          colliderOffsetY: readNumberProperty(properties, "colliderOffsetY"),
         };
       });
   }
@@ -250,20 +249,6 @@ export class MapLoader {
         height,
       };
     });
-  }
-
-  private parseObjectProperties(object: TiledObject): TiledObjectPropertyMap {
-    return new Map((object.properties ?? []).map((property) => [property.name, property.value]));
-  }
-
-  private readStringProperty(properties: TiledObjectPropertyMap, name: string): string | undefined {
-    const value = properties.get(name);
-    return typeof value === "string" ? value : undefined;
-  }
-
-  private readNumberProperty(properties: TiledObjectPropertyMap, name: string): number | undefined {
-    const value = properties.get(name);
-    return typeof value === "number" ? value : undefined;
   }
 
   private parseVillageAreas(): VillageArea[] {

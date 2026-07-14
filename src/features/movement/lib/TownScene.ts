@@ -18,7 +18,17 @@ import {
   getCharacterConfig,
   useMovementStore,
 } from "@/features/movement";
+import {
+  CAMPFIRE_BASE_ASSET_KEY,
+  CAMPFIRE_BASE_ASSET_URL,
+  CAMPFIRE_FLAME_ASSET_KEY,
+  CAMPFIRE_FLAME_ASSET_URL,
+  CAMPFIRE_FLAME_FRAME_HEIGHT,
+  CAMPFIRE_FLAME_FRAME_WIDTH,
+  CampfireEffectsController,
+} from "@/features/movement/lib/CampfireEffectsController";
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
+import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
 import { RemotePlayer } from "@/features/movement/model/types";
 import * as Phaser from "phaser";
 
@@ -78,6 +88,13 @@ export class TownScene extends Phaser.Scene {
 
     // 모닥불 환경음 로드
     this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
+
+    // 모닥불: 돌 바닥(정적 이미지) + 불꽃(4프레임 스프라이트시트)
+    this.load.image(CAMPFIRE_BASE_ASSET_KEY, CAMPFIRE_BASE_ASSET_URL);
+    this.load.spritesheet(CAMPFIRE_FLAME_ASSET_KEY, CAMPFIRE_FLAME_ASSET_URL, {
+      frameWidth: CAMPFIRE_FLAME_FRAME_WIDTH,
+      frameHeight: CAMPFIRE_FLAME_FRAME_HEIGHT,
+    });
   };
 
   create = () => {
@@ -172,6 +189,11 @@ export class TownScene extends Phaser.Scene {
       this,
       mapLoader ? resolveCampfireSources(mapLoader) : [],
     );
+
+    // Tiled Effects 레이어에 배치된 모닥불을 돌 바닥(정적) + 불꽃(애니메이션)으로 렌더링
+    if (mapLoader) {
+      new CampfireEffectsController(this, resolveCampfireVisuals(mapLoader), CHARACTER_DEPTH_BASE);
+    }
 
     this.updateRemotePlayers(store.remotePlayers);
 

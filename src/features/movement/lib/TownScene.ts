@@ -7,7 +7,8 @@ import type { MapImageLayer } from "@/entities/village";
 import {
   AMBIENT_AUDIO_KEYS,
   AMBIENT_AUDIO_URLS,
-  CampfireAmbientController,
+  AmbientSoundController,
+  CAMPFIRE_SOUND_CONFIG,
   resolveCampfireSources,
 } from "@/features/ambientSound";
 import {
@@ -59,7 +60,7 @@ export class TownScene extends Phaser.Scene {
   private debugText!: Phaser.GameObjects.Text;
   private localCharacterId: CharacterId = "p-boy";
   private wasInputFocused = false;
-  private campfireAmbientController?: CampfireAmbientController;
+  private campfireAmbientController?: AmbientSoundController;
 
   constructor() {
     super("TownScene");
@@ -184,10 +185,15 @@ export class TownScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(DEBUG_TEXT_DEPTH);
 
-    // 모닥불 환경음 컨트롤러 초기화 (마을별 영역 중심에 배치, 사운드 인스턴스는 1회만 생성되어 재사용됨)
-    this.campfireAmbientController = new CampfireAmbientController(
+    // 모닥불 환경음 컨트롤러 초기화 (실제 campfire 오브젝트 좌표에 배치, 사운드 인스턴스는 1회만
+    // 생성되어 재사용됨). AmbientSoundController는 사운드 종류에 무관한 범용 컨트롤러라
+    // 추후 분수/새소리/폭포 등을 추가할 때도 audioKey/sources/falloffConfig만 바꿔 같은 방식으로
+    // new AmbientSoundController(...)를 하나 더 생성하면 된다.
+    this.campfireAmbientController = new AmbientSoundController(
       this,
+      AMBIENT_AUDIO_KEYS.CAMPFIRE,
       mapLoader ? resolveCampfireSources(mapLoader) : [],
+      CAMPFIRE_SOUND_CONFIG,
     );
 
     // Tiled Effects 레이어에 배치된 모닥불을 돌 바닥(정적) + 불꽃(애니메이션)으로 렌더링

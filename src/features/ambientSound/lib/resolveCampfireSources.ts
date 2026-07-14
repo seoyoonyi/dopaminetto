@@ -8,7 +8,7 @@ import { AmbientSoundSource } from "@/features/ambientSound/model/types";
  * 각 campfire가 속한 마을은 좌표 기준으로 getVillageAt을 통해 판정하며, CAMPFIRE_VILLAGE_IDS에
  * 포함된 마을(현재는 village-a) 소속 campfire만 남기고 나머지(village-b, lobby)는 걸러낸다.
  * 실제 가청 여부는 거리뿐 아니라 소스의 villageId와 플레이어의 현재 villageId 일치 여부로도
- * 게이트되므로(CampfireAmbientController 참고), village-a 경계 바로 바깥까지 소리가 새어나가지는 않는다.
+ * 게이트되므로(AmbientSoundController 참고), village-a 경계 바로 바깥까지 소리가 새어나가지는 않는다.
  */
 const CAMPFIRE_VILLAGE_ID_SET: Set<string> = new Set(CAMPFIRE_VILLAGE_IDS);
 

@@ -32,7 +32,7 @@ const FLAME_OFFSET_Y = 0;
  * 둘 다 위치가 고정되어 있어 depth를 생성 시 1회만 계산하고, 캐릭터처럼 매 프레임
  * 재정렬하지 않는다. Physics Body는 붙이지 않는다.
  *
- * CampfireAmbientController(환경음)와 동일하게, TownScene은 이 클래스를 생성만 하고
+ * AmbientSoundController(환경음)와 동일하게, TownScene은 이 클래스를 생성만 하고
  * 별도의 참조/정리(destroy) 없이 위임한다 — 생성된 Image/Sprite는 Scene 종료 시
  * Phaser가 표시 목록을 통해 자동으로 정리한다.
  */

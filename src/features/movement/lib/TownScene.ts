@@ -5,18 +5,44 @@
  */
 import type { MapImageLayer } from "@/entities/village";
 import {
+  AMBIENT_AUDIO_KEYS,
+  AMBIENT_AUDIO_URLS,
+  AmbientSoundController,
+  CAMPFIRE_SOUND_CONFIG,
+  resolveCampfireSources,
+} from "@/features/ambientSound";
+import {
   CHARACTER_OPTIONS,
   CharacterConfig,
   CharacterId,
   GAME_CONFIG,
+  LOCAL_ACTION_ANIMATIONS,
+  LOCAL_ACTION_KEY_BINDINGS,
+  LocalActionId,
+  LocalActionInputId,
+  getActionFrameNumbers,
+  getCharacterActionConfig,
   getCharacterConfig,
+  getLocalActionAnimationKey,
+  resolveLocalActionInput,
   useMovementStore,
 } from "@/features/movement";
+import {
+  CAMPFIRE_BASE_ASSET_KEY,
+  CAMPFIRE_BASE_ASSET_URL,
+  CAMPFIRE_FLAME_ASSET_KEY,
+  CAMPFIRE_FLAME_ASSET_URL,
+  CAMPFIRE_FLAME_FRAME_HEIGHT,
+  CAMPFIRE_FLAME_FRAME_WIDTH,
+  CampfireEffectsController,
+} from "@/features/movement/lib/CampfireEffectsController";
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
+import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
 import { RemotePlayer } from "@/features/movement/model/types";
+import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import * as Phaser from "phaser";
 
-const CAPTURED_KEYS = "W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE";
+const CAPTURED_KEYS = "W,A,S,D,H,X,ZERO,UP,DOWN,LEFT,RIGHT,SPACE";
 const MAP_BACKGROUND_KEY = "town-map-background";
 const MAP_FRONT_KEY = "town-map-front";
 const BACKGROUND_DEPTH = 0;
@@ -28,6 +54,8 @@ const DEBUG_TEXT_DEPTH = 20000;
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private localActionKeys!: Record<LocalActionInputId, Phaser.Input.Keyboard.Key>;
+  private spaceKey!: Phaser.Input.Keyboard.Key;
   private wasd!: {
     W: Phaser.Input.Keyboard.Key;
     A: Phaser.Input.Keyboard.Key;
@@ -42,7 +70,9 @@ export class TownScene extends Phaser.Scene {
   private localUserId: string = "";
   private debugText!: Phaser.GameObjects.Text;
   private localCharacterId: CharacterId = "p-boy";
+  private activeLocalActionId: LocalActionId | null = null;
   private wasInputFocused = false;
+  private campfireAmbientController?: AmbientSoundController;
 
   constructor() {
     super("TownScene");
@@ -67,6 +97,21 @@ export class TownScene extends Phaser.Scene {
         frameWidth: character.frameWidth,
         frameHeight: character.frameHeight,
       });
+    });
+
+    Object.values(CHARACTER_ACTION_CONFIGS).forEach((actionConfig) => {
+      this.load.spritesheet(actionConfig.assetKey, actionConfig.assetUrl, {
+        frameWidth: actionConfig.frameWidth,
+        frameHeight: actionConfig.frameHeight,
+      });
+    });
+
+    this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
+
+    this.load.image(CAMPFIRE_BASE_ASSET_KEY, CAMPFIRE_BASE_ASSET_URL);
+    this.load.spritesheet(CAMPFIRE_FLAME_ASSET_KEY, CAMPFIRE_FLAME_ASSET_URL, {
+      frameWidth: CAMPFIRE_FLAME_FRAME_WIDTH,
+      frameHeight: CAMPFIRE_FLAME_FRAME_HEIGHT,
     });
   };
 
@@ -110,6 +155,27 @@ export class TownScene extends Phaser.Scene {
       });
     });
 
+    CHARACTER_OPTIONS.forEach((character) => {
+      const actionConfig = getCharacterActionConfig(character.id);
+      const actionIds = Object.keys(LOCAL_ACTION_ANIMATIONS) as LocalActionId[];
+
+      actionIds.forEach((actionId) => {
+        const action = LOCAL_ACTION_ANIMATIONS[actionId];
+        const animationKey = getLocalActionAnimationKey(character.id, actionId);
+
+        if (!this.anims.exists(animationKey)) {
+          this.anims.create({
+            key: animationKey,
+            frames: this.anims.generateFrameNumbers(actionConfig.assetKey, {
+              frames: getActionFrameNumbers(actionId),
+            }),
+            frameRate: action.fps,
+            repeat: action.repeat,
+          });
+        }
+      });
+    });
+
     this.player = this.add.sprite(initialPos.x, initialPos.y, localCharacterConfig.assetKey, 0); // 기본 정지 프레임(정면, 양발)
     this.applyCharacterConfig(this.player, localCharacterConfig);
 
@@ -128,6 +194,16 @@ export class TownScene extends Phaser.Scene {
     this.syncCharacterDepth(this.player, this.playerNameLabel);
 
     this.cursors = this.input.keyboard!.createCursorKeys();
+    this.localActionKeys = Object.fromEntries(
+      (Object.keys(LOCAL_ACTION_KEY_BINDINGS) as LocalActionInputId[]).map((actionInputId) => [
+        actionInputId,
+        this.input.keyboard!.addKey(
+          Phaser.Input.Keyboard.KeyCodes[LOCAL_ACTION_KEY_BINDINGS[actionInputId]],
+          false,
+        ),
+      ]),
+    ) as Record<LocalActionInputId, Phaser.Input.Keyboard.Key>;
+    this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
     this.wasd = this.input.keyboard!.addKeys("W,A,S,D") as {
       W: Phaser.Input.Keyboard.Key;
       A: Phaser.Input.Keyboard.Key;
@@ -156,6 +232,17 @@ export class TownScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(DEBUG_TEXT_DEPTH);
+
+    this.campfireAmbientController = new AmbientSoundController(
+      this,
+      AMBIENT_AUDIO_KEYS.CAMPFIRE,
+      mapLoader ? resolveCampfireSources(mapLoader) : [],
+      CAMPFIRE_SOUND_CONFIG,
+    );
+
+    if (mapLoader) {
+      new CampfireEffectsController(this, resolveCampfireVisuals(mapLoader), CHARACTER_DEPTH_BASE);
+    }
 
     this.updateRemotePlayers(store.remotePlayers);
 
@@ -190,8 +277,10 @@ export class TownScene extends Phaser.Scene {
 
         if (next.characterId !== prev.characterId) {
           this.localCharacterId = next.characterId;
-          const characterConfig = getCharacterConfig(next.characterId);
-          this.applyCharacterConfig(this.player, characterConfig);
+          if (!this.activeLocalActionId) {
+            const characterConfig = getCharacterConfig(next.characterId);
+            this.applyCharacterConfig(this.player, characterConfig);
+          }
         }
 
         // 타 플레이어 위치 업데이트 (참조가 변경된 경우에만)
@@ -218,6 +307,7 @@ export class TownScene extends Phaser.Scene {
       this.remotePlayerSprites.clear();
       this.remotePlayerNames.clear();
       this.remotePlayerTargets.clear();
+      this.campfireAmbientController?.destroy();
     });
   };
 
@@ -382,34 +472,60 @@ export class TownScene extends Phaser.Scene {
     if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -speed;
     else if (this.cursors.down.isDown || this.wasd.S.isDown) dy = speed;
 
-    // 로컬 플레이어 애니메이션 처리
-    if (dx !== 0 || dy !== 0) {
-      // 좌우 이동과 상하 이동 중 어느 쪽이 우선인지 판단 (여기선 dx와 dy의 절대값이 같으면 좌우 우선)
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        if (dx < 0) {
-          this.player.setFlipX(false);
-          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-left"), true);
-        } else {
-          this.player.setFlipX(false);
-          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-right"), true);
-        }
-      } else {
-        if (dy < 0) {
-          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-up"), true);
-        } else {
-          this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-down"), true);
-        }
-      }
-    } else {
-      this.player.anims.stop();
-      const currentAnim = this.player.anims.currentAnim?.key;
-      if (currentAnim?.endsWith("walk-left")) this.player.setFrame(3);
-      else if (currentAnim?.endsWith("walk-right")) this.player.setFrame(6);
-      else if (currentAnim?.endsWith("walk-up")) this.player.setFrame(9);
-      else this.player.setFrame(0);
+    const isMoving = dx !== 0 || dy !== 0;
+    const isSpacePressed = Phaser.Input.Keyboard.JustDown(this.spaceKey);
+    const triggeredActionInputId = this.getTriggeredLocalActionInputId();
+    const triggeredActionId = this.resolveTriggeredLocalActionId(triggeredActionInputId);
+    const actionInput = resolveLocalActionInput(this.activeLocalActionId, triggeredActionId);
+
+    if (this.activeLocalActionId && (isMoving || isSpacePressed)) {
+      this.stopLocalAction();
+    } else if (actionInput.type === "stop") {
+      this.stopLocalAction();
+    } else if (!isMoving && actionInput.type === "play") {
+      this.playLocalAction(actionInput.actionId);
     }
 
-    if (dx !== 0 || dy !== 0) {
+    if (
+      this.activeLocalActionId &&
+      LOCAL_ACTION_ANIMATIONS[this.activeLocalActionId].repeat === 0 &&
+      !this.player.anims.isPlaying
+    ) {
+      this.stopLocalAction();
+    }
+
+    /**
+     * 액션 재생 중에는 걷기 애니메이션이 texture를 덮어쓰지 않도록 한다.
+     */
+    if (!this.activeLocalActionId) {
+      if (isMoving) {
+        // 좌우 이동과 상하 이동 중 어느 쪽이 우선인지 판단 (여기선 dx와 dy의 절대값이 같으면 좌우 우선)
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          if (dx < 0) {
+            this.player.setFlipX(false);
+            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-left"), true);
+          } else {
+            this.player.setFlipX(false);
+            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-right"), true);
+          }
+        } else {
+          if (dy < 0) {
+            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-up"), true);
+          } else {
+            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-down"), true);
+          }
+        }
+      } else {
+        this.player.anims.stop();
+        const currentAnim = this.player.anims.currentAnim?.key;
+        if (currentAnim?.endsWith("walk-left")) this.player.setFrame(3);
+        else if (currentAnim?.endsWith("walk-right")) this.player.setFrame(6);
+        else if (currentAnim?.endsWith("walk-up")) this.player.setFrame(9);
+        else this.player.setFrame(0);
+      }
+    }
+
+    if (isMoving) {
       // 위치 업데이트 요청 (검증 로직은 스토어 내부에서 실행됨)
       useMovementStore.getState().updatePosition({ x: dx, y: dy });
     }
@@ -436,6 +552,10 @@ export class TownScene extends Phaser.Scene {
       );
       this.syncCharacterDepth(this.player, this.playerNameLabel);
     }
+
+    // 4. 모닥불 환경음 거리 기반 볼륨 갱신
+    // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용
+    this.campfireAmbientController?.update(this.player, useMovementStore.getState().villageId);
   };
 
   private getAnimationKey(character: CharacterConfig, animationKey: string) {
@@ -458,6 +578,55 @@ export class TownScene extends Phaser.Scene {
     sprite.setTexture(characterConfig.assetKey, sprite.frame.name);
     sprite.setScale(characterConfig.scale);
     sprite.setOrigin(0.5, characterConfig.originY); // 모든 캐릭터는 발밑 기준으로 정렬
+  }
+
+  private getTriggeredLocalActionInputId(): LocalActionInputId | null {
+    const actionInputIds = Object.keys(this.localActionKeys) as LocalActionInputId[];
+
+    return (
+      actionInputIds.find((actionInputId) =>
+        Phaser.Input.Keyboard.JustDown(this.localActionKeys[actionInputId]),
+      ) ?? null
+    );
+  }
+
+  private resolveTriggeredLocalActionId(
+    actionInputId: LocalActionInputId | null,
+  ): LocalActionId | null {
+    if (!actionInputId) return null;
+
+    return actionInputId;
+  }
+
+  private playLocalAction(actionId: LocalActionId) {
+    if (!this.player || !this.player.active) return;
+
+    const actionConfig = getCharacterActionConfig(this.localCharacterId);
+    const characterConfig = getCharacterConfig(this.localCharacterId);
+    const action = LOCAL_ACTION_ANIMATIONS[actionId];
+    const actionScale = characterConfig.frameHeight / actionConfig.visibleHeight;
+    const animationKey = getLocalActionAnimationKey(this.localCharacterId, actionId);
+
+    /**
+     * 같은 액션 재입력 시에도 처음부터 재생되도록 현재 animation을 먼저 멈춘다.
+     */
+    this.player.anims.stop();
+    this.activeLocalActionId = actionId;
+    this.player.setTexture(actionConfig.assetKey, getActionFrameNumbers(actionId)[0]);
+    this.player.setScale(actionScale);
+    this.player.setOrigin(0.5, actionConfig.originY + action.originYOffset);
+    this.player.setFlipX(false);
+    this.player.anims.play(animationKey);
+  }
+
+  private stopLocalAction() {
+    if (!this.player || !this.player.active || !this.activeLocalActionId) return;
+
+    this.activeLocalActionId = null;
+    const nextCharacterConfig = getCharacterConfig(this.localCharacterId);
+    this.applyCharacterConfig(this.player, nextCharacterConfig);
+    this.player.anims.stop();
+    this.player.setFrame(0);
   }
 
   private renderImageLayer(imageLayer: MapImageLayer, assetKey: string, depth: number) {

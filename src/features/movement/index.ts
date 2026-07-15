@@ -25,11 +25,13 @@ export {
   getCharacterActionConfig,
   getLocalActionAnimationKey,
   getNextSyncedActionState,
+  resolveRemoteActionState,
   resolveLocalActionInput,
 } from "./model/actionAnimation";
 export type {
   LocalActionId,
   LocalActionInputId,
   LocalActionInputResult,
+  RemoteActionStateResult,
 } from "./model/actionAnimation";
 export type { SyncedActionState } from "./model/types";

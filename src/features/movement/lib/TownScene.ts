@@ -25,6 +25,7 @@ import {
   getCharacterConfig,
   getLocalActionAnimationKey,
   resolveLocalActionInput,
+  resolveRemoteActionState,
   useMovementStore,
 } from "@/features/movement";
 import {
@@ -66,6 +67,8 @@ export class TownScene extends Phaser.Scene {
   private remotePlayerSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private remotePlayerNames: Map<string, Phaser.GameObjects.Text> = new Map();
   private remotePlayerTargets: Map<string, { x: number; y: number }> = new Map();
+  private remotePlayerActionSequences: Map<string, number> = new Map();
+  private activeRemoteActions: Map<string, LocalActionId> = new Map();
   private playerNameLabel!: Phaser.GameObjects.Text;
   private localUserId: string = "";
   private debugText!: Phaser.GameObjects.Text;
@@ -329,6 +332,8 @@ export class TownScene extends Phaser.Scene {
         this.remotePlayerSprites.delete(userId);
         this.remotePlayerNames.delete(userId);
         this.remotePlayerTargets.delete(userId);
+        this.remotePlayerActionSequences.delete(userId);
+        this.activeRemoteActions.delete(userId);
       }
     });
 
@@ -367,7 +372,10 @@ export class TownScene extends Phaser.Scene {
         this.remotePlayerNames.set(userId, nameLabel);
         this.syncCharacterDepth(sprite, nameLabel);
       } else {
-        if (sprite.texture.key !== characterConfig.assetKey) {
+        if (
+          sprite.texture.key !== characterConfig.assetKey &&
+          !this.activeRemoteActions.has(userId)
+        ) {
           this.applyCharacterConfig(sprite, characterConfig);
         }
 
@@ -381,6 +389,8 @@ export class TownScene extends Phaser.Scene {
       if (data.position) {
         this.remotePlayerTargets.set(userId, { x: data.position.x, y: data.position.y });
       }
+
+      this.applyRemoteActionState(userId, sprite, data);
     });
   };
 
@@ -409,9 +419,24 @@ export class TownScene extends Phaser.Scene {
         // 리모트 플레이어 애니메이션 처리
         const diffX = sprite.x - prevX;
         const diffY = sprite.y - prevY;
+        const activeRemoteAction = this.activeRemoteActions.get(userId);
 
         // 약간의 움직임은 무시 (보간으로 인한 미세 진동)
-        if (Math.abs(diffX) > 0.5 || Math.abs(diffY) > 0.5) {
+        const isRemoteMoving = Math.abs(diffX) > 0.5 || Math.abs(diffY) > 0.5;
+
+        if (
+          activeRemoteAction &&
+          LOCAL_ACTION_ANIMATIONS[activeRemoteAction].repeat === 0 &&
+          !sprite.anims.isPlaying
+        ) {
+          this.stopRemoteAction(userId, sprite);
+        } else if (activeRemoteAction && isRemoteMoving) {
+          this.stopRemoteAction(userId, sprite);
+        }
+
+        if (this.activeRemoteActions.has(userId)) {
+          // 액션 재생 중에는 기존 걷기/정지 애니메이션이 action atlas를 덮어쓰지 않게 유지한다.
+        } else if (isRemoteMoving) {
           if (Math.abs(diffX) > Math.abs(diffY)) {
             if (diffX < 0) {
               sprite.setFlipX(false);
@@ -629,6 +654,60 @@ export class TownScene extends Phaser.Scene {
     this.applyCharacterConfig(this.player, nextCharacterConfig);
     this.player.anims.stop();
     this.player.setFrame(0);
+  }
+
+  private applyRemoteActionState(
+    userId: string,
+    sprite: Phaser.GameObjects.Sprite,
+    remotePlayer: RemotePlayer,
+  ) {
+    const actionResult = resolveRemoteActionState(
+      this.remotePlayerActionSequences.get(userId) ?? null,
+      remotePlayer.actionState,
+    );
+
+    if (actionResult.type === "none") return;
+
+    if (actionResult.type === "stop") {
+      this.stopRemoteAction(userId, sprite);
+      return;
+    }
+
+    const characterConfig = getCharacterConfig(remotePlayer.characterId);
+    const actionConfig = getCharacterActionConfig(remotePlayer.characterId);
+    const action = LOCAL_ACTION_ANIMATIONS[actionResult.actionId];
+    const actionScale = characterConfig.frameHeight / actionConfig.visibleHeight;
+    const animationKey = getLocalActionAnimationKey(
+      remotePlayer.characterId,
+      actionResult.actionId,
+    );
+
+    if (!this.anims.exists(animationKey)) {
+      this.stopRemoteAction(userId, sprite);
+      return;
+    }
+
+    sprite.anims.stop();
+    sprite.setTexture(actionConfig.assetKey, getActionFrameNumbers(actionResult.actionId)[0]);
+    sprite.setScale(actionScale);
+    sprite.setOrigin(0.5, actionConfig.originY + action.originYOffset);
+    sprite.setFlipX(false);
+    sprite.anims.play(animationKey);
+
+    this.remotePlayerActionSequences.set(userId, actionResult.sequence);
+    this.activeRemoteActions.set(userId, actionResult.actionId);
+  }
+
+  private stopRemoteAction(userId: string, sprite: Phaser.GameObjects.Sprite) {
+    if (!this.activeRemoteActions.has(userId)) return;
+
+    const remotePlayer = useMovementStore.getState().remotePlayers[userId];
+    const characterConfig = getCharacterConfig(remotePlayer?.characterId);
+
+    this.activeRemoteActions.delete(userId);
+    this.applyCharacterConfig(sprite, characterConfig);
+    sprite.anims.stop();
+    sprite.setFrame(0);
   }
 
   private renderImageLayer(imageLayer: MapImageLayer, assetKey: string, depth: number) {

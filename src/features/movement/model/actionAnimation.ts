@@ -48,6 +48,11 @@ export type LocalActionInputResult =
   | { type: "stop" }
   | { type: "play"; actionId: LocalActionId };
 
+export type RemoteActionStateResult =
+  | { type: "none" }
+  | { type: "stop" }
+  | { type: "play"; actionId: LocalActionId; sequence: number };
+
 export function getCharacterActionConfig(characterId: CharacterId): CharacterActionConfig {
   return CHARACTER_ACTION_CONFIGS[characterId];
 }
@@ -76,6 +81,25 @@ export function getNextSyncedActionState(
   return {
     actionId,
     sequence: (currentActionState?.sequence ?? 0) + 1,
+  };
+}
+
+export function resolveRemoteActionState(
+  lastHandledSequence: number | null,
+  actionState: SyncedActionState,
+): RemoteActionStateResult {
+  if (!actionState) {
+    return { type: "stop" };
+  }
+
+  if (lastHandledSequence !== null && actionState.sequence <= lastHandledSequence) {
+    return { type: "none" };
+  }
+
+  return {
+    type: "play",
+    actionId: actionState.actionId,
+    sequence: actionState.sequence,
   };
 }
 

@@ -59,6 +59,7 @@ export function useMovementSync(enabled = true) {
     removeRemotePlayer,
     removeRemotePlayersOutsideVillages,
     lastSyncedPosition,
+    localActionState,
   } = useMovementStore(
     useShallow((state) => ({
       villageId: state.villageId,
@@ -71,6 +72,7 @@ export function useMovementSync(enabled = true) {
       removeRemotePlayer: state.removeRemotePlayer,
       removeRemotePlayersOutsideVillages: state.removeRemotePlayersOutsideVillages,
       lastSyncedPosition: state.lastSyncedPosition,
+      localActionState: state.localActionState,
     })),
   );
 
@@ -225,6 +227,7 @@ export function useMovementSync(enabled = true) {
         villageId: currentTrackedVillageId,
         position: state.lastSyncedPosition,
         characterId: state.characterId,
+        actionState: state.localActionState,
       });
 
       const payloadSignature = createPresenceTrackSignature(payload);
@@ -509,6 +512,7 @@ export function useMovementSync(enabled = true) {
     debouncedTrackedVillageId,
     enabled,
     lastSyncedPosition,
+    localActionState,
     nickname,
     playerId,
     supabase,
@@ -535,6 +539,7 @@ export function useMovementSync(enabled = true) {
           characterId,
           position: lastSyncedPosition,
           villageId,
+          actionState: localActionState,
         }),
       })
       .then((res) => {
@@ -542,7 +547,7 @@ export function useMovementSync(enabled = true) {
           console.warn("[useMovementSync] Broadcast failed (send error)");
         }
       });
-  }, [characterId, enabled, lastSyncedPosition, nickname, playerId, villageId]);
+  }, [characterId, enabled, lastSyncedPosition, localActionState, nickname, playerId, villageId]);
 
   useEffect(() => {
     const syncState = syncStateRef.current;

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="9" nextobjectid="428">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="11" nextobjectid="430">
  <editorsettings>
   <export target="town-map.tmj" format="json"/>
  </editorsettings>
- <imagelayer id="2" name="Background">
+ <imagelayer id="2" name="Background" locked="1">
   <image source="town-map.png" width="1448" height="1086"/>
  </imagelayer>
- <imagelayer id="5" name="Front">
+ <imagelayer id="5" name="Front" locked="1">
   <image source="town-map-front.png" width="1448" height="1086"/>
  </imagelayer>
  <objectgroup id="4" name="Collision">
@@ -16,9 +16,6 @@
   <object id="53" x="-2.50526" y="227.478" width="45.0947" height="362.762"/>
   <object id="69" x="637.295" y="975.426" width="26.3968" height="65.9921"/>
   <object id="71" x="793.162" y="976.054" width="35.8243" height="65.9921"/>
-  <object id="72" x="445.604" y="317.39" width="68.5061" height="30.7963"/>
-  <object id="73" x="455.031" y="306.706" width="50.9082" height="18.2264"/>
-  <object id="74" x="470.115" y="344.416" width="22.6259" height="15.7124"/>
   <object id="85" x="95.6446" y="613.13" width="31.5011" height="23.5117"/>
   <object id="86" x="112.765" y="585.738" width="19.4028" height="16.8919"/>
   <object id="88" x="83.8019" y="941.209" width="32.5298" height="28.8675"/>
@@ -243,11 +240,11 @@
   <object id="424" x="1033.57" y="852.173" width="37.9044" height="55.5029"/>
   <object id="425" x="812.238" y="946.934" width="48.0574" height="105.591"/>
  </objectgroup>
- <objectgroup id="6" name="Trigger">
-  <object id="348" name="village-a" type="VillageArea" x="46.3644" y="41.841" width="701.12" height="511.139"/>
-  <object id="353" name="village-b" type="VillageArea" x="906.932" y="167.364" width="515.662" height="409.363"/>
+ <objectgroup id="6" name="Trigger" locked="1">
+  <object id="348" name="village-a" type="VillageArea" x="-8.51571" y="-12.1948" width="765.146" height="595.57"/>
+  <object id="353" name="village-b" type="VillageArea" x="896.769" y="148.055" width="533.955" height="469.158"/>
  </objectgroup>
- <objectgroup id="7" name="Spawn">
+ <objectgroup id="7" name="Spawn" locked="1">
   <object id="379" name="lobby" type="SpawnPoint" x="767.1" y="718.091">
    <point/>
   </object>
@@ -255,6 +252,11 @@
    <point/>
   </object>
   <object id="427" name="village-b" type="SpawnPoint" x="1164.76" y="372.046">
+   <point/>
+  </object>
+ </objectgroup>
+ <objectgroup id="10" name="Effects">
+  <object id="428" name="campfire" type="Campfire" x="481.818" y="337.273">
    <point/>
   </object>
  </objectgroup>

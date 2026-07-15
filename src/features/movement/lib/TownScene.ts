@@ -5,6 +5,13 @@
  */
 import type { MapImageLayer } from "@/entities/village";
 import {
+  AMBIENT_AUDIO_KEYS,
+  AMBIENT_AUDIO_URLS,
+  AmbientSoundController,
+  CAMPFIRE_SOUND_CONFIG,
+  resolveCampfireSources,
+} from "@/features/ambientSound";
+import {
   CHARACTER_OPTIONS,
   CharacterConfig,
   CharacterId,
@@ -20,7 +27,17 @@ import {
   resolveLocalActionInput,
   useMovementStore,
 } from "@/features/movement";
+import {
+  CAMPFIRE_BASE_ASSET_KEY,
+  CAMPFIRE_BASE_ASSET_URL,
+  CAMPFIRE_FLAME_ASSET_KEY,
+  CAMPFIRE_FLAME_ASSET_URL,
+  CAMPFIRE_FLAME_FRAME_HEIGHT,
+  CAMPFIRE_FLAME_FRAME_WIDTH,
+  CampfireEffectsController,
+} from "@/features/movement/lib/CampfireEffectsController";
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
+import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
 import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import * as Phaser from "phaser";
@@ -55,6 +72,7 @@ export class TownScene extends Phaser.Scene {
   private localCharacterId: CharacterId = "p-boy";
   private activeLocalActionId: LocalActionId | null = null;
   private wasInputFocused = false;
+  private campfireAmbientController?: AmbientSoundController;
 
   constructor() {
     super("TownScene");
@@ -86,6 +104,14 @@ export class TownScene extends Phaser.Scene {
         frameWidth: actionConfig.frameWidth,
         frameHeight: actionConfig.frameHeight,
       });
+    });
+
+    this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
+
+    this.load.image(CAMPFIRE_BASE_ASSET_KEY, CAMPFIRE_BASE_ASSET_URL);
+    this.load.spritesheet(CAMPFIRE_FLAME_ASSET_KEY, CAMPFIRE_FLAME_ASSET_URL, {
+      frameWidth: CAMPFIRE_FLAME_FRAME_WIDTH,
+      frameHeight: CAMPFIRE_FLAME_FRAME_HEIGHT,
     });
   };
 
@@ -207,6 +233,17 @@ export class TownScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(DEBUG_TEXT_DEPTH);
 
+    this.campfireAmbientController = new AmbientSoundController(
+      this,
+      AMBIENT_AUDIO_KEYS.CAMPFIRE,
+      mapLoader ? resolveCampfireSources(mapLoader) : [],
+      CAMPFIRE_SOUND_CONFIG,
+    );
+
+    if (mapLoader) {
+      new CampfireEffectsController(this, resolveCampfireVisuals(mapLoader), CHARACTER_DEPTH_BASE);
+    }
+
     this.updateRemotePlayers(store.remotePlayers);
 
     // Zustand 스토어 구독: 필요한 필드만 선택하여 불필요한 리렌더링 방지
@@ -270,6 +307,7 @@ export class TownScene extends Phaser.Scene {
       this.remotePlayerSprites.clear();
       this.remotePlayerNames.clear();
       this.remotePlayerTargets.clear();
+      this.campfireAmbientController?.destroy();
     });
   };
 
@@ -514,6 +552,10 @@ export class TownScene extends Phaser.Scene {
       );
       this.syncCharacterDepth(this.player, this.playerNameLabel);
     }
+
+    // 4. 모닥불 환경음 거리 기반 볼륨 갱신
+    // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용
+    this.campfireAmbientController?.update(this.player, useMovementStore.getState().villageId);
   };
 
   private getAnimationKey(character: CharacterConfig, animationKey: string) {

@@ -49,6 +49,9 @@ export const useMovementStore = create<MovementStore>()(
     const FLUSH_INTERVAL = 100;
     let isSyncing = false;
     let flushTimeout: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * localActionState가 null로 초기화되어도 다음 액션 sequence가 증가하도록 별도로 보관한다.
+     */
     let localActionSequence = 0;
 
     const createJitter = (): Position => ({

@@ -79,6 +79,10 @@ const CAMPFIRE_OBJECT_TYPE = "Campfire";
 // 지정되지 않았을 때 사용하는 기본값. CampfireEffectsController가 렌더링하는 campfire-base.png
 // (194x63, scale 0.4, origin 0.27/0.9) 실제 화면 표시 영역(가로 78 x 세로 25, Tiled 포인트 대비
 // x+18/y-10 중심)과 정확히 일치하도록 잡아, 돌 바닥 전체를 막아 불 사이로 통과하지 못하게 한다.
+// scale custom property로 렌더링 크기가 달라지면 이 기본값들도 scale 비율만큼 함께 조정된다
+// (deriveCampfireColliderRects 참고). DEFAULT_CAMPFIRE_SCALE은
+// resolveCampfireVisuals.ts의 DEFAULT_CAMPFIRE_SCALE과 동일하게 유지해야 한다.
+const DEFAULT_CAMPFIRE_SCALE = 0.4;
 const DEFAULT_CAMPFIRE_COLLIDER_WIDTH = 78;
 const DEFAULT_CAMPFIRE_COLLIDER_HEIGHT = 25;
 const DEFAULT_CAMPFIRE_COLLIDER_OFFSET_X = 18;
@@ -234,10 +238,11 @@ export class MapLoader {
    */
   private deriveCampfireColliderRects(campfireEffects: CampfireEffect[]): CollisionRect[] {
     return campfireEffects.map((effect) => {
-      const width = effect.colliderWidth ?? DEFAULT_CAMPFIRE_COLLIDER_WIDTH;
-      const height = effect.colliderHeight ?? DEFAULT_CAMPFIRE_COLLIDER_HEIGHT;
-      const offsetX = effect.colliderOffsetX ?? DEFAULT_CAMPFIRE_COLLIDER_OFFSET_X;
-      const offsetY = effect.colliderOffsetY ?? DEFAULT_CAMPFIRE_COLLIDER_OFFSET_Y;
+      const scaleRatio = (effect.scale ?? DEFAULT_CAMPFIRE_SCALE) / DEFAULT_CAMPFIRE_SCALE;
+      const width = effect.colliderWidth ?? DEFAULT_CAMPFIRE_COLLIDER_WIDTH * scaleRatio;
+      const height = effect.colliderHeight ?? DEFAULT_CAMPFIRE_COLLIDER_HEIGHT * scaleRatio;
+      const offsetX = effect.colliderOffsetX ?? DEFAULT_CAMPFIRE_COLLIDER_OFFSET_X * scaleRatio;
+      const offsetY = effect.colliderOffsetY ?? DEFAULT_CAMPFIRE_COLLIDER_OFFSET_Y * scaleRatio;
 
       return {
         id: effect.id,

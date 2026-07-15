@@ -5,7 +5,7 @@ export const CAMPFIRE_BASE_ASSET_KEY = "campfire-base";
 export const CAMPFIRE_BASE_ASSET_URL = "/assets/images/campfire-base.png";
 export const CAMPFIRE_FLAME_ASSET_KEY = "campfire-flame";
 export const CAMPFIRE_FLAME_ASSET_URL = "/assets/images/campfire-flame.png";
-// 실측(campfire-flame.png 700x175, 가로 4프레임)과 일치하는 그리드 값
+// 실측(campfire-flame.png 700x165, 가로 4프레임)과 일치하는 그리드 값
 export const CAMPFIRE_FLAME_FRAME_WIDTH = 175;
 export const CAMPFIRE_FLAME_FRAME_HEIGHT = 165;
 
@@ -68,9 +68,11 @@ export class CampfireEffectsController {
       flame.setScale(visual.scale);
       flame.setDepth(depth);
 
-      if (scene.anims.exists(visual.animationKey)) {
-        flame.play(visual.animationKey);
-      }
+      // 현재 애니메이션은 campfire-burning 1종류뿐이라 고정 키로 재생한다. Tiled의
+      // animationKey custom property는 값을 읽어두기만 할 뿐 아직 재생에 반영되지 않는다 -
+      // visual.animationKey로 재생을 시도하면 위에서 등록하지 않은 키일 때 조용히 정지 상태로
+      // 남는다. 여러 애니메이션을 지원하게 되면 키별 등록 로직과 함께 다시 연결해야 한다.
+      flame.play(CAMPFIRE_ANIMATION_KEY);
     });
   }
 }

@@ -1,6 +1,7 @@
 import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
 import type { MapLoader } from "@/entities/village";
 import { findSafeSpawnPosition, validateMovement } from "@/features/movement/lib/validateMovement";
+import { LocalActionId, getNextSyncedActionState } from "@/features/movement/model/actionAnimation";
 import {
   CharacterId,
   DEFAULT_CHARACTER_ID,
@@ -26,6 +27,8 @@ interface MovementStore extends MovementState {
   setVillage: (villageId: VillageId) => void;
   initializePosition: (position: Position, villageId: VillageId) => void;
   warp: (position: Position, villageId: VillageId) => void;
+  startLocalAction: (actionId: LocalActionId) => void;
+  stopLocalAction: () => void;
   updatePosition: (delta: Position) => void;
   updateRemotePlayer: (player: RemotePlayer) => void;
   // 특정 remote player 1명 제거
@@ -60,6 +63,7 @@ export const useMovementStore = create<MovementStore>()(
       nickname: "익명",
       userId: "",
       characterId: DEFAULT_CHARACTER_ID,
+      localActionState: null,
       lastSyncedPosition: initialJitter,
       lastSyncedVillageId: LOBBY_VILLAGE_ID,
       remotePlayers: {},
@@ -74,6 +78,11 @@ export const useMovementStore = create<MovementStore>()(
       setMapLoader: (mapLoader) => set({ mapLoader }),
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
+      startLocalAction: (actionId) =>
+        set((state) => ({
+          localActionState: getNextSyncedActionState(state.localActionState, actionId),
+        })),
+      stopLocalAction: () => set({ localActionState: null }),
       initializePosition: (position, villageId) => {
         const { mapLoader, remotePlayers } = get();
         const safePos = findSafeSpawnPosition(position, remotePlayers, villageId, mapLoader);
@@ -264,6 +273,7 @@ export const useMovementStore = create<MovementStore>()(
           nickname: "익명",
           userId: "",
           characterId: DEFAULT_CHARACTER_ID,
+          localActionState: null,
           lastSyncedPosition: newJitter,
           lastSyncedVillageId: LOBBY_VILLAGE_ID,
           remotePlayers: {},

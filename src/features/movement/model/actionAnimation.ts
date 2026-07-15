@@ -1,3 +1,4 @@
+import type { SyncedActionState } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import type { CharacterActionConfig, CharacterId } from "@/shared/types";
 
@@ -66,6 +67,16 @@ export function getActionFrameNumbers(actionId: LocalActionId): number[] {
   const startFrame = action.row * LOCAL_ACTION_ATLAS_COLUMNS;
 
   return Array.from({ length: action.frames }, (_, index) => startFrame + index);
+}
+
+export function getNextSyncedActionState(
+  currentActionState: SyncedActionState,
+  actionId: LocalActionId,
+): SyncedActionState {
+  return {
+    actionId,
+    sequence: (currentActionState?.sequence ?? 0) + 1,
+  };
 }
 
 /**

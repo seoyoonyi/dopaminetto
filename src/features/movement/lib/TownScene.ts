@@ -616,6 +616,7 @@ export class TownScene extends Phaser.Scene {
     this.player.setScale(actionScale);
     this.player.setOrigin(0.5, actionConfig.originY + action.originYOffset);
     this.player.setFlipX(false);
+    useMovementStore.getState().startLocalAction(actionId);
     this.player.anims.play(animationKey);
   }
 
@@ -623,6 +624,7 @@ export class TownScene extends Phaser.Scene {
     if (!this.player || !this.player.active || !this.activeLocalActionId) return;
 
     this.activeLocalActionId = null;
+    useMovementStore.getState().stopLocalAction();
     const nextCharacterConfig = getCharacterConfig(this.localCharacterId);
     this.applyCharacterConfig(this.player, nextCharacterConfig);
     this.player.anims.stop();

@@ -24,6 +24,7 @@ export {
   getActionFrameNumbers,
   getCharacterActionConfig,
   getLocalActionAnimationKey,
+  getNextSyncedActionState,
   resolveLocalActionInput,
 } from "./model/actionAnimation";
 export type {
@@ -31,3 +32,4 @@ export type {
   LocalActionInputId,
   LocalActionInputResult,
 } from "./model/actionAnimation";
+export type { SyncedActionState } from "./model/types";

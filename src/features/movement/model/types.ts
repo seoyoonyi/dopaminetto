@@ -36,10 +36,12 @@ export interface RemotePlayer {
   lastUpdatedAt: number;
 }
 
-export type SyncedActionState = {
+export type ActiveSyncedActionState = {
   actionId: LocalActionId;
   sequence: number;
-} | null;
+};
+
+export type SyncedActionState = ActiveSyncedActionState | null;
 
 /**
  * Presence 메타데이터 구조 (RemotePlayer와 호환)

@@ -49,6 +49,7 @@ export const useMovementStore = create<MovementStore>()(
     const FLUSH_INTERVAL = 100;
     let isSyncing = false;
     let flushTimeout: ReturnType<typeof setTimeout> | null = null;
+    let localActionSequence = 0;
 
     const createJitter = (): Position => ({
       x: INITIAL_POSITION.x + (Math.random() - 0.5) * 60,
@@ -79,9 +80,17 @@ export const useMovementStore = create<MovementStore>()(
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
       startLocalAction: (actionId) =>
-        set((state) => ({
-          localActionState: getNextSyncedActionState(state.localActionState, actionId),
-        })),
+        set(() => {
+          const nextActionState = getNextSyncedActionState(
+            { actionId, sequence: localActionSequence },
+            actionId,
+          );
+          localActionSequence = nextActionState.sequence;
+
+          return {
+            localActionState: nextActionState,
+          };
+        }),
       stopLocalAction: () => set({ localActionState: null }),
       initializePosition: (position, villageId) => {
         const { mapLoader, remotePlayers } = get();
@@ -267,6 +276,7 @@ export const useMovementStore = create<MovementStore>()(
       },
       reset: () => {
         const newJitter = createJitter();
+        localActionSequence = 0;
         set({
           position: newJitter,
           villageId: LOBBY_VILLAGE_ID,

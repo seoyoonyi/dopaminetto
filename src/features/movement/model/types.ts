@@ -1,4 +1,5 @@
 import { VillageId } from "@/entities/village";
+import type { LocalActionId } from "@/features/movement/model/actionAnimation";
 import { CharacterId } from "@/features/movement/model/config";
 
 export const MOVEMENT_EVENT_TYPES = {
@@ -21,6 +22,7 @@ export interface MovementState {
   nickname: string;
   userId: string;
   characterId: CharacterId;
+  localActionState: SyncedActionState;
   remotePlayers: Record<string, RemotePlayer>;
 }
 
@@ -30,8 +32,16 @@ export interface RemotePlayer {
   characterId: CharacterId;
   position: Position;
   villageId: VillageId;
+  actionState: SyncedActionState;
   lastUpdatedAt: number;
 }
+
+export type ActiveSyncedActionState = {
+  actionId: LocalActionId;
+  sequence: number;
+};
+
+export type SyncedActionState = ActiveSyncedActionState | null;
 
 /**
  * Presence 메타데이터 구조 (RemotePlayer와 호환)
@@ -42,6 +52,7 @@ export interface PresenceMetadata {
   characterId: CharacterId;
   position: Position;
   villageId: VillageId;
+  actionState: SyncedActionState;
   joinedAt: string;
 }
 
@@ -54,6 +65,7 @@ export interface SyncPositionPayload {
   characterId: CharacterId;
   position: Position;
   villageId: VillageId;
+  actionState: SyncedActionState;
 }
 
 export interface SyncLeavePayload {

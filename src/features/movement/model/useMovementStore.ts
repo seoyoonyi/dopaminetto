@@ -1,6 +1,7 @@
 import { LOBBY_VILLAGE_ID, VillageId } from "@/entities/village";
 import type { MapLoader } from "@/entities/village";
 import { findSafeSpawnPosition, validateMovement } from "@/features/movement/lib/validateMovement";
+import { LocalActionId, getNextSyncedActionState } from "@/features/movement/model/actionAnimation";
 import {
   CharacterId,
   DEFAULT_CHARACTER_ID,
@@ -26,6 +27,8 @@ interface MovementStore extends MovementState {
   setVillage: (villageId: VillageId) => void;
   initializePosition: (position: Position, villageId: VillageId) => void;
   warp: (position: Position, villageId: VillageId) => void;
+  startLocalAction: (actionId: LocalActionId) => void;
+  stopLocalAction: () => void;
   updatePosition: (delta: Position) => void;
   updateRemotePlayer: (player: RemotePlayer) => void;
   // 특정 remote player 1명 제거
@@ -46,6 +49,10 @@ export const useMovementStore = create<MovementStore>()(
     const FLUSH_INTERVAL = 100;
     let isSyncing = false;
     let flushTimeout: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * localActionState가 null로 초기화되어도 다음 액션 sequence가 증가하도록 별도로 보관한다.
+     */
+    let localActionSequence = 0;
 
     const createJitter = (): Position => ({
       x: INITIAL_POSITION.x + (Math.random() - 0.5) * 60,
@@ -60,6 +67,7 @@ export const useMovementStore = create<MovementStore>()(
       nickname: "익명",
       userId: "",
       characterId: DEFAULT_CHARACTER_ID,
+      localActionState: null,
       lastSyncedPosition: initialJitter,
       lastSyncedVillageId: LOBBY_VILLAGE_ID,
       remotePlayers: {},
@@ -74,6 +82,19 @@ export const useMovementStore = create<MovementStore>()(
       setMapLoader: (mapLoader) => set({ mapLoader }),
       setPosition: (position) => set({ position, lastSyncedPosition: position }),
       setVillage: (villageId) => set({ villageId, lastSyncedVillageId: villageId }),
+      startLocalAction: (actionId) =>
+        set(() => {
+          const nextActionState = getNextSyncedActionState(
+            { actionId, sequence: localActionSequence },
+            actionId,
+          );
+          localActionSequence = nextActionState.sequence;
+
+          return {
+            localActionState: nextActionState,
+          };
+        }),
+      stopLocalAction: () => set({ localActionState: null }),
       initializePosition: (position, villageId) => {
         const { mapLoader, remotePlayers } = get();
         const safePos = findSafeSpawnPosition(position, remotePlayers, villageId, mapLoader);
@@ -258,12 +279,14 @@ export const useMovementStore = create<MovementStore>()(
       },
       reset: () => {
         const newJitter = createJitter();
+        localActionSequence = 0;
         set({
           position: newJitter,
           villageId: LOBBY_VILLAGE_ID,
           nickname: "익명",
           userId: "",
           characterId: DEFAULT_CHARACTER_ID,
+          localActionState: null,
           lastSyncedPosition: newJitter,
           lastSyncedVillageId: LOBBY_VILLAGE_ID,
           remotePlayers: {},

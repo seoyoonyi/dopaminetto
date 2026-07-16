@@ -1,3 +1,4 @@
+import type { ActiveSyncedActionState, SyncedActionState } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import type { CharacterActionConfig, CharacterId } from "@/shared/types";
 
@@ -47,6 +48,11 @@ export type LocalActionInputResult =
   | { type: "stop" }
   | { type: "play"; actionId: LocalActionId };
 
+export type RemoteActionStateResult =
+  | { type: "none" }
+  | { type: "stop" }
+  | { type: "play"; actionId: LocalActionId; sequence: number };
+
 export function getCharacterActionConfig(characterId: CharacterId): CharacterActionConfig {
   return CHARACTER_ACTION_CONFIGS[characterId];
 }
@@ -66,6 +72,35 @@ export function getActionFrameNumbers(actionId: LocalActionId): number[] {
   const startFrame = action.row * LOCAL_ACTION_ATLAS_COLUMNS;
 
   return Array.from({ length: action.frames }, (_, index) => startFrame + index);
+}
+
+export function getNextSyncedActionState(
+  currentActionState: SyncedActionState,
+  actionId: LocalActionId,
+): ActiveSyncedActionState {
+  return {
+    actionId,
+    sequence: (currentActionState?.sequence ?? 0) + 1,
+  };
+}
+
+export function resolveRemoteActionState(
+  lastHandledSequence: number | null,
+  actionState: SyncedActionState,
+): RemoteActionStateResult {
+  if (!actionState) {
+    return { type: "stop" };
+  }
+
+  if (lastHandledSequence !== null && actionState.sequence <= lastHandledSequence) {
+    return { type: "none" };
+  }
+
+  return {
+    type: "play",
+    actionId: actionState.actionId,
+    sequence: actionState.sequence,
+  };
 }
 
 /**

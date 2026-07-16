@@ -1,6 +1,11 @@
 import { VillageId } from "@/entities/village";
 import { resolveCharacterId } from "@/features/movement/model/config";
-import { Position, PresenceMetadata, SyncPositionPayload } from "@/features/movement/model/types";
+import {
+  Position,
+  PresenceMetadata,
+  SyncPositionPayload,
+  SyncedActionState,
+} from "@/features/movement/model/types";
 
 interface CreatePresencePayloadParams {
   userId: string;
@@ -9,6 +14,7 @@ interface CreatePresencePayloadParams {
   villageId: VillageId;
   position: Position;
   characterId?: string | null;
+  actionState?: SyncedActionState;
 }
 
 interface CreateSyncPositionPayloadParams {
@@ -17,6 +23,7 @@ interface CreateSyncPositionPayloadParams {
   villageId: VillageId;
   position: Position;
   characterId?: string | null;
+  actionState?: SyncedActionState;
 }
 
 export const createPresencePayload = ({
@@ -26,6 +33,7 @@ export const createPresencePayload = ({
   villageId,
   position,
   characterId,
+  actionState = null,
 }: CreatePresencePayloadParams): PresenceMetadata => ({
   userId,
   nickname,
@@ -33,6 +41,7 @@ export const createPresencePayload = ({
   villageId,
   position,
   characterId: resolveCharacterId(characterId),
+  actionState,
 });
 
 export const createPresenceTrackSignature = ({
@@ -41,6 +50,7 @@ export const createPresenceTrackSignature = ({
   joinedAt,
   villageId,
   characterId,
+  actionState,
 }: PresenceMetadata) =>
   JSON.stringify({
     userId,
@@ -48,6 +58,7 @@ export const createPresenceTrackSignature = ({
     joinedAt,
     villageId,
     characterId,
+    actionState,
   });
 
 export const createSyncPositionPayload = ({
@@ -56,10 +67,12 @@ export const createSyncPositionPayload = ({
   villageId,
   position,
   characterId,
+  actionState = null,
 }: CreateSyncPositionPayloadParams): SyncPositionPayload => ({
   userId,
   nickname,
   villageId,
   position,
   characterId: resolveCharacterId(characterId),
+  actionState,
 });

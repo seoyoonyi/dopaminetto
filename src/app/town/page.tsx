@@ -113,11 +113,11 @@ function ActiveTownPage() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="flex min-w-0 flex-1 items-center justify-center p-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-w-3xl lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
           <TownEngine />
         </div>
-        <div className="flex h-full w-96 min-w-64 shrink-0 flex-col overflow-hidden border-l">
+        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t lg:h-full lg:w-96 lg:min-w-96 lg:flex-none lg:border-l lg:border-t-0">
           {panelContent}
         </div>
       </div>
@@ -133,13 +133,13 @@ function ActiveTownPage() {
 function BlockedTownPage() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="flex min-w-0 flex-1 items-center justify-center p-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-w-3xl lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
           <div className="flex h-full w-full items-center justify-center rounded-lg border-4 border-gray-800 bg-black p-6 shadow-2xl">
             <SingleTownTabBlockedNotice className="rounded-lg bg-white p-6" />
           </div>
         </div>
-        <aside className="flex h-full w-96 min-w-64 shrink-0 items-center justify-center border-l bg-gray-50 p-6">
+        <aside className="flex min-h-0 w-full flex-1 items-center justify-center border-t bg-gray-50 p-6 lg:h-full lg:w-96 lg:min-w-96 lg:flex-none lg:border-l lg:border-t-0">
           <p className="text-center text-sm leading-6 text-gray-500">
             채팅은 기존 탭에서 이용 중입니다.
           </p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileAccessBlockedNotice, useMobileDeviceAccess } from "@/features/deviceAccess";
 import { resolveCharacterId } from "@/features/movement/model/config";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
@@ -25,6 +26,24 @@ const TownEngine = dynamic(
 );
 
 export default function TownPage() {
+  const mobileAccess = useMobileDeviceAccess();
+
+  if (mobileAccess === "checking") {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
+        <p>접속 환경을 확인하는 중...</p>
+      </div>
+    );
+  }
+
+  if (mobileAccess === "blocked") {
+    return <MobileBlockedTownPage />;
+  }
+
+  return <TownSingleTabGate />;
+}
+
+function TownSingleTabGate() {
   const entryStatus = useSingleTownTabEntry();
 
   if (entryStatus === "checking") {
@@ -125,5 +144,15 @@ function BlockedTownPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function MobileBlockedTownPage() {
+  return (
+    <main className="flex h-screen items-center justify-center overflow-hidden bg-gray-100 p-4">
+      <div className="flex w-full max-w-sm items-center justify-center bg-white p-6">
+        <MobileAccessBlockedNotice />
+      </div>
+    </main>
   );
 }

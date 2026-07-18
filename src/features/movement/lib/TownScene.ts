@@ -134,8 +134,24 @@ export class TownScene extends Phaser.Scene {
       }
 
       const bounds = mapLoader.getMapBounds();
-      this.cameras.main.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+      const cb = this.computeCameraBounds(
+        bounds,
+        this.cameras.main.width,
+        this.cameras.main.height,
+      );
+      this.cameras.main.setBounds(cb.x, cb.y, cb.width, cb.height);
       this.cameras.main.setZoom(GAME_CONFIG.CAMERA_ZOOM);
+
+      /** 화면 크기 변경 시 카메라 bounds를 재계산한다 */
+      const handleResize = () => {
+        const updated = this.computeCameraBounds(
+          bounds,
+          this.cameras.main.width,
+          this.cameras.main.height,
+        );
+        this.cameras.main.setBounds(updated.x, updated.y, updated.width, updated.height);
+      };
+      this.scale.on(Phaser.Scale.Events.RESIZE, handleResize);
     }
 
     // 방향별 걷기 애니메이션 등록 (가로 3열, 세로 4행 기준)
@@ -307,6 +323,7 @@ export class TownScene extends Phaser.Scene {
     // Scene 종료 시 구독 해제 설정
     this.events.once("shutdown", () => {
       if (this.unsubscribeStore) this.unsubscribeStore();
+      this.scale.off(Phaser.Scale.Events.RESIZE);
       this.remotePlayerSprites.clear();
       this.remotePlayerNames.clear();
       this.remotePlayerTargets.clear();
@@ -716,6 +733,25 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(depth)
       .setVisible(imageLayer.visible);
+  }
+
+  /**
+   * 맵이 캔버스보다 작을 때 중앙 정렬되도록 카메라 bounds를 계산한다.
+   * 맵이 캔버스보다 크거나 같으면 맵 bounds를 그대로 반환한다.
+   */
+  private computeCameraBounds(
+    mapBounds: { x: number; y: number; width: number; height: number },
+    camWidth: number,
+    camHeight: number,
+  ) {
+    const offsetX = Math.max(0, Math.floor((camWidth - mapBounds.width) / 2));
+    const offsetY = Math.max(0, Math.floor((camHeight - mapBounds.height) / 2));
+    return {
+      x: mapBounds.x - offsetX,
+      y: mapBounds.y - offsetY,
+      width: Math.max(mapBounds.width, camWidth),
+      height: Math.max(mapBounds.height, camHeight),
+    };
   }
 
   /**

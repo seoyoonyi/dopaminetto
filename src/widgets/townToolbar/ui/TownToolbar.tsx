@@ -13,7 +13,7 @@ export function TownToolbar({ isSpeaker }: TownToolbarProps) {
   const isUsersPanel = activePanel === "users";
 
   return (
-    <div className="flex h-12 w-full items-center justify-end  border-t bg-white px-4">
+    <div className="flex h-12 w-full items-center justify-end border-t bg-white px-4">
       <PresenceToolbarButton
         isSpeaker={isSpeaker}
         isUsersPanel={isUsersPanel}

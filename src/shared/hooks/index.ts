@@ -5,3 +5,4 @@ export * from "./useIntersectionObserver";
 export * from "./useVisiblePageTracking";
 export * from "./useAutoResizeTextarea";
 export * from "./useDebouncedValue";
+export * from "./useAnalyticsPageView";

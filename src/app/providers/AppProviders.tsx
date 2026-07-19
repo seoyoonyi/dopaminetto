@@ -1,5 +1,6 @@
 "use client";
 
+import AnalyticsProvider from "./AnalyticsProvider";
 import QueryProvider from "./QueryProvider";
 import SupabaseProvider from "./SupabaseProvider";
 
@@ -10,7 +11,9 @@ interface AppProvidersProps {
 const AppProviders = ({ children }: AppProvidersProps) => {
   return (
     <QueryProvider>
-      <SupabaseProvider>{children}</SupabaseProvider>
+      <SupabaseProvider>
+        <AnalyticsProvider>{children}</AnalyticsProvider>
+      </SupabaseProvider>
     </QueryProvider>
   );
 };

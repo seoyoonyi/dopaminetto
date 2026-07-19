@@ -4,4 +4,5 @@
 // UI 컴포넌트 레이어
 export { default as QueryProvider } from "./QueryProvider";
 export { default as SupabaseProvider } from "./SupabaseProvider";
+export { default as AnalyticsProvider } from "./AnalyticsProvider";
 export { default as AppProviders } from "./AppProviders";

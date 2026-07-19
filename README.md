@@ -52,7 +52,12 @@ NEXT_PUBLIC_SPEAKER_NICKNAME=your-speaker-nickname
 
 # Development Configuration
 NODE_ENV=development
+
+# Google Analytics 4 Configuration (선택)
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
+
+> `NEXT_PUBLIC_GA_MEASUREMENT_ID`를 비워두면 Analytics 스크립트 자체가 로드되지 않습니다. 개발 환경에서 실제 GA 이벤트가 섞이는 것을 원하지 않는다면 값을 비워두거나, 개발/운영용 GA4 속성을 각각 만들어 Measurement ID를 환경별로 다르게 설정하세요.
 
 ### 개발 서버 실행
 
@@ -222,11 +227,21 @@ npm run build
 
 #### 필요한 프로바이더들
 
-| 프로바이더         | 용도                        | 라이브러리            | 특징                 |
-| ------------------ | --------------------------- | --------------------- | -------------------- |
-| `QueryProvider`    | 서버 상태 관리 및 캐싱      | @tanstack/react-query | 전역 쿼리 클라이언트 |
-| `SupabaseProvider` | 데이터베이스 및 실시간 기능 | @supabase/ssr         | 익명 접속, SSR 지원  |
-| `AppProviders`     | 모든 프로바이더 통합        | -                     | 계층적 구조          |
+| 프로바이더          | 용도                         | 라이브러리            | 특징                              |
+| ------------------- | ---------------------------- | --------------------- | --------------------------------- |
+| `QueryProvider`     | 서버 상태 관리 및 캐싱       | @tanstack/react-query | 전역 쿼리 클라이언트              |
+| `SupabaseProvider`  | 데이터베이스 및 실시간 기능  | @supabase/ssr         | 익명 접속, SSR 지원               |
+| `AnalyticsProvider` | GA4 초기화 및 Page View 추적 | -                     | Measurement ID 미설정 시 비활성화 |
+| `AppProviders`      | 모든 프로바이더 통합         | -                     | 계층적 구조                       |
+
+---
+
+## 📊 Google Analytics(GA4) 연동
+
+- **위치**: `src/app/providers/AnalyticsProvider.tsx`에서 `gtag.js` 스크립트 로드와 초기화를 담당하고, `AppProviders`를 통해 루트 레이아웃에 연결됩니다. 라이브러리 추가 없이 Next.js 내장 `next/script`만 사용합니다.
+- **환경변수**: `NEXT_PUBLIC_GA_MEASUREMENT_ID`(`.env.local`)가 없으면 `AnalyticsProvider`가 스크립트를 전혀 렌더링하지 않아, 로컬 개발 중 GA 이벤트가 실수로 전송되는 것을 방지합니다. 개발/운영 환경 모두 이 값만 채워주면 동일한 코드로 동작하며, 필요 시 환경별로 다른 Measurement ID를 지정할 수 있습니다.
+- **Page View 추적**: `src/shared/hooks/useAnalyticsPageView.ts`가 `usePathname`/`useSearchParams`로 라우트 변경을 감지해 `page_view`를 전송합니다. App Router는 클라이언트 사이드 네비게이션 시 새 문서 로드가 없기 때문에, `gtag('config', ..., { send_page_view: false })`로 자동 전송을 끄고 라우트 변경마다 직접 전송하는 방식을 사용합니다(`/` ↔ `/town` 이동 포함). 이 훅은 `useSearchParams`를 사용하므로 `Suspense` 경계 안에서만 렌더링됩니다.
+- **초기화와 이벤트 추적 분리**: 스크립트 로드/초기화(`AnalyticsProvider`)와 실제 이벤트 전송 함수(`src/shared/lib/analytics/gtag.ts`의 `pageview`, `trackEvent`)를 분리해, 이후 기능 코드에서는 `trackEvent({ action, category, label, value })`만 임포트해 커스텀 이벤트를 보내면 됩니다.
 
 ---
 
@@ -264,9 +279,9 @@ npm run build
 
 ## 🔌 환경 및 프로바이더 체크리스트
 
-- `.env.local.example`을 복사하여 `.env.local`을 만들고 Supabase, Cloudflare RealtimeKit, speaker 닉네임, NODE_ENV 값을 실제 키로 설정합니다.
-- React Query(`@tanstack/react-query`), Supabase(`@supabase/supabase-js`, `@supabase/ssr`), Zustand, Phaser 등 주요 라이브러리가 `src/app/providers/` 내부에서 초기화됩니다.
-- 필요한 프로바이더는 `QueryProvider`, `SupabaseProvider`, `AppProviders`이며, Supabase는 익명 접속·SSR·Realtime을 지원하고 AppProviders가 전체 계층을 감쌉니다.
+- `.env.local.example`을 복사하여 `.env.local`을 만들고 Supabase, Cloudflare RealtimeKit, speaker 닉네임, NODE_ENV, GA4 Measurement ID 값을 실제 키로 설정합니다.
+- React Query(`@tanstack/react-query`), Supabase(`@supabase/supabase-js`, `@supabase/ssr`), Zustand, Phaser, GA4(`next/script`) 등 주요 라이브러리/스크립트가 `src/app/providers/` 내부에서 초기화됩니다.
+- 필요한 프로바이더는 `QueryProvider`, `SupabaseProvider`, `AnalyticsProvider`, `AppProviders`이며, Supabase는 익명 접속·SSR·Realtime을, AnalyticsProvider는 GA4 스크립트 로드와 Page View 추적을 담당하고 AppProviders가 전체 계층을 감쌉니다.
 - 상태 관리는 React Query가 서버 데이터를, Zustand가 클라이언트 상태를 담당하며, 관련 스토어는 FSD 레이어별 `model/store`에 배치합니다.
 - Cloudflare RealtimeKit, Phaser 게임 엔진 설정, Supabase Realtime 설정 등은 위 구성이 정상적으로 작동할 수 있도록 환경변수, provider hooks, `AppProviders` 계층에서 연결합니다.
 

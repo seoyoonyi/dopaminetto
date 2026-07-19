@@ -1,5 +1,6 @@
 "use client";
 
+import { MobileAccessBlockedNotice, useMobileDeviceAccess } from "@/features/deviceAccess";
 import { resolveCharacterId } from "@/features/movement/model/config";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
@@ -25,11 +26,29 @@ const TownEngine = dynamic(
 );
 
 export default function TownPage() {
+  const mobileAccess = useMobileDeviceAccess();
+
+  if (mobileAccess === "checking") {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center overflow-hidden">
+        <p>접속 환경을 확인하는 중...</p>
+      </div>
+    );
+  }
+
+  if (mobileAccess === "blocked") {
+    return <MobileBlockedTownPage />;
+  }
+
+  return <TownSingleTabGate />;
+}
+
+function TownSingleTabGate() {
   const entryStatus = useSingleTownTabEntry();
 
   if (entryStatus === "checking") {
     return (
-      <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
+      <div className="flex h-dvh flex-col items-center justify-center overflow-hidden">
         <p>타운 입장 상태를 확인하는 중...</p>
       </div>
     );
@@ -75,7 +94,7 @@ function ActiveTownPage() {
 
   if (isLoading && !userNickname) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center overflow-hidden">
+      <div className="flex h-dvh flex-col items-center justify-center overflow-hidden">
         <p>사용자 정보를 불러오는 중...</p>
       </div>
     );
@@ -93,12 +112,14 @@ function ActiveTownPage() {
     );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1">
-        <div className="flex flex-1 items-center justify-center p-4">
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-w-3xl lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
           <TownEngine />
         </div>
-        <div className="flex h-full w-96 flex-col">{panelContent}</div>
+        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t lg:h-full lg:w-96 lg:min-w-96 lg:flex-none lg:border-l lg:border-t-0">
+          {panelContent}
+        </div>
       </div>
 
       {user?.id && userNickname ? (
@@ -111,19 +132,29 @@ function ActiveTownPage() {
 
 function BlockedTownPage() {
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1">
-        <div className="flex flex-1 items-center justify-center p-4">
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-w-3xl lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
           <div className="flex h-full w-full items-center justify-center rounded-lg border-4 border-gray-800 bg-black p-6 shadow-2xl">
             <SingleTownTabBlockedNotice className="rounded-lg bg-white p-6" />
           </div>
         </div>
-        <aside className="flex h-full w-96 items-center justify-center border-l bg-gray-50 p-6">
+        <aside className="flex min-h-0 w-full flex-1 items-center justify-center border-t bg-gray-50 p-6 lg:h-full lg:w-96 lg:min-w-96 lg:flex-none lg:border-l lg:border-t-0">
           <p className="text-center text-sm leading-6 text-gray-500">
             채팅은 기존 탭에서 이용 중입니다.
           </p>
         </aside>
       </div>
     </div>
+  );
+}
+
+function MobileBlockedTownPage() {
+  return (
+    <main className="flex h-screen items-center justify-center overflow-hidden bg-gray-100 p-4">
+      <div className="flex w-full max-w-sm items-center justify-center bg-white p-6">
+        <MobileAccessBlockedNotice />
+      </div>
+    </main>
   );
 }

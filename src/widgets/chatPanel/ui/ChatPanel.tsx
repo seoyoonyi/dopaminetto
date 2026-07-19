@@ -25,7 +25,7 @@ export function ChatPanel() {
   const villageName = VILLAGES[villageId as keyof typeof VILLAGES]?.name ?? villageId;
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ChatPanelHeader villageName={villageName} isConnected={isConnected} />
       <ChatHistory
         key={roomId}
@@ -39,7 +39,7 @@ export function ChatPanel() {
         currentUserId={userId}
       />
       <MessageField onMessageSend={handleMessageSend} isConnected={isConnected} roomId={roomId} />
-    </>
+    </div>
   );
 }
 

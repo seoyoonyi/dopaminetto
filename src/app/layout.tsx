@@ -23,6 +23,7 @@ const galmuri9 = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://dopamine-tto.vercel.app"),
   title: {
     template: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간 | %s",
     default: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간",
@@ -39,6 +40,14 @@ export const metadata: Metadata = {
     siteName: "도파민또 | 글또에서 이어진 개발자 글쓰기 & 성장 공간",
     url: "https://dopamine-tto.vercel.app",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "도파민또 썸네일 이미지",
+      },
+    ],
   },
 };
 

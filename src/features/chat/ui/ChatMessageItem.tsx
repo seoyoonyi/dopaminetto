@@ -1,7 +1,8 @@
 "use client";
 
-import { formatTime, isSameUserContinuous } from "@/shared/lib";
+import { formatTime } from "@/shared/lib";
 
+import { isSameUserContinuous } from "../lib/messageUtils";
 import { Message } from "../types";
 import { LinkifiedText } from "./LinkifiedText";
 

@@ -6,5 +6,4 @@
 // export type { User, Room } from './entities';
 // export type { GlobalState } from './state';
 
-export * from "./presence";
 export type { CharacterActionConfig, CharacterConfig, CharacterId } from "./character";

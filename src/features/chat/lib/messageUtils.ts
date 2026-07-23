@@ -1,7 +1,8 @@
-import { Message, MessagesPage } from "@/features/chat";
 import { CHAT_GC_CONFIG } from "@/shared/config";
 import { isSameDay, toDate } from "@/shared/lib/datetime";
 import { InfiniteData } from "@tanstack/react-query";
+
+import { Message, MessagesPage } from "../types";
 
 export const hasMultipleDates = (messages: Message[]) => {
   if (messages.length <= 1) return false;
@@ -20,8 +21,7 @@ export const isSameUserContinuous = (currentMsg: Message, prevMsg?: Message) => 
 };
 
 /**
- * 서버에서 실제 메시지가 도착하면,
- * 동일 유저/내용의 임시 메시지를 제거 (임시 메시지는 id < 0)
+ * 서버에서 실제 메시지가 도착하면 동일 유저/내용의 임시 메시지를 제거한다.
  */
 export const removeMatchingTempMessage = (prev: Message[], newMessage: Message) => {
   const isTempMessage = (message: Message) => message.id < 0;
@@ -71,7 +71,7 @@ export const addMessageToCache = (
 };
 
 /**
- * 페이지의 lastAccessed 타임스탬프를 현재 시간으로 갱신합니다.
+ * 페이지의 lastAccessed 타임스탬프를 현재 시간으로 갱신한다.
  */
 export const updatePageTimestamp = (page: MessagesPage): MessagesPage => {
   return {
@@ -81,15 +81,15 @@ export const updatePageTimestamp = (page: MessagesPage): MessagesPage => {
 };
 
 /**
- * 페이지 목록에 대해 가비지 컬렉션(GC)을 수행하는 순수 함수입니다.
+ * 페이지 목록에 대해 가비지 컬렉션(GC)을 수행하는 순수 함수다.
  *
- * 다음 정책에 따라 오래된 페이지를 정리합니다:
- * 1. 최신순으로 MIN_VISIBLE_PAGES 개수는 무조건 보존합니다 (Safe Zone).
- * 2. 전체 페이지 수가 MAX_PAGES 이하이면 원칙적으로 GC를 수행하지 않습니다.
- *    단, 매우 오래된 페이지(SOFT_EXPIRE)가 있으면 최소 1개만 정리합니다.
+ * 다음 정책에 따라 오래된 페이지를 정리한다:
+ * 1. 최신순으로 MIN_VISIBLE_PAGES 개수는 무조건 보존한다 (Safe Zone).
+ * 2. 전체 페이지 수가 MAX_PAGES 이하이면 원칙적으로 GC를 수행하지 않는다.
+ *    단, 매우 오래된 페이지(SOFT_EXPIRE)가 있으면 최소 1개만 정리한다.
  * 3. MAX_PAGES를 초과한 경우, 나머지 오래된 페이지(Candidates) 중에서
- *    마지막 접근 시간(lastAccessed)이 가장 오래된 순서대로 LRU 정책으로 제거합니다.
- * 4. 최종적으로 MAX_PAGES 개수를 유지하도록 합니다.
+ *    마지막 접근 시간(lastAccessed)이 가장 오래된 순서대로 LRU 정책으로 제거한다.
+ * 4. 최종적으로 MAX_PAGES 개수를 유지한다.
  *
  * 참고:
  * - pages[0]이 가장 최신 페이지입니다. (인덱스가 클수록 과거 데이터)

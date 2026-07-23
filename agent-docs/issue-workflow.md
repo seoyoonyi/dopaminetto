@@ -1,6 +1,6 @@
 # 이슈 작업 문서화 규칙
 
-> 이슈 단위 작업에서 spec, plan, troubleshooting 문서를 자동으로 남기는 규칙입니다.
+> 이슈 단위 작업에서 spec, plan, troubleshooting 문서를 자동으로 남기는 규칙이다.
 
 ---
 

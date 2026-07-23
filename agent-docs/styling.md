@@ -1,6 +1,6 @@
 # 스타일링 규칙 (Tailwind CSS + shadcn/ui)
 
-> Tailwind CSS와 shadcn/ui 기반의 스타일링 규칙입니다.
+> Tailwind CSS와 shadcn/ui 기반의 스타일링 규칙이다.
 
 ---
 

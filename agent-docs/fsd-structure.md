@@ -1,6 +1,6 @@
 # FSD 폴더 구조 & 레이어 규칙
 
-> Feature-Sliced Design 구조 패턴에 대한 상세 규칙입니다.
+> Feature-Sliced Design 구조 패턴에 대한 상세 규칙이다.
 
 ---
 

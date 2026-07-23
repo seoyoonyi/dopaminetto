@@ -125,6 +125,10 @@ export const useTownPresence = () => {
         audioEnabled,
       };
 
+      // 이동(village 경계 통과) 중 track() 실패가 몰려서 강제 재연결로 이어지는지
+      // 진단하기 위해 소요 시간을 함께 기록한다.
+      const attemptStartedAt = Date.now();
+
       try {
         const res = await channel.track(payload);
         if (res !== "ok") {
@@ -132,13 +136,19 @@ export const useTownPresence = () => {
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.warn(`[useTownPresence] Track failed (Attempt ${retryCount + 1}): ${errorMessage}`);
+        console.warn(
+          `[useTownPresence] track 실패 (userId=${userId}, 시도=${retryCount + 1}회, ` +
+            `소요시간=${Date.now() - attemptStartedAt}ms, 채널상태=${channelStatus}): ${errorMessage}`,
+        );
 
         // cleanup 이후라면 reconnect와 재시도 타이머를 등록하지 않는다.
         if (isCancelled) return;
 
         if (retryCount >= 3) {
-          console.warn(`[useTownPresence] Start reconnecting due to track failure.`);
+          console.warn(
+            `[useTownPresence] track 반복 실패로 town:main을 재연결합니다 ` +
+              `(userId=${userId}, villageId=${debouncedVillageId}, 채널상태=${channelStatus})`,
+          );
           reconnect();
           return;
         }

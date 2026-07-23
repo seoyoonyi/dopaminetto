@@ -7,6 +7,16 @@ const MAX_AUTO_RECONNECT = 5;
 const RECONNECT_BACKOFF_MS = [1000, 2000, 4000, 8000, 16000];
 const CHANNEL_CLEANUP_DELAY_MS = 3000;
 const GLOBAL_KEY = "__townChannelState";
+// 채널 레벨 재연결이 MAX_AUTO_RECONNECT만큼 반복 실패하면, 채널이 아니라
+// 그 밑에 있는 realtime 소켓 자체가 손상된 것으로 보고 소켓을 통째로 재연결한다.
+// 이 값은 여러 채널이 거의 동시에 임계치를 넘겨도 소켓 리셋이 중복 실행되지 않도록 막는 디바운스 창이다.
+const SOCKET_RESET_DEDUPE_MS = 3000;
+// 소켓이 손상된 경우 "SUBSCRIBED -> CLOSED -> (재연결 성공) -> SUBSCRIBED -> CLOSED -> ..."처럼
+// 매번 재연결에는 성공하지만 곧바로 다시 끊기는 flapping 패턴으로 나타난다. 이 경우
+// SUBSCRIBED에 도달할 때마다 reconnectCount가 0으로 리셋되어 MAX_AUTO_RECONNECT에 영영 도달하지 못한다.
+// 그래서 "짧은 시간 안에 반복 실패"를 별도로 감지해 소켓 리셋을 트리거한다.
+const FLAP_STABILITY_MS = 8000;
+const MAX_FLAPS_BEFORE_SOCKET_RESET = 3;
 
 type ChannelStatus = string;
 type StatusObserver = (status: ChannelStatus, err?: Error) => void;
@@ -24,6 +34,13 @@ interface TownChannelGlobalState {
   subscribersCount: Map<string, number>;
   cleanupTimeouts: Map<string, ReturnType<typeof setTimeout>>;
   connectTimeouts: Map<string, ReturnType<typeof setTimeout>>;
+  lastSocketResetAt: number;
+  recentFailureCounts: Map<string, number>;
+  stabilityTimers: Map<string, ReturnType<typeof setTimeout>>;
+  // visibilitychange 리스너가 탭 복귀 시 재연결을 걸 때 필요한, 채널별 마지막 userId.
+  channelUserIds: Map<string, string>;
+  visibilityListenerRegistered: boolean;
+  lastSupabaseClient: SupabaseClient | null;
 }
 
 function getGlobals(): TownChannelGlobalState {
@@ -40,6 +57,12 @@ function getGlobals(): TownChannelGlobalState {
       subscribersCount: new Map(),
       cleanupTimeouts: new Map(),
       connectTimeouts: new Map(),
+      lastSocketResetAt: 0,
+      recentFailureCounts: new Map(),
+      stabilityTimers: new Map(),
+      channelUserIds: new Map(),
+      visibilityListenerRegistered: false,
+      lastSupabaseClient: null,
     };
   }
 
@@ -72,11 +95,38 @@ const clearCleanupTimeout = (channelName: string) => {
   }
 };
 
+const clearStabilityTimer = (channelName: string) => {
+  const timer = globals.stabilityTimers.get(channelName);
+  if (timer) {
+    clearTimeout(timer);
+    globals.stabilityTimers.delete(channelName);
+  }
+};
+
+/** SUBSCRIBED가 FLAP_STABILITY_MS 동안 유지되면 그제서야 flapping 카운트를 리셋한다. */
+const scheduleFlapStabilityReset = (channelName: string) => {
+  clearStabilityTimer(channelName);
+  const timer = setTimeout(() => {
+    globals.stabilityTimers.delete(channelName);
+    globals.recentFailureCounts.set(channelName, 0);
+  }, FLAP_STABILITY_MS);
+  globals.stabilityTimers.set(channelName, timer);
+};
+
+/** 실패를 기록하고, 짧은 시간 안에 반복 실패 중인지(flapping) 여부를 반환한다. */
+const recordChannelFailure = (channelName: string): boolean => {
+  clearStabilityTimer(channelName);
+  const count = (globals.recentFailureCounts.get(channelName) || 0) + 1;
+  globals.recentFailureCounts.set(channelName, count);
+  return count >= MAX_FLAPS_BEFORE_SOCKET_RESET;
+};
+
 const notifyStatusObservers = (channelName: string, status: ChannelStatus, err?: Error) => {
   globals.statuses.set(channelName, status);
 
   if (status === "SUBSCRIBED") {
     globals.reconnectCounts.set(channelName, 0);
+    scheduleFlapStabilityReset(channelName);
   }
 
   const observers = globals.statusObservers.get(channelName);
@@ -108,6 +158,47 @@ const destroyChannel = (supabase: SupabaseClient, channelName: string) => {
   notifyStatusObservers(channelName, "CLOSED");
 };
 
+/**
+ * 채널을 아무리 새로 만들어도 계속 실패한다면, 문제는 채널이 아니라 그 밑에 있는
+ * 하나의 WebSocket(소켓) 자체일 가능성이 높다. 이 경우 채널 객체를 갈아끼우는 것만으로는
+ * 절대 회복되지 않는다 (새로고침이 고치는 이유가 바로 완전히 새 소켓을 여는 것이기 때문).
+ * 그래서 소켓 자체를 끊었다 다시 연결하고, 현재 구독 중이던 채널을 전부 처음부터 다시 붙인다.
+ */
+const resetRealtimeSocket = (
+  supabase: SupabaseClient,
+  userId: string,
+  triggerChannelName: string,
+  reason: string,
+) => {
+  const now = Date.now();
+  if (now - globals.lastSocketResetAt < SOCKET_RESET_DEDUPE_MS) return;
+  globals.lastSocketResetAt = now;
+
+  console.warn(
+    `[townChannelManager] ${triggerChannelName}: ${reason}. ` +
+      `채널만 다시 만드는 대신 realtime 소켓 자체를 재연결합니다.`,
+  );
+
+  const channelNamesToResume = Array.from(globals.subscribersCount.entries())
+    .filter(([, count]) => count > 0)
+    .map(([name]) => name);
+
+  channelNamesToResume.forEach((name) => {
+    clearConnectTimeout(name);
+    destroyChannel(supabase, name);
+    globals.reconnectCounts.set(name, 0);
+    clearStabilityTimer(name);
+    globals.recentFailureCounts.set(name, 0);
+  });
+
+  supabase.realtime.disconnect();
+  supabase.realtime.connect();
+
+  channelNamesToResume.forEach((name) => {
+    scheduleConnect({ supabase, channelName: name, userId, immediate: true });
+  });
+};
+
 const scheduleConnect = ({
   supabase,
   channelName,
@@ -130,7 +221,12 @@ const scheduleConnect = ({
 
   const reconnectCount = globals.reconnectCounts.get(channelName) || 0;
   if (reconnectCount >= MAX_AUTO_RECONNECT) {
-    console.warn(`[townChannelManager] Max reconnect attempts reached for ${channelName}`);
+    resetRealtimeSocket(
+      supabase,
+      userId,
+      channelName,
+      `채널 레벨 재연결이 ${MAX_AUTO_RECONNECT}회 연속 실패함`,
+    );
     return;
   }
 
@@ -179,12 +275,28 @@ const scheduleConnect = ({
     notifyStatusObservers(channelName, "SUBSCRIBING");
 
     channel.subscribe((status, err) => {
+      // removeChannel()로 이 채널을 직접 제거했을 때도 내부적으로 이 콜백에 CLOSED가
+      // 한 번 더 뒤늦게 전달될 수 있다. 이미 다른 채널 객체로 교체(또는 삭제)된 이후의
+      // 이벤트라면 우리 재연결 로직을 새치기하지 못하도록 무시한다.
+      if (globals.channels.get(channelName) !== channel) return;
+
       notifyStatusObservers(channelName, status, err);
 
       if (
         (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") &&
         (globals.subscribersCount.get(channelName) || 0) > 0
       ) {
+        const isFlapping = recordChannelFailure(channelName);
+        if (isFlapping) {
+          resetRealtimeSocket(
+            supabase,
+            userId,
+            channelName,
+            `${FLAP_STABILITY_MS}ms 이내에 ${MAX_FLAPS_BEFORE_SOCKET_RESET}회 이상 반복 실패(flapping)함`,
+          );
+          return;
+        }
+
         scheduleConnect({ supabase, channelName, userId });
       }
     });
@@ -234,6 +346,9 @@ export const acquireTownChannel = ({
   const currentCount = globals.subscribersCount.get(channelName) || 0;
   globals.subscribersCount.set(channelName, currentCount + 1);
   clearCleanupTimeout(channelName);
+  globals.channelUserIds.set(channelName, userId);
+  globals.lastSupabaseClient = supabase;
+  ensureVisibilityListenerRegistered();
 
   scheduleConnect({
     supabase,
@@ -270,6 +385,9 @@ export const releaseTownChannel = ({
     globals.statusObservers.delete(channelName);
     globals.statuses.delete(channelName);
     globals.reconnectCounts.delete(channelName);
+    clearStabilityTimer(channelName);
+    globals.recentFailureCounts.delete(channelName);
+    globals.channelUserIds.delete(channelName);
   }, CHANNEL_CLEANUP_DELAY_MS);
 
   globals.cleanupTimeouts.set(channelName, timeout);
@@ -289,6 +407,44 @@ export const reconnectTownChannel = ({
 
   destroyChannel(supabase, channelName);
   globals.reconnectCounts.set(channelName, 0);
+  globals.channelUserIds.set(channelName, userId);
 
   scheduleConnect({ supabase, channelName, userId, immediate: true });
+};
+
+/**
+ * 탭이 숨겨졌다가 다시 보일 때(hidden -> visible), 현재 구독 중(subscribers > 0)이면서
+ * SUBSCRIBED가 아닌 채널만 즉시 재연결한다. 백그라운드 탭에서는 브라우저가 타이머를
+ * 강하게 스로틀링해서 backoff 재연결 자체가 늦게 발동할 수 있으므로, 탭 복귀는
+ * 대기 없이 바로 재연결을 시도할 좋은 신호다.
+ */
+const reconnectStaleChannelsOnVisible = (supabase: SupabaseClient) => {
+  globals.subscribersCount.forEach((count, channelName) => {
+    if (count <= 0) return;
+
+    const status = globals.statuses.get(channelName);
+    if (status === "SUBSCRIBED" || status === "SUBSCRIBING") return;
+    // 이미 backoff 대기 중이거나 재연결이 진행 중이면 중복으로 끼어들지 않는다.
+    if (globals.connectTimeouts.has(channelName)) return;
+
+    const userId = globals.channelUserIds.get(channelName);
+    if (!userId) return;
+
+    reconnectTownChannel({ supabase, channelName, userId });
+  });
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState !== "visible") return;
+  if (!globals.lastSupabaseClient) return;
+
+  reconnectStaleChannelsOnVisible(globals.lastSupabaseClient);
+};
+
+const ensureVisibilityListenerRegistered = () => {
+  if (globals.visibilityListenerRegistered) return;
+  if (typeof document === "undefined") return;
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  globals.visibilityListenerRegistered = true;
 };

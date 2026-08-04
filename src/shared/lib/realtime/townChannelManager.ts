@@ -17,6 +17,10 @@ const SOCKET_RESET_DEDUPE_MS = 3000;
 // 그래서 "짧은 시간 안에 반복 실패"를 별도로 감지해 소켓 리셋을 트리거한다.
 const FLAP_STABILITY_MS = 8000;
 const MAX_FLAPS_BEFORE_SOCKET_RESET = 3;
+// realtime-js: disconnect() 직후 소켓이 실제로 닫히기 전에 connect()를 부르면 no-op으로 무시된다.
+// 타임아웃 초과 시에는 (onclose 누락 대비) 그냥 connect()를 시도한다.
+const SOCKET_CLOSE_POLL_INTERVAL_MS = 20;
+const SOCKET_CLOSE_WAIT_TIMEOUT_MS = 1000;
 
 type ChannelStatus = string;
 type StatusObserver = (status: ChannelStatus, err?: Error) => void;
@@ -158,13 +162,42 @@ const destroyChannel = (supabase: SupabaseClient, channelName: string) => {
   notifyStatusObservers(channelName, "CLOSED");
 };
 
+/** destroyChannel과 달리 removeChannel()의 완료(unsubscribe 완료)를 기다린다. */
+const destroyChannelAndWait = async (
+  supabase: SupabaseClient,
+  channelName: string,
+): Promise<void> => {
+  const channel = globals.channels.get(channelName);
+  if (!channel) return;
+
+  globals.channels.delete(channelName);
+  notifyStatusObservers(channelName, "CLOSED");
+  await supabase.removeChannel(channel);
+};
+
+const waitUntilSocketClosed = (supabase: SupabaseClient): Promise<void> =>
+  new Promise((resolve) => {
+    const startedAt = Date.now();
+
+    const check = () => {
+      const stillDisconnecting = supabase.realtime.isDisconnecting();
+      if (!stillDisconnecting || Date.now() - startedAt >= SOCKET_CLOSE_WAIT_TIMEOUT_MS) {
+        resolve();
+        return;
+      }
+      setTimeout(check, SOCKET_CLOSE_POLL_INTERVAL_MS);
+    };
+
+    check();
+  });
+
 /**
  * 채널을 아무리 새로 만들어도 계속 실패한다면, 문제는 채널이 아니라 그 밑에 있는
  * 하나의 WebSocket(소켓) 자체일 가능성이 높다. 이 경우 채널 객체를 갈아끼우는 것만으로는
  * 절대 회복되지 않는다 (새로고침이 고치는 이유가 바로 완전히 새 소켓을 여는 것이기 때문).
  * 그래서 소켓 자체를 끊었다 다시 연결하고, 현재 구독 중이던 채널을 전부 처음부터 다시 붙인다.
  */
-const resetRealtimeSocket = (
+const resetRealtimeSocket = async (
   supabase: SupabaseClient,
   userId: string,
   triggerChannelName: string,
@@ -185,13 +218,17 @@ const resetRealtimeSocket = (
 
   channelNamesToResume.forEach((name) => {
     clearConnectTimeout(name);
-    destroyChannel(supabase, name);
     globals.reconnectCounts.set(name, 0);
     clearStabilityTimer(name);
     globals.recentFailureCounts.set(name, 0);
   });
 
+  // removeChannel()이 끝나기 전에 disconnect()를 부르면 언바인드되지 않은 채널의 leave 메시지가
+  // 유실될 수 있으므로, 채널 정리를 먼저 완료한 뒤 소켓을 끊는다.
+  await Promise.all(channelNamesToResume.map((name) => destroyChannelAndWait(supabase, name)));
+
   supabase.realtime.disconnect();
+  await waitUntilSocketClosed(supabase);
   supabase.realtime.connect();
 
   channelNamesToResume.forEach((name) => {
@@ -221,7 +258,7 @@ const scheduleConnect = ({
 
   const reconnectCount = globals.reconnectCounts.get(channelName) || 0;
   if (reconnectCount >= MAX_AUTO_RECONNECT) {
-    resetRealtimeSocket(
+    void resetRealtimeSocket(
       supabase,
       userId,
       channelName,
@@ -288,7 +325,7 @@ const scheduleConnect = ({
       ) {
         const isFlapping = recordChannelFailure(channelName);
         if (isFlapping) {
-          resetRealtimeSocket(
+          void resetRealtimeSocket(
             supabase,
             userId,
             channelName,

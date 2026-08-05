@@ -14,7 +14,8 @@ const SOCKET_RESET_DEDUPE_MS = 3000;
 // 소켓이 손상된 경우 "SUBSCRIBED -> CLOSED -> (재연결 성공) -> SUBSCRIBED -> CLOSED -> ..."처럼
 // 매번 재연결에는 성공하지만 곧바로 다시 끊기는 flapping 패턴으로 나타난다. 이 경우
 // SUBSCRIBED에 도달할 때마다 reconnectCount가 0으로 리셋되어 MAX_AUTO_RECONNECT에 영영 도달하지 못한다.
-// 그래서 "짧은 시간 안에 반복 실패"를 별도로 감지해 소켓 리셋을 트리거한다.
+// 그래서 SUBSCRIBED 후 FLAP_STABILITY_MS를 못 버틴 실패가 (간격 무관) 누적
+// MAX_FLAPS_BEFORE_SOCKET_RESET회에 도달하면 소켓 리셋을 트리거한다.
 const FLAP_STABILITY_MS = 8000;
 const MAX_FLAPS_BEFORE_SOCKET_RESET = 3;
 // realtime-js: disconnect() 직후 소켓이 실제로 닫히기 전에 connect()를 부르면 no-op으로 무시된다.
@@ -41,6 +42,7 @@ interface TownChannelGlobalState {
   lastSocketResetAt: number;
   recentFailureCounts: Map<string, number>;
   stabilityTimers: Map<string, ReturnType<typeof setTimeout>>;
+  lastSubscribedAt: Map<string, number>;
   // visibilitychange 리스너가 탭 복귀 시 재연결을 걸 때 필요한, 채널별 마지막 userId.
   channelUserIds: Map<string, string>;
   visibilityListenerRegistered: boolean;
@@ -64,6 +66,7 @@ function getGlobals(): TownChannelGlobalState {
       lastSocketResetAt: 0,
       recentFailureCounts: new Map(),
       stabilityTimers: new Map(),
+      lastSubscribedAt: new Map(),
       channelUserIds: new Map(),
       visibilityListenerRegistered: false,
       lastSupabaseClient: null,
@@ -117,7 +120,7 @@ const scheduleFlapStabilityReset = (channelName: string) => {
   globals.stabilityTimers.set(channelName, timer);
 };
 
-/** 실패를 기록하고, 짧은 시간 안에 반복 실패 중인지(flapping) 여부를 반환한다. */
+/** 실패를 기록하고, SUBSCRIBED 후 안정 유지 시간을 채우지 못한 실패가 누적됐는지(flapping) 여부를 반환한다. */
 const recordChannelFailure = (channelName: string): boolean => {
   clearStabilityTimer(channelName);
   const count = (globals.recentFailureCounts.get(channelName) || 0) + 1;
@@ -130,6 +133,7 @@ const notifyStatusObservers = (channelName: string, status: ChannelStatus, err?:
 
   if (status === "SUBSCRIBED") {
     globals.reconnectCounts.set(channelName, 0);
+    globals.lastSubscribedAt.set(channelName, Date.now());
     scheduleFlapStabilityReset(channelName);
   }
 
@@ -325,11 +329,18 @@ const scheduleConnect = ({
       ) {
         const isFlapping = recordChannelFailure(channelName);
         if (isFlapping) {
+          const lastSubscribedAt = globals.lastSubscribedAt.get(channelName);
+          console.info("[townChannelManager] socket reset", {
+            channelName,
+            flapCount: globals.recentFailureCounts.get(channelName) || 0,
+            stableDurationMs: lastSubscribedAt ? Date.now() - lastSubscribedAt : null,
+          });
+
           void resetRealtimeSocket(
             supabase,
             userId,
             channelName,
-            `${FLAP_STABILITY_MS}ms 이내에 ${MAX_FLAPS_BEFORE_SOCKET_RESET}회 이상 반복 실패(flapping)함`,
+            `SUBSCRIBED 후 ${FLAP_STABILITY_MS}ms 안정 유지를 채우지 못한 실패가 ${MAX_FLAPS_BEFORE_SOCKET_RESET}회 누적됨(flapping)`,
           );
           return;
         }
@@ -424,6 +435,7 @@ export const releaseTownChannel = ({
     globals.reconnectCounts.delete(channelName);
     clearStabilityTimer(channelName);
     globals.recentFailureCounts.delete(channelName);
+    globals.lastSubscribedAt.delete(channelName);
     globals.channelUserIds.delete(channelName);
   }, CHANNEL_CLEANUP_DELAY_MS);
 

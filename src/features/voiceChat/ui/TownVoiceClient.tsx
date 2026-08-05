@@ -123,6 +123,22 @@ export function TownVoiceClient({
     window.addEventListener("pagehide", handlePageHide);
 
     /**
+     * bfcache 복원(pageshow, persisted) 시 서버 세션은 이미 pagehide에서 끊겼지만
+     * 로컬 상태는 그대로 남아있으므로 connect()를 다시 실행해 재연결한다.
+     */
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || !isMounted) return;
+
+      joinedRoom = false;
+      activeMeetingCleanup?.();
+      activeMeetingCleanup = undefined;
+      meetingRef.current = null;
+
+      void connect();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+
+    /**
      * 토큰 발급, RealtimeKit 초기화, room join, speaker 마이크 활성화까지
      * 하나의 순서로 처리한다.
      */
@@ -289,6 +305,7 @@ export function TownVoiceClient({
 
     return () => {
       window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
       isMounted = false;
       isAudioTogglingRef.current = false;
       const activeMeeting = meetingRef.current;

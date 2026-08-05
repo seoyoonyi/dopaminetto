@@ -7,12 +7,12 @@ import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
-import { PresenceStateItem, PresenceTrackPayload } from "@/shared/types/presence";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
 import { useEffect } from "react";
 
+import type { PresenceStateItem, PresenceTrackPayload } from "../types";
 import { PresenceParticipant } from "../types";
 
 // Supabase Presence payload의 villageId를 런타임에서 검증해 내부 VillageId 타입으로 좁힌다.

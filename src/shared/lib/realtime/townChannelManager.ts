@@ -461,8 +461,6 @@ const reconnectStaleChannelsOnVisible = (supabase: SupabaseClient) => {
 
     const status = globals.statuses.get(channelName);
     if (status === "SUBSCRIBED" || status === "SUBSCRIBING") return;
-    // 이미 backoff 대기 중이거나 재연결이 진행 중이면 중복으로 끼어들지 않는다.
-    if (globals.connectTimeouts.has(channelName)) return;
 
     const userId = globals.channelUserIds.get(channelName);
     if (!userId) return;

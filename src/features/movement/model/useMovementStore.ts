@@ -47,7 +47,7 @@ export const useMovementStore = create<MovementStore>()(
   subscribeWithSelector((set, get) => {
     let lastFlushTime = 0;
     // 전체 village 가시성(다른 마을 사람도 보임) 기준으로, 동시 접속 50명 규모에서도
-    // player_move 트래픽이 realtime 소켓을 불안정하게 만들지 않도록 100ms(초당 10회)에서 낮췄다.
+    // player_move 트래픽이 realtime 소켓을 불안정하게 만들지 않도록 100ms(초당 10회) → 250ms(초당 4회)로 늘렸다.
     const FLUSH_INTERVAL = 250;
     let isSyncing = false;
     let flushTimeout: ReturnType<typeof setTimeout> | null = null;

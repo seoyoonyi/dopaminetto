@@ -4,7 +4,7 @@ import type { ChannelBinding, MovementSyncHandlers, MovementSyncState } from "./
 
 export const PLAYER_MOVE_EVENT = "player_move";
 export const LEGACY_PLAYER_MOVE_EVENT = "sync-position";
-export const REMOTE_PLAYER_REMOVAL_GRACE_MS = 2_500;
+export const REMOTE_PLAYER_REMOVAL_GRACE_MS = 8_000;
 
 const createInitialHandlers = () =>
   ({

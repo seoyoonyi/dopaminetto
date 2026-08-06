@@ -14,12 +14,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { requestVoiceToken } from "../api/requestVoiceToken";
 import { TownVoiceCallbacks, useTownVoiceCallbacks } from "../hooks/useTownVoiceCallbacks";
+import type { VoiceRole } from "../model/types";
+import { resolveVoicePermissions } from "../model/voicePermissions";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
 export interface TownVoiceClientProps extends TownVoiceCallbacks {
-  userId: string;
   nickname: string;
-  isSpeaker: boolean;
+  voiceRole: VoiceRole | null;
 }
 
 /** 음성 채널 연결 진행 상태 */
@@ -65,9 +66,8 @@ function VoicePanel({
  * speaker로 확정된 경우에만 join 이후 마이크를 활성화한다.
  */
 export function TownVoiceClient({
-  userId,
   nickname,
-  isSpeaker,
+  voiceRole,
   onConnectionChange,
   onAudioEnabledChange,
   onAudioControllerChange,
@@ -87,6 +87,7 @@ export function TownVoiceClient({
   const isAudioTogglingRef = useRef(false);
   const {
     notifyConnectionChange,
+    notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,
     notifyListeningControllerChange,
@@ -102,7 +103,7 @@ export function TownVoiceClient({
   });
 
   const hasNickname = nickname.trim().length > 0;
-  const canUseMic = hasNickname && isSpeaker;
+  const voicePermissions = resolveVoicePermissions(voiceRole, hasNickname);
 
   useEffect(() => {
     let isMounted = true;
@@ -117,6 +118,7 @@ export function TownVoiceClient({
       try {
         setStatus("requesting-token");
         setErrorMessage(null);
+        notifyRoleChange(null);
         notifyAudioEnabledChange(false);
         notifyAudioTogglingChange(false);
         notifyAudioControllerChange(false, null);
@@ -126,18 +128,16 @@ export function TownVoiceClient({
         setIsListeningEnabled(DEFAULT_LISTENING_ENABLED);
         notifyListeningEnabledChange(DEFAULT_LISTENING_ENABLED);
 
-        const tokenResponse = await requestVoiceToken({
-          userId,
-          nickname,
-          isSpeaker,
-        });
+        const tokenResponse = await requestVoiceToken();
+        const nextPermissions = resolveVoicePermissions(tokenResponse.role, hasNickname);
 
         if (!isMounted) return;
 
+        notifyRoleChange(tokenResponse.role);
         setStatus("initializing");
 
         const mediaHandler = await initRTKMedia({
-          audio: canUseMic,
+          audio: nextPermissions.canUseMic,
           video: false,
         });
 
@@ -174,7 +174,8 @@ export function TownVoiceClient({
           if (isAudioTogglingRef.current) return;
 
           const activeMeeting = meetingRef.current;
-          if (!activeMeeting || !canUseMic || !activeMeeting.self.roomJoined) return;
+          if (!activeMeeting || !nextPermissions.canUseMic || !activeMeeting.self.roomJoined)
+            return;
 
           isAudioTogglingRef.current = true;
           notifyAudioTogglingChange(true);
@@ -201,7 +202,7 @@ export function TownVoiceClient({
           notifyListeningEnabledChange(next);
         };
 
-        if (!isSpeaker) {
+        if (nextPermissions.canListen) {
           notifyListeningControllerChange(true, toggleLocalListening);
         }
 
@@ -212,7 +213,7 @@ export function TownVoiceClient({
         const keepAudioDisabled = ({ audioEnabled }: { audioEnabled: boolean }) => {
           notifyAudioEnabledChange(audioEnabled);
 
-          if (!canUseMic && audioEnabled) {
+          if (!nextPermissions.canUseMic && audioEnabled) {
             void initializedMeeting.self.disableAudio();
           }
         };
@@ -230,12 +231,15 @@ export function TownVoiceClient({
 
         if (!isMounted) return;
 
-        if (!canUseMic && initializedMeeting.self.audioEnabled) {
+        if (!nextPermissions.canUseMic && initializedMeeting.self.audioEnabled) {
           await initializedMeeting.self.disableAudio();
         }
 
-        notifyAudioControllerChange(canUseMic, canUseMic ? toggleLocalAudio : null);
-        if (canUseMic) {
+        notifyAudioControllerChange(
+          nextPermissions.canUseMic,
+          nextPermissions.canUseMic ? toggleLocalAudio : null,
+        );
+        if (nextPermissions.canUseMic) {
           notifyListeningControllerChange(false, null);
           try {
             await initializedMeeting.self.enableAudio();
@@ -260,6 +264,7 @@ export function TownVoiceClient({
         if (!isMounted) return;
 
         setStatus("error");
+        notifyRoleChange(null);
         notifyConnectionChange(false);
         notifyAudioEnabledChange(false);
         notifyAudioTogglingChange(false);
@@ -286,6 +291,7 @@ export function TownVoiceClient({
 
       meetingRef.current = null;
       notifyConnectionChange(false);
+      notifyRoleChange(null);
       notifyAudioEnabledChange(false);
       notifyAudioTogglingChange(false);
       notifyAudioControllerChange(false, null);
@@ -295,11 +301,10 @@ export function TownVoiceClient({
     };
   }, [
     initMeeting,
-    isSpeaker,
+    hasNickname,
     nickname,
-    userId,
-    canUseMic,
     notifyConnectionChange,
+    notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,
     notifyListeningControllerChange,
@@ -312,7 +317,10 @@ export function TownVoiceClient({
       {errorMessage ? <p className="text-red-600">{errorMessage}</p> : null}
       {status === "connected" ? (
         <RealtimeKitProvider value={client}>
-          <VoicePanel isSpeaker={isSpeaker} isListeningEnabled={isListeningEnabled} />
+          <VoicePanel
+            isSpeaker={voicePermissions.isSpeaker}
+            isListeningEnabled={isListeningEnabled}
+          />
         </RealtimeKitProvider>
       ) : null}
     </>

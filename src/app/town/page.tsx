@@ -6,6 +6,7 @@ import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
 import { SingleTownTabBlockedNotice, useSingleTownTabEntry } from "@/features/singleTownTab";
+import type { VoiceRole } from "@/features/voiceChat";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
@@ -13,7 +14,7 @@ import { TownToolbar } from "@/widgets/townToolbar";
 import { TownVoiceSection } from "@/widgets/townVoiceSection";
 import { UsersPanel } from "@/widgets/usersPanel";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -66,7 +67,7 @@ function ActiveTownPage() {
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
   const characterId = resolveCharacterId(user?.user_metadata?.characterId);
-  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
+  const [voiceRole, setVoiceRole] = useState<VoiceRole | null>(null);
   const { setUserProfile } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -123,9 +124,13 @@ function ActiveTownPage() {
       </div>
 
       {user?.id && userNickname ? (
-        <TownVoiceSection userId={user.id} userNickname={userNickname} isSpeaker={isSpeaker} />
+        <TownVoiceSection
+          userNickname={userNickname}
+          voiceRole={voiceRole}
+          onRoleChange={setVoiceRole}
+        />
       ) : null}
-      <TownToolbar isSpeaker={isSpeaker} />
+      <TownToolbar isSpeaker={voiceRole === "speaker"} />
     </div>
   );
 }

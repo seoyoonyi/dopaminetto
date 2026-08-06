@@ -22,16 +22,15 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
+import { ensureAnonymousSession } from "../api/ensureAnonymousSession";
+
 interface EnterTownParams {
   nickname: string;
   characterId: CharacterId;
 }
 
 const handleEnterTown = async ({ nickname, characterId }: EnterTownParams) => {
-  const { error: signInError } = await supabase.auth.signInAnonymously();
-  if (signInError) {
-    throw new Error(`익명 로그인에 실패했습니다: ${signInError.message}`);
-  }
+  await ensureAnonymousSession();
 
   const { error: updateUserError } = await supabase.auth.updateUser({
     data: { nickname, characterId },

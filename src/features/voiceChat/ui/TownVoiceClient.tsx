@@ -69,6 +69,7 @@ export function TownVoiceClient({
   nickname,
   voiceRole,
   onConnectionChange,
+  onRoleChange,
   onAudioEnabledChange,
   onAudioControllerChange,
   onListeningControllerChange,
@@ -95,6 +96,7 @@ export function TownVoiceClient({
     notifyAudioTogglingChange,
   } = useTownVoiceCallbacks({
     onConnectionChange,
+    onRoleChange,
     onAudioEnabledChange,
     onAudioControllerChange,
     onListeningControllerChange,

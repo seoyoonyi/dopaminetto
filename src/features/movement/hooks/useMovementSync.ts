@@ -98,6 +98,11 @@ export function useMovementSync(enabled = true) {
       });
     };
 
+    const clearAllPendingRemovals = () => {
+      syncState.pendingRemovalTimeouts.forEach((timeout) => clearTimeout(timeout));
+      syncState.pendingRemovalTimeouts.clear();
+    };
+
     const upsertVisibleRemotePlayer = (player: PresenceMetadata | SyncPositionPayload) => {
       if (!player.userId || player.userId === playerId) return;
 
@@ -116,8 +121,15 @@ export function useMovementSync(enabled = true) {
       });
     };
 
-    const isRemotePlayerStillPresent = (remoteUserId: string) =>
-      Array.from(syncState.channelBindings.keys()).some((channelName) => {
+    const isRemotePlayerStillPresent = (remoteUserId: string) => {
+      const channelNames = Array.from(syncState.channelBindings.keys());
+      const isChannelReconnecting = channelNames.some(
+        (channelName) => getTownChannelStatus(channelName) !== "SUBSCRIBED",
+      );
+
+      if (isChannelReconnecting) return true;
+
+      return channelNames.some((channelName) => {
         const channel = getTownChannel(channelName);
         if (!channel) return false;
 
@@ -125,6 +137,7 @@ export function useMovementSync(enabled = true) {
           .flat()
           .some((presence) => presence.userId === remoteUserId);
       });
+    };
 
     const scheduleRemotePlayerRemoval = (remoteUserId: string) => {
       if (!remoteUserId || remoteUserId === playerId) return;
@@ -168,7 +181,7 @@ export function useMovementSync(enabled = true) {
         });
     };
 
-    const syncChannelSnapshot = (channelName: string) => {
+    const syncChannelSnapshot = (channelName: string, removeMissing = true) => {
       const channel = getTownChannel(channelName);
       if (!channel) return;
 
@@ -187,11 +200,13 @@ export function useMovementSync(enabled = true) {
 
       const prevPresenceUserIds =
         syncState.channelBindings.get(channelName)?.presenceUserIds ?? new Set<string>();
-      prevPresenceUserIds.forEach((remoteUserId) => {
-        if (!nextPresenceUserIds.has(remoteUserId)) {
-          scheduleRemotePlayerRemovalCheck(remoteUserId);
-        }
-      });
+      if (removeMissing) {
+        prevPresenceUserIds.forEach((remoteUserId) => {
+          if (!nextPresenceUserIds.has(remoteUserId)) {
+            scheduleRemotePlayerRemovalCheck(remoteUserId);
+          }
+        });
+      }
 
       const binding = syncState.channelBindings.get(channelName);
       if (binding) {
@@ -284,9 +299,12 @@ export function useMovementSync(enabled = true) {
       const releaseChannel = acquireTownChannel({ supabase, channelName, userId: channelUserId });
 
       const unsubscribeStatus = observeTownChannelStatus(channelName, (nextStatus) => {
-        if (nextStatus !== "SUBSCRIBED") return;
+        if (nextStatus !== "SUBSCRIBED") {
+          clearAllPendingRemovals();
+          return;
+        }
 
-        syncState.handlers.syncChannelSnapshot(channelName);
+        syncState.handlers.syncChannelSnapshot(channelName, false);
 
         if (useMovementStore.getState().villageId === targetVillageId) {
           void syncState.handlers.trackCurrentPresence();

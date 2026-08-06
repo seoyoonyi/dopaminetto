@@ -2,11 +2,12 @@
 
 import { ChatMessageSkeletonList } from "@/features/chat/ui/ChatMessageSkeletonList";
 import { useIntersectionObserver, useVisiblePageTracking } from "@/shared/hooks";
-import { hasMultipleDates, isSameDay } from "@/shared/lib";
+import { isSameDay } from "@/shared/lib";
 import { InfiniteData } from "@tanstack/react-query";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { hasMultipleDates } from "../lib/messageUtils";
 import { Message, MessagesPage } from "../types";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { DateDivider } from "./DateDivider";

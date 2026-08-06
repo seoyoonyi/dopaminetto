@@ -110,6 +110,35 @@ export function TownVoiceClient({
     let activeMeetingCleanup: (() => void) | undefined;
 
     /**
+     * 새로고침/탭 종료/앱 강제 종료 시 React effect cleanup(leaveRoom)이 실행되지 않을 수 있어,
+     * pagehide에서 best-effort로 한 번 더 시도한다. 같은 userId로 즉시 재입장하면
+     * 서버에 이전 세션이 잠시 남아있어 새 세션의 트랙 구독이 꼬일 수 있기 때문이다.
+     */
+    const handlePageHide = () => {
+      const activeMeeting = meetingRef.current;
+      if (joinedRoom && activeMeeting?.self.roomJoined) {
+        void activeMeeting.leaveRoom("left");
+      }
+    };
+    window.addEventListener("pagehide", handlePageHide);
+
+    /**
+     * bfcache 복원(pageshow, persisted) 시 서버 세션은 이미 pagehide에서 끊겼지만
+     * 로컬 상태는 그대로 남아있으므로 connect()를 다시 실행해 재연결한다.
+     */
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || !isMounted) return;
+
+      joinedRoom = false;
+      activeMeetingCleanup?.();
+      activeMeetingCleanup = undefined;
+      meetingRef.current = null;
+
+      void connect();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+
+    /**
      * 토큰 발급, RealtimeKit 초기화, room join, speaker 마이크 활성화까지
      * 하나의 순서로 처리한다.
      */
@@ -275,6 +304,8 @@ export function TownVoiceClient({
     void connect();
 
     return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
       isMounted = false;
       isAudioTogglingRef.current = false;
       const activeMeeting = meetingRef.current;

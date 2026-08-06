@@ -43,6 +43,8 @@ import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import * as Phaser from "phaser";
 
+const BACKGROUND_RESUME_DELTA_MS = 250;
+
 const CAPTURED_KEYS = "W,A,S,D,H,X,ZERO,UP,DOWN,LEFT,RIGHT,SPACE";
 const MAP_BACKGROUND_KEY = "town-map-background";
 const MAP_FRONT_KEY = "town-map-front";
@@ -66,7 +68,8 @@ export class TownScene extends Phaser.Scene {
   private unsubscribeStore?: () => void;
   private remotePlayerSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private remotePlayerNames: Map<string, Phaser.GameObjects.Text> = new Map();
-  private remotePlayerTargets: Map<string, { x: number; y: number }> = new Map();
+  private remotePlayerTargets: Map<string, { x: number; y: number; villageId: string }> = new Map();
+  private remotePlayerRenderedVillages: Map<string, string> = new Map();
   private remotePlayerActionSequences: Map<string, number> = new Map();
   private activeRemoteActions: Map<string, LocalActionId> = new Map();
   private playerNameLabel!: Phaser.GameObjects.Text;
@@ -327,6 +330,7 @@ export class TownScene extends Phaser.Scene {
       this.remotePlayerSprites.clear();
       this.remotePlayerNames.clear();
       this.remotePlayerTargets.clear();
+      this.remotePlayerRenderedVillages.clear();
       this.campfireAmbientController?.destroy();
     });
   };
@@ -349,6 +353,7 @@ export class TownScene extends Phaser.Scene {
         this.remotePlayerSprites.delete(userId);
         this.remotePlayerNames.delete(userId);
         this.remotePlayerTargets.delete(userId);
+        this.remotePlayerRenderedVillages.delete(userId);
         this.remotePlayerActionSequences.delete(userId);
         this.activeRemoteActions.delete(userId);
       }
@@ -404,7 +409,11 @@ export class TownScene extends Phaser.Scene {
 
       // 목표 위치 업데이트 (LERP용)
       if (data.position) {
-        this.remotePlayerTargets.set(userId, { x: data.position.x, y: data.position.y });
+        this.remotePlayerTargets.set(userId, {
+          x: data.position.x,
+          y: data.position.y,
+          villageId: data.villageId,
+        });
       }
 
       this.applyRemoteActionState(userId, sprite, data);
@@ -415,7 +424,7 @@ export class TownScene extends Phaser.Scene {
    * 매 프레임 호출되는 게임 루프
    * 타 플레이어 위치 보간(LERP), 애니메이션 처리 및 로컬 플레이어 입력 처리
    */
-  update = () => {
+  update = (_time: number, delta: number) => {
     const store = useMovementStore.getState();
 
     /**
@@ -428,10 +437,20 @@ export class TownScene extends Phaser.Scene {
         // 이동 거리 계산을 위해 이전 위치 저장
         const prevX = sprite.x;
         const prevY = sprite.y;
+        const previousVillageId = this.remotePlayerRenderedVillages.get(userId);
+        const shouldSnap =
+          (previousVillageId !== undefined && previousVillageId !== target.villageId) ||
+          delta > BACKGROUND_RESUME_DELTA_MS;
 
-        // 0.2는 보간 속도 (수치가 높을수록 빠름, 100ms 동기화 주기에 적합)
-        sprite.x = Phaser.Math.Linear(sprite.x, target.x, 0.2);
-        sprite.y = Phaser.Math.Linear(sprite.y, target.y, 0.2);
+        if (shouldSnap) {
+          sprite.setPosition(target.x, target.y);
+        } else {
+          const smoothingSpeed = 12;
+          const alpha = 1 - Math.exp((-smoothingSpeed * delta) / 1000);
+          sprite.x = Phaser.Math.Linear(sprite.x, target.x, alpha);
+          sprite.y = Phaser.Math.Linear(sprite.y, target.y, alpha);
+        }
+        this.remotePlayerRenderedVillages.set(userId, target.villageId);
 
         // 리모트 플레이어 애니메이션 처리
         const diffX = sprite.x - prevX;

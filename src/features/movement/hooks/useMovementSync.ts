@@ -35,18 +35,20 @@ import { useEffect, useRef } from "react";
 import {
   LEGACY_PLAYER_MOVE_EVENT,
   PLAYER_MOVE_EVENT,
-  PRESENCE_LEAVE_REMOVAL_DELAY_MS,
+  REMOTE_PLAYER_REMOVAL_GRACE_MS,
   createMovementSyncState,
   getVillageSetKey,
 } from "../lib/movementSyncState";
+import {
+  cancelRemotePlayerRemoval,
+  scheduleRemotePlayerRemoval as scheduleRemotePlayerRemovalWithGrace,
+} from "../lib/remotePlayerRemoval";
 
 /**
  * 현재 village + 인접 village 범위를 기준으로 Realtime/Phaser visibility를 동기화한다.
  */
 export function useMovementSync(enabled = true) {
   const supabase = useSupabase();
-  // Presence leave 반영이 지연될 수 있어 remote player 제거 전 짧게 여러 번 재확인한다.
-  const MAX_REMOTE_PLAYER_REMOVAL_RETRIES = 8;
 
   const {
     villageId,
@@ -90,11 +92,10 @@ export function useMovementSync(enabled = true) {
     const syncState = syncStateRef.current;
 
     const clearPendingRemoval = (remoteUserId: string) => {
-      const timeout = syncState.pendingRemovalTimeouts.get(remoteUserId);
-      if (!timeout) return;
-
-      clearTimeout(timeout);
-      syncState.pendingRemovalTimeouts.delete(remoteUserId);
+      cancelRemotePlayerRemoval({
+        pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
+        remoteUserId,
+      });
     };
 
     const upsertVisibleRemotePlayer = (player: PresenceMetadata | SyncPositionPayload) => {
@@ -125,32 +126,22 @@ export function useMovementSync(enabled = true) {
           .some((presence) => presence.userId === remoteUserId);
       });
 
-    const scheduleRemotePlayerRemovalCheckWithRetry = (
-      remoteUserId: string,
-      retryCount: number,
-    ) => {
+    const scheduleRemotePlayerRemoval = (remoteUserId: string) => {
       if (!remoteUserId || remoteUserId === playerId) return;
 
-      clearPendingRemoval(remoteUserId);
-
-      const timeout = setTimeout(() => {
-        syncState.pendingRemovalTimeouts.delete(remoteUserId);
-
-        if (!isRemotePlayerStillPresent(remoteUserId)) {
+      scheduleRemotePlayerRemovalWithGrace({
+        pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
+        remoteUserId,
+        graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
+        isPresent: () => isRemotePlayerStillPresent(remoteUserId),
+        onConfirmed: () => {
           removeRemotePlayer(remoteUserId);
-          return;
-        }
-
-        if (retryCount >= MAX_REMOTE_PLAYER_REMOVAL_RETRIES) return;
-
-        scheduleRemotePlayerRemovalCheckWithRetry(remoteUserId, retryCount + 1);
-      }, PRESENCE_LEAVE_REMOVAL_DELAY_MS);
-
-      syncState.pendingRemovalTimeouts.set(remoteUserId, timeout);
+        },
+      });
     };
 
     const scheduleRemotePlayerRemovalCheck = (remoteUserId: string) => {
-      scheduleRemotePlayerRemovalCheckWithRetry(remoteUserId, 0);
+      scheduleRemotePlayerRemoval(remoteUserId);
     };
 
     const broadcastSyncLeave = (targetVillageId: VillageId) => {

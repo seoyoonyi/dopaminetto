@@ -515,17 +515,7 @@ export function useMovementSync(enabled = true) {
 
     syncState.trackedVillageId = debouncedTrackedVillageId;
     void syncState.handlers.trackCurrentPresence();
-  }, [
-    channelUserId,
-    characterId,
-    debouncedTrackedVillageId,
-    enabled,
-    lastSyncedPosition,
-    localActionState,
-    nickname,
-    playerId,
-    supabase,
-  ]);
+  }, [channelUserId, debouncedTrackedVillageId, enabled, playerId, supabase]);
 
   useEffect(() => {
     if (!enabled) return;

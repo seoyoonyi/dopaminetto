@@ -12,11 +12,15 @@ import { ChatPanel } from "@/widgets/chatPanel";
 import { TownToolbar } from "@/widgets/townToolbar";
 import { TownVoiceSection } from "@/widgets/townVoiceSection";
 import { UsersPanel } from "@/widgets/usersPanel";
+import { Wifi, WifiOff } from "lucide-react";
+import { toast } from "sonner";
 
 import { useEffect } from "react";
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+
+const NETWORK_TOAST_ID = "town-network-status";
 
 const TownEngine = dynamic(
   () => import("@/features/movement/ui/TownEngine").then((mod) => mod.TownEngine),
@@ -78,6 +82,29 @@ function ActiveTownPage() {
       resetMovement();
     };
   }, [resetMovement]);
+
+  useEffect(() => {
+    const handleOffline = () => {
+      toast.error("인터넷 연결이 끊겼습니다. 재연결을 시도합니다.", {
+        id: NETWORK_TOAST_ID,
+        icon: <WifiOff aria-hidden="true" className="size-4 text-red-500" />,
+      });
+    };
+    const handleOnline = () => {
+      toast.info("인터넷 연결이 복구되었습니다. 타운 연결을 확인하는 중입니다.", {
+        id: NETWORK_TOAST_ID,
+        icon: <Wifi aria-hidden="true" className="size-4 text-green-500" />,
+      });
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
 
   /** 인증 사용자 닉네임을 클라이언트 store에 동기화한다. */
   useEffect(() => {

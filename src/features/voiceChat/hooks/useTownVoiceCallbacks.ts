@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 
+import type { VoiceRole } from "../model/types";
+
 /** TownVoiceClient가 외부 UI 상태와 제어 함수를 동기화하기 위해 호출하는 콜백 모음 */
 export interface TownVoiceCallbacks {
+  /** 서버에서 확정된 음성 역할이 변경될 때 호출된다. */
+  onRoleChange?: (role: VoiceRole | null) => void;
   /**
    * 음성 연결 상태가 변경될 때 호출된다.
    * connected가 true이면 연결 완료, false이면 연결 실패 또는 언마운트를 의미한다.
@@ -34,6 +38,7 @@ export interface TownVoiceCallbacks {
  */
 export function useTownVoiceCallbacks({
   onConnectionChange,
+  onRoleChange,
   onAudioEnabledChange,
   onAudioControllerChange,
   onListeningControllerChange,
@@ -46,6 +51,7 @@ export function useTownVoiceCallbacks({
    */
   const callbacksRef = useRef({
     onConnectionChange,
+    onRoleChange,
     onAudioEnabledChange,
     onAudioControllerChange,
     onListeningControllerChange,
@@ -57,6 +63,7 @@ export function useTownVoiceCallbacks({
   useEffect(() => {
     callbacksRef.current = {
       onConnectionChange,
+      onRoleChange,
       onAudioEnabledChange,
       onAudioControllerChange,
       onListeningControllerChange,
@@ -67,6 +74,10 @@ export function useTownVoiceCallbacks({
 
   const notifyConnectionChange = useCallback((connected: boolean) => {
     callbacksRef.current.onConnectionChange?.(connected);
+  }, []);
+
+  const notifyRoleChange = useCallback((role: VoiceRole | null) => {
+    callbacksRef.current.onRoleChange?.(role);
   }, []);
 
   const notifyAudioEnabledChange = useCallback((enabled: boolean) => {
@@ -97,6 +108,7 @@ export function useTownVoiceCallbacks({
 
   return {
     notifyConnectionChange,
+    notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,
     notifyListeningControllerChange,

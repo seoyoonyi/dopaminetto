@@ -2,14 +2,15 @@
 
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { TownVoiceClient } from "@/features/voiceChat";
+import type { VoiceRole } from "@/features/voiceChat";
 
 interface TownVoiceSectionProps {
-  userId: string;
   userNickname: string;
-  isSpeaker: boolean;
+  voiceRole: VoiceRole | null;
+  onRoleChange: (role: VoiceRole | null) => void;
 }
 
-export function TownVoiceSection({ userId, userNickname, isSpeaker }: TownVoiceSectionProps) {
+export function TownVoiceSection({ userNickname, voiceRole, onRoleChange }: TownVoiceSectionProps) {
   const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
   const setAudioEnabled = useTownPresenceStore((state) => state.setAudioEnabled);
   const setAudioController = useTownPresenceStore((state) => state.setAudioController);
@@ -19,9 +20,9 @@ export function TownVoiceSection({ userId, userNickname, isSpeaker }: TownVoiceS
 
   return (
     <TownVoiceClient
-      userId={userId}
       nickname={userNickname}
-      isSpeaker={isSpeaker}
+      voiceRole={voiceRole}
+      onRoleChange={onRoleChange}
       onConnectionChange={setVoiceConnected}
       onAudioEnabledChange={setAudioEnabled}
       onAudioControllerChange={setAudioController}

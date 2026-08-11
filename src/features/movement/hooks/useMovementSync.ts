@@ -140,26 +140,12 @@ export function useMovementSync(enabled = true) {
       if (!remoteUserId || remoteUserId === playerId) return;
       if (syncState.pendingRemovalTimeouts.has(remoteUserId)) return;
 
-      const removalScheduledAt = performance.now();
-      if (process.env.NODE_ENV === "development") {
-        console.info("[useMovementSync] remote player removal scheduled", {
-          graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
-          remoteUserId,
-        });
-      }
-
       scheduleRemotePlayerRemovalWithGrace({
         pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
         remoteUserId,
         graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
         isPresent: () => isRemotePlayerStillPresent(remoteUserId),
         onConfirmed: () => {
-          if (process.env.NODE_ENV === "development") {
-            console.info("[useMovementSync] remote player removal confirmed", {
-              elapsedMs: Math.round(performance.now() - removalScheduledAt),
-              remoteUserId,
-            });
-          }
           removeRemotePlayer(remoteUserId);
         },
       });

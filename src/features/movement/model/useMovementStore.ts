@@ -46,7 +46,7 @@ interface MovementStore extends MovementState {
 export const useMovementStore = create<MovementStore>()(
   subscribeWithSelector((set, get) => {
     let lastFlushTime = 0;
-    // 전체 village 가시성(다른 마을 사람도 보임) 기준으로, 동시 접속 50명 규모에서도
+    // 250ms에서는 이동이 끊겨 보여 100ms를 유지한다. Presence track()은 별도로 제어한다.
     const FLUSH_INTERVAL = 100;
     let isSyncing = false;
     let flushTimeout: ReturnType<typeof setTimeout> | null = null;

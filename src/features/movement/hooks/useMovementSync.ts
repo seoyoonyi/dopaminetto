@@ -8,11 +8,7 @@ import {
   createPresenceTrackSignature,
   createSyncPositionPayload,
 } from "@/features/movement/model/payload";
-import {
-  PresenceMetadata,
-  SyncLeavePayload,
-  SyncPositionPayload,
-} from "@/features/movement/model/types";
+import { PresenceMetadata, SyncPositionPayload } from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
@@ -38,6 +34,7 @@ import {
   REMOTE_PLAYER_REMOVAL_GRACE_MS,
   createMovementSyncState,
   getVillageSetKey,
+  shouldInitializeRemotePlayerFromPresence,
 } from "../lib/movementSyncState";
 import {
   cancelRemotePlayerRemoval,
@@ -141,6 +138,15 @@ export function useMovementSync(enabled = true) {
 
     const scheduleRemotePlayerRemoval = (remoteUserId: string) => {
       if (!remoteUserId || remoteUserId === playerId) return;
+      if (syncState.pendingRemovalTimeouts.has(remoteUserId)) return;
+
+      const removalScheduledAt = performance.now();
+      if (process.env.NODE_ENV === "development") {
+        console.info("[useMovementSync] remote player removal scheduled", {
+          graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
+          remoteUserId,
+        });
+      }
 
       scheduleRemotePlayerRemovalWithGrace({
         pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
@@ -148,6 +154,12 @@ export function useMovementSync(enabled = true) {
         graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
         isPresent: () => isRemotePlayerStillPresent(remoteUserId),
         onConfirmed: () => {
+          if (process.env.NODE_ENV === "development") {
+            console.info("[useMovementSync] remote player removal confirmed", {
+              elapsedMs: Math.round(performance.now() - removalScheduledAt),
+              remoteUserId,
+            });
+          }
           removeRemotePlayer(remoteUserId);
         },
       });
@@ -172,7 +184,7 @@ export function useMovementSync(enabled = true) {
           event: "sync-leave",
           payload: {
             userId: playerId,
-          } satisfies SyncLeavePayload,
+          },
         })
         .then((res) => {
           if (res === "error") {
@@ -187,12 +199,24 @@ export function useMovementSync(enabled = true) {
 
       const presenceState = channel.presenceState<PresenceMetadata>();
       const nextPresenceUserIds = new Set<string>();
+      const knownRemotePlayerIds = new Set(Object.keys(useMovementStore.getState().remotePlayers));
 
       Object.values(presenceState)
         .flat()
         .forEach((presence) => {
-          if (presence.userId) {
-            nextPresenceUserIds.add(presence.userId);
+          if (!presence.userId) return;
+
+          nextPresenceUserIds.add(presence.userId);
+          clearPendingRemoval(presence.userId);
+
+          if (
+            !shouldInitializeRemotePlayerFromPresence({
+              currentUserId: playerId,
+              knownRemotePlayerIds,
+              presenceUserId: presence.userId,
+            })
+          ) {
+            return;
           }
 
           upsertVisibleRemotePlayer(presence);
@@ -345,7 +369,7 @@ export function useMovementSync(enabled = true) {
 
         if (event !== "sync-leave" || !payload) return;
 
-        const leavePayload = payload as SyncLeavePayload;
+        const leavePayload = payload as { userId?: string };
         if (leavePayload.userId) {
           syncState.handlers.scheduleRemotePlayerRemovalCheck(leavePayload.userId);
         }

@@ -238,7 +238,7 @@ export function useMovementSync(enabled = true) {
       }
     };
 
-    const trackCurrentPresence = async (retryCount = 0) => {
+    const trackCurrentPresence = async (retryCount = 0, force = false) => {
       if (!supabase || !channelUserId || !playerId) return;
 
       const state = useMovementStore.getState();
@@ -261,7 +261,7 @@ export function useMovementSync(enabled = true) {
       });
 
       const payloadSignature = createPresenceTrackSignature(payload);
-      if (retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
+      if (!force && retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
         return;
       }
 
@@ -345,9 +345,18 @@ export function useMovementSync(enabled = true) {
           const newPresences = (payload as { newPresences?: PresenceMetadata[] } | undefined)
             ?.newPresences;
 
+          const hasRemoteJoin = newPresences?.some((presence) =>
+            Boolean(presence.userId && presence.userId !== playerId),
+          );
           newPresences?.forEach((presence) => {
             syncState.handlers.upsertVisibleRemotePlayer(presence);
           });
+
+          // 신규 사용자에게 기존 사용자의 최신 좌표를 전달하기 위해 Presence를 한 번 갱신한다.
+          // 이동 중 좌표 동기화는 player_move Broadcast가 담당하므로 이동마다 track하지 않는다.
+          if (hasRemoteJoin && syncState.trackedVillageId === targetVillageId) {
+            void syncState.handlers.trackCurrentPresence(0, true);
+          }
           return;
         }
 
@@ -370,9 +379,11 @@ export function useMovementSync(enabled = true) {
         if (event !== "sync-leave" || !payload) return;
 
         const leavePayload = payload as { userId?: string };
-        if (leavePayload.userId) {
-          syncState.handlers.scheduleRemotePlayerRemovalCheck(leavePayload.userId);
-        }
+        const remoteUserId = leavePayload.userId;
+        if (!remoteUserId || remoteUserId === playerId) return;
+
+        // 정상 퇴장 신호는 즉시 반영하고, 신호가 없으면 Presence 이탈이 fallback을 처리한다.
+        removeRemotePlayer(remoteUserId);
       });
 
       syncState.channelBindings.set(channelName, {

@@ -8,11 +8,7 @@ import {
   createPresenceTrackSignature,
   createSyncPositionPayload,
 } from "@/features/movement/model/payload";
-import {
-  PresenceMetadata,
-  SyncLeavePayload,
-  SyncPositionPayload,
-} from "@/features/movement/model/types";
+import { PresenceMetadata, SyncPositionPayload } from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
@@ -35,18 +31,21 @@ import { useEffect, useRef } from "react";
 import {
   LEGACY_PLAYER_MOVE_EVENT,
   PLAYER_MOVE_EVENT,
-  PRESENCE_LEAVE_REMOVAL_DELAY_MS,
+  REMOTE_PLAYER_REMOVAL_GRACE_MS,
   createMovementSyncState,
   getVillageSetKey,
+  shouldInitializeRemotePlayerFromPresence,
 } from "../lib/movementSyncState";
+import {
+  cancelRemotePlayerRemoval,
+  scheduleRemotePlayerRemoval as scheduleRemotePlayerRemovalWithGrace,
+} from "../lib/remotePlayerRemoval";
 
 /**
  * 현재 village + 인접 village 범위를 기준으로 Realtime/Phaser visibility를 동기화한다.
  */
 export function useMovementSync(enabled = true) {
   const supabase = useSupabase();
-  // Presence leave 반영이 지연될 수 있어 remote player 제거 전 짧게 여러 번 재확인한다.
-  const MAX_REMOTE_PLAYER_REMOVAL_RETRIES = 8;
 
   const {
     villageId,
@@ -90,11 +89,15 @@ export function useMovementSync(enabled = true) {
     const syncState = syncStateRef.current;
 
     const clearPendingRemoval = (remoteUserId: string) => {
-      const timeout = syncState.pendingRemovalTimeouts.get(remoteUserId);
-      if (!timeout) return;
+      cancelRemotePlayerRemoval({
+        pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
+        remoteUserId,
+      });
+    };
 
-      clearTimeout(timeout);
-      syncState.pendingRemovalTimeouts.delete(remoteUserId);
+    const clearAllPendingRemovals = () => {
+      syncState.pendingRemovalTimeouts.forEach((timeout) => clearTimeout(timeout));
+      syncState.pendingRemovalTimeouts.clear();
     };
 
     const upsertVisibleRemotePlayer = (player: PresenceMetadata | SyncPositionPayload) => {
@@ -115,8 +118,15 @@ export function useMovementSync(enabled = true) {
       });
     };
 
-    const isRemotePlayerStillPresent = (remoteUserId: string) =>
-      Array.from(syncState.channelBindings.keys()).some((channelName) => {
+    const isRemotePlayerStillPresent = (remoteUserId: string) => {
+      const channelNames = Array.from(syncState.channelBindings.keys());
+      const isChannelReconnecting = channelNames.some(
+        (channelName) => getTownChannelStatus(channelName) !== "SUBSCRIBED",
+      );
+
+      if (isChannelReconnecting) return true;
+
+      return channelNames.some((channelName) => {
         const channel = getTownChannel(channelName);
         if (!channel) return false;
 
@@ -124,33 +134,25 @@ export function useMovementSync(enabled = true) {
           .flat()
           .some((presence) => presence.userId === remoteUserId);
       });
+    };
 
-    const scheduleRemotePlayerRemovalCheckWithRetry = (
-      remoteUserId: string,
-      retryCount: number,
-    ) => {
+    const scheduleRemotePlayerRemoval = (remoteUserId: string) => {
       if (!remoteUserId || remoteUserId === playerId) return;
+      if (syncState.pendingRemovalTimeouts.has(remoteUserId)) return;
 
-      clearPendingRemoval(remoteUserId);
-
-      const timeout = setTimeout(() => {
-        syncState.pendingRemovalTimeouts.delete(remoteUserId);
-
-        if (!isRemotePlayerStillPresent(remoteUserId)) {
+      scheduleRemotePlayerRemovalWithGrace({
+        pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
+        remoteUserId,
+        graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
+        isPresent: () => isRemotePlayerStillPresent(remoteUserId),
+        onConfirmed: () => {
           removeRemotePlayer(remoteUserId);
-          return;
-        }
-
-        if (retryCount >= MAX_REMOTE_PLAYER_REMOVAL_RETRIES) return;
-
-        scheduleRemotePlayerRemovalCheckWithRetry(remoteUserId, retryCount + 1);
-      }, PRESENCE_LEAVE_REMOVAL_DELAY_MS);
-
-      syncState.pendingRemovalTimeouts.set(remoteUserId, timeout);
+        },
+      });
     };
 
     const scheduleRemotePlayerRemovalCheck = (remoteUserId: string) => {
-      scheduleRemotePlayerRemovalCheckWithRetry(remoteUserId, 0);
+      scheduleRemotePlayerRemoval(remoteUserId);
     };
 
     const broadcastSyncLeave = (targetVillageId: VillageId) => {
@@ -168,7 +170,7 @@ export function useMovementSync(enabled = true) {
           event: "sync-leave",
           payload: {
             userId: playerId,
-          } satisfies SyncLeavePayload,
+          },
         })
         .then((res) => {
           if (res === "error") {
@@ -177,18 +179,30 @@ export function useMovementSync(enabled = true) {
         });
     };
 
-    const syncChannelSnapshot = (channelName: string) => {
+    const syncChannelSnapshot = (channelName: string, removeMissing = true) => {
       const channel = getTownChannel(channelName);
       if (!channel) return;
 
       const presenceState = channel.presenceState<PresenceMetadata>();
       const nextPresenceUserIds = new Set<string>();
+      const knownRemotePlayerIds = new Set(Object.keys(useMovementStore.getState().remotePlayers));
 
       Object.values(presenceState)
         .flat()
         .forEach((presence) => {
-          if (presence.userId) {
-            nextPresenceUserIds.add(presence.userId);
+          if (!presence.userId) return;
+
+          nextPresenceUserIds.add(presence.userId);
+          clearPendingRemoval(presence.userId);
+
+          if (
+            !shouldInitializeRemotePlayerFromPresence({
+              currentUserId: playerId,
+              knownRemotePlayerIds,
+              presenceUserId: presence.userId,
+            })
+          ) {
+            return;
           }
 
           upsertVisibleRemotePlayer(presence);
@@ -196,11 +210,13 @@ export function useMovementSync(enabled = true) {
 
       const prevPresenceUserIds =
         syncState.channelBindings.get(channelName)?.presenceUserIds ?? new Set<string>();
-      prevPresenceUserIds.forEach((remoteUserId) => {
-        if (!nextPresenceUserIds.has(remoteUserId)) {
-          scheduleRemotePlayerRemovalCheck(remoteUserId);
-        }
-      });
+      if (removeMissing) {
+        prevPresenceUserIds.forEach((remoteUserId) => {
+          if (!nextPresenceUserIds.has(remoteUserId)) {
+            scheduleRemotePlayerRemovalCheck(remoteUserId);
+          }
+        });
+      }
 
       const binding = syncState.channelBindings.get(channelName);
       if (binding) {
@@ -208,7 +224,7 @@ export function useMovementSync(enabled = true) {
       }
     };
 
-    const trackCurrentPresence = async (retryCount = 0) => {
+    const trackCurrentPresence = async (retryCount = 0, force = false) => {
       if (!supabase || !channelUserId || !playerId) return;
 
       const state = useMovementStore.getState();
@@ -231,7 +247,7 @@ export function useMovementSync(enabled = true) {
       });
 
       const payloadSignature = createPresenceTrackSignature(payload);
-      if (retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
+      if (!force && retryCount === 0 && syncState.lastPresenceSignature === payloadSignature) {
         return;
       }
 
@@ -293,9 +309,12 @@ export function useMovementSync(enabled = true) {
       const releaseChannel = acquireTownChannel({ supabase, channelName, userId: channelUserId });
 
       const unsubscribeStatus = observeTownChannelStatus(channelName, (nextStatus) => {
-        if (nextStatus !== "SUBSCRIBED") return;
+        if (nextStatus !== "SUBSCRIBED") {
+          clearAllPendingRemovals();
+          return;
+        }
 
-        syncState.handlers.syncChannelSnapshot(channelName);
+        syncState.handlers.syncChannelSnapshot(channelName, false);
 
         if (useMovementStore.getState().villageId === targetVillageId) {
           void syncState.handlers.trackCurrentPresence();
@@ -312,9 +331,18 @@ export function useMovementSync(enabled = true) {
           const newPresences = (payload as { newPresences?: PresenceMetadata[] } | undefined)
             ?.newPresences;
 
+          const hasRemoteJoin = newPresences?.some((presence) =>
+            Boolean(presence.userId && presence.userId !== playerId),
+          );
           newPresences?.forEach((presence) => {
             syncState.handlers.upsertVisibleRemotePlayer(presence);
           });
+
+          // 신규 사용자에게 기존 사용자의 최신 좌표를 전달하기 위해 Presence를 한 번 갱신한다.
+          // 이동 중 좌표 동기화는 player_move Broadcast가 담당하므로 이동마다 track하지 않는다.
+          if (hasRemoteJoin && syncState.trackedVillageId === targetVillageId) {
+            void syncState.handlers.trackCurrentPresence(0, true);
+          }
           return;
         }
 
@@ -336,10 +364,12 @@ export function useMovementSync(enabled = true) {
 
         if (event !== "sync-leave" || !payload) return;
 
-        const leavePayload = payload as SyncLeavePayload;
-        if (leavePayload.userId) {
-          syncState.handlers.scheduleRemotePlayerRemovalCheck(leavePayload.userId);
-        }
+        const leavePayload = payload as { userId?: string };
+        const remoteUserId = leavePayload.userId;
+        if (!remoteUserId || remoteUserId === playerId) return;
+
+        // 정상 퇴장 신호는 즉시 반영하고, 신호가 없으면 Presence 이탈이 fallback을 처리한다.
+        removeRemotePlayer(remoteUserId);
       });
 
       syncState.channelBindings.set(channelName, {
@@ -506,17 +536,7 @@ export function useMovementSync(enabled = true) {
 
     syncState.trackedVillageId = debouncedTrackedVillageId;
     void syncState.handlers.trackCurrentPresence();
-  }, [
-    channelUserId,
-    characterId,
-    debouncedTrackedVillageId,
-    enabled,
-    lastSyncedPosition,
-    localActionState,
-    nickname,
-    playerId,
-    supabase,
-  ]);
+  }, [channelUserId, debouncedTrackedVillageId, enabled, playerId, supabase]);
 
   useEffect(() => {
     if (!enabled) return;

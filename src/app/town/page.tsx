@@ -6,17 +6,22 @@ import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPanelToggleStore } from "@/features/panelToggle";
 import { useTownPresence } from "@/features/presence";
 import { SingleTownTabBlockedNotice, useSingleTownTabEntry } from "@/features/singleTownTab";
+import type { VoiceRole } from "@/features/voiceChat";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
 import { TownToolbar } from "@/widgets/townToolbar";
 import { TownVoiceSection } from "@/widgets/townVoiceSection";
 import { UsersPanel } from "@/widgets/usersPanel";
+import { Wifi, WifiOff } from "lucide-react";
+import { toast } from "sonner";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+
+const NETWORK_TOAST_ID = "town-network-status";
 
 const TownEngine = dynamic(
   () => import("@/features/movement/ui/TownEngine").then((mod) => mod.TownEngine),
@@ -66,7 +71,7 @@ function ActiveTownPage() {
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
   const characterId = resolveCharacterId(user?.user_metadata?.characterId);
-  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
+  const [voiceRole, setVoiceRole] = useState<VoiceRole | null>(null);
   const { setUserProfile } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
@@ -78,6 +83,29 @@ function ActiveTownPage() {
       resetMovement();
     };
   }, [resetMovement]);
+
+  useEffect(() => {
+    const handleOffline = () => {
+      toast.error("인터넷 연결이 끊겼습니다. 재연결을 시도합니다.", {
+        id: NETWORK_TOAST_ID,
+        icon: <WifiOff aria-hidden="true" className="size-4 text-red-500" />,
+      });
+    };
+    const handleOnline = () => {
+      toast.info("인터넷 연결이 복구되었습니다. 타운 연결을 확인하는 중입니다.", {
+        id: NETWORK_TOAST_ID,
+        icon: <Wifi aria-hidden="true" className="size-4 text-green-500" />,
+      });
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
 
   /** 인증 사용자 닉네임을 클라이언트 store에 동기화한다. */
   useEffect(() => {
@@ -123,9 +151,13 @@ function ActiveTownPage() {
       </div>
 
       {user?.id && userNickname ? (
-        <TownVoiceSection userId={user.id} userNickname={userNickname} isSpeaker={isSpeaker} />
+        <TownVoiceSection
+          userNickname={userNickname}
+          voiceRole={voiceRole}
+          onRoleChange={setVoiceRole}
+        />
       ) : null}
-      <TownToolbar isSpeaker={isSpeaker} />
+      <TownToolbar isSpeaker={voiceRole === "speaker"} />
     </div>
   );
 }

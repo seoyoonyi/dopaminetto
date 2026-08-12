@@ -7,8 +7,8 @@ export interface MovementSyncHandlers {
   cleanupAllChannels: () => void;
   detachVillageChannel: (targetVillageId: VillageId) => void;
   scheduleRemotePlayerRemovalCheck: (remoteUserId: string) => void;
-  syncChannelSnapshot: (channelName: string) => void;
-  trackCurrentPresence: (retryCount?: number) => Promise<void>;
+  syncChannelSnapshot: (channelName: string, removeMissing?: boolean) => void;
+  trackCurrentPresence: (retryCount?: number, force?: boolean) => Promise<void>;
   upsertVisibleRemotePlayer: (player: PresenceMetadata | SyncPositionPayload) => void;
 }
 

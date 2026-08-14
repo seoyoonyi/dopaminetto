@@ -38,8 +38,8 @@ const DEFAULT_LISTENING_ENABLED = true;
 /**
  * 음성 채널 연결이 완료된 뒤 오디오 엘리먼트를 준비한다.
  *
- * RtkParticipantsAudio 연결은 유지하고,
- * 청취 상태는 프로젝트 소유 audio 엘리먼트의 muted로 제어한다.
+ * RtkParticipantsAudio와 WebRTC 오디오 트랙 연결은 유지하고,
+ * 청취 상태에 따라 오디오 출력만 muted로 제어한다.
  */
 function VoicePanel({
   isSpeaker,

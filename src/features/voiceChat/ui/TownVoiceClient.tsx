@@ -16,6 +16,7 @@ import { requestVoiceToken } from "../api/requestVoiceToken";
 import { TownVoiceCallbacks, useTownVoiceCallbacks } from "../hooks/useTownVoiceCallbacks";
 import type { VoiceRole } from "../model/types";
 import { resolveVoicePermissions } from "../model/voicePermissions";
+import { shouldMuteVoicePlayback } from "../model/voicePlayback";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
 export interface TownVoiceClientProps extends TownVoiceCallbacks {
@@ -35,10 +36,10 @@ type ConnectionStatus =
 const DEFAULT_LISTENING_ENABLED = true;
 
 /**
- * 음성 채널 연결이 완료된 뒤 오디오를 재생한다.
+ * 음성 채널 연결이 완료된 뒤 오디오 엘리먼트를 준비한다.
  *
- * speaker는 항상 재생하고, listener는 isListeningEnabled일 때만 재생한다.
- * RtkParticipantsAudio 렌더링을 위해 반드시 유지해야 한다.
+ * RtkParticipantsAudio 연결은 유지하고,
+ * 청취 상태는 프로젝트 소유 audio 엘리먼트의 muted로 제어한다.
  */
 function VoicePanel({
   isSpeaker,
@@ -48,13 +49,20 @@ function VoicePanel({
   isListeningEnabled: boolean;
 }) {
   const { meeting } = useRealtimeKitMeeting();
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   if (!meeting) return null;
 
   return (
     <>
-      {/* 모든 역할에서 상대방 오디오를 재생한다. listener는 헤드셋 토글 상태를 따른다. */}
-      {isSpeaker || isListeningEnabled ? <RtkParticipantsAudio meeting={meeting} /> : null}
+      <audio
+        ref={setAudioElement}
+        muted={shouldMuteVoicePlayback(isSpeaker, isListeningEnabled)}
+        aria-hidden="true"
+      />
+      {audioElement ? (
+        <RtkParticipantsAudio meeting={meeting} preloadedAudioElem={audioElement} />
+      ) : null}
     </>
   );
 }

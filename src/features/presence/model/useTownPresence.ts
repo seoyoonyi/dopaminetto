@@ -69,7 +69,11 @@ export const useTownPresenceView = () => {
   };
 };
 
-export const useTownPresence = () => {
+/**
+ * 서버에서 확정된 음성 역할을 Presence에 반영한다.
+ * 닉네임만으로 speaker 여부를 다시 판정하지 않는다.
+ */
+export const useTownPresence = (isSpeaker = false) => {
   const { data: user } = useUserInfo();
   const userId = user?.id;
   const userNickname = user?.user_metadata?.nickname as string | undefined;
@@ -94,8 +98,6 @@ export const useTownPresence = () => {
   const localJoinedAt = useTownPresenceStore((state) => state.localJoinedAt);
   const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
   const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
-  const isSpeaker = userNickname === process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
-
   const presenceView = useTownPresenceView();
 
   useEffect(() => {

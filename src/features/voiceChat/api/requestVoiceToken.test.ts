@@ -26,6 +26,7 @@ describe("requestVoiceToken", () => {
           participantId: "participant-id",
           role: "listener",
           presetName: "group_call_participant",
+          speakerAccessDenied: false,
         }),
         { status: 200 },
       ),

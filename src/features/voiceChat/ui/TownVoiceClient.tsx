@@ -7,6 +7,7 @@ import {
   useRealtimeKitMeeting,
 } from "@cloudflare/realtimekit-react";
 import { RtkParticipantsAudio } from "@cloudflare/realtimekit-react-ui";
+import { toast } from "sonner";
 
 // import { RtkMicToggle /*, RtkLivestreamPlayer */ } from "@cloudflare/
 // realtimekit-react-ui";
@@ -34,6 +35,7 @@ type ConnectionStatus =
   | "error";
 
 const DEFAULT_LISTENING_ENABLED = true;
+const SPEAKER_ACCESS_DENIED_TOAST_ID = "voice-speaker-access-denied";
 
 /**
  * 음성 채널 연결이 완료된 뒤 오디오 엘리먼트를 준비한다.
@@ -171,6 +173,13 @@ export function TownVoiceClient({
         const nextPermissions = resolveVoicePermissions(tokenResponse.role, hasNickname);
 
         if (!isMounted) return;
+
+        if (tokenResponse.speakerAccessDenied) {
+          toast.info(
+            "스피커 권한이 없습니다. 권한이 필요하면 관리자에게 문의해 주세요. 청취자로 입장합니다.",
+            { id: SPEAKER_ACCESS_DENIED_TOAST_ID },
+          );
+        }
 
         notifyRoleChange(tokenResponse.role);
         setStatus("initializing");

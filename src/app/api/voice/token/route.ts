@@ -1,4 +1,5 @@
 // src/app/api/voice/token/route.ts
+import { resolveVoiceAccess } from "@/features/voiceChat/model/voiceAccess";
 import { createSupabaseServerClient } from "@/shared/config/supabase.server";
 
 import { NextResponse } from "next/server";
@@ -15,7 +16,7 @@ const LISTENER_PRESET_NAME = "group_call_participant";
  * speaker는 오디오 track을 publish할 수 있는 preset으로 발급하고,
  * listener는 subscribe만 가능한 preset으로 발급한다.
  * 요청의 Bearer token을 Supabase에서 검증한 뒤,
- * 인증된 사용자의 app_metadata.role로 speaker 여부를 판정한다.
+ * 인증된 사용자의 speaker 권한과 현재 닉네임으로 역할을 판정한다.
  * 클라이언트가 전달한 userId, nickname, isSpeaker는 권한 판정에 사용하지 않는다.
  */
 export async function POST(req: Request) {
@@ -47,18 +48,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "닉네임이 필요합니다." }, { status: 400 });
     }
 
-    const isSpeaker = user.app_metadata?.role === "speaker";
     const userId = user.id;
 
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
     const appId = process.env.CLOUDFLARE_REALTIME_APP_ID;
     const meetingId = process.env.CLOUDFLARE_REALTIME_MEETING_ID;
     const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+    const speakerNickname = process.env.NEXT_PUBLIC_SPEAKER_NICKNAME;
 
-    if (!accountId || !appId || !meetingId || !apiToken) {
-      return NextResponse.json({ error: "Cloudflare 환경변수가 누락되었습니다." }, { status: 500 });
+    if (!accountId || !appId || !meetingId || !apiToken || !speakerNickname) {
+      return NextResponse.json({ error: "음성 채널 환경변수가 누락되었습니다." }, { status: 500 });
     }
 
+    const { role, speakerAccessDenied } = resolveVoiceAccess({
+      hasSpeakerPermission: user.app_metadata?.role === "speaker",
+      nickname,
+      speakerNickname,
+    });
+    const isSpeaker = role === "speaker";
     const presetName = isSpeaker ? SPEAKER_PRESET_NAME : LISTENER_PRESET_NAME;
 
     /** Cloudflare Realtime Kit 참여자 등록 API 호출 */
@@ -93,8 +100,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       token: result.data?.token,
       participantId: result.data?.id,
-      role: isSpeaker ? "speaker" : "listener",
+      role,
       presetName,
+      speakerAccessDenied,
     });
   } catch {
     return NextResponse.json(

@@ -178,6 +178,15 @@ export const useTownPresence = () => {
   ]);
 
   useEffect(() => {
+    /**
+     * channel 참조는 재연결/소켓 리셋 때마다 바뀌지만(town:main이 아닌 다른 채널의
+     * flapping으로 인한 socket reset 포함), 새로 만들어진 채널 객체는 아직 구독이
+     * 완료되기 전이라 이 시점의 presenceState()는 서버 상태를 반영하지 않는다.
+     * 여기서 즉시 읽어버리면 "아무도 없다"는 가짜 스냅샷이 실제 sync인 것처럼
+     * store에 들어가 정상 참여자까지 이탈 후보로 잘못 분류될 수 있다(#173).
+     * Movement(useMovementSync.ts)와 동일하게, town:main이 실제로 보낸
+     * sync/join/leave 이벤트(subscribeToPresence)만을 신뢰한다.
+     */
     const onPresenceEvent = () => {
       if (channel) {
         const state = channel.presenceState();
@@ -185,10 +194,6 @@ export const useTownPresence = () => {
         setParticipantsState(mapped, userId || "");
       }
     };
-
-    if (channel) {
-      onPresenceEvent();
-    }
 
     const unsubscribe = subscribeToPresence(onPresenceEvent);
     return () => {

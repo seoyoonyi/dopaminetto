@@ -1,6 +1,8 @@
 "use client";
 
+import { getReconnectDelayMs } from "@/shared/lib/realtime/reconnectBackoff";
 import {
+  LeaveRoomState,
   RealtimeKitProvider,
   initRTKMedia,
   useRealtimeKitClient,
@@ -17,6 +19,11 @@ import { TownVoiceCallbacks, useTownVoiceCallbacks } from "../hooks/useTownVoice
 import type { VoiceRole } from "../model/types";
 import { resolveVoicePermissions } from "../model/voicePermissions";
 import { shouldMuteVoicePlayback } from "../model/voicePlayback";
+import {
+  canAutoReconnectAfterRoomLeft,
+  isRetryableVoiceConnectError,
+  isUnintentionalRoomLeave,
+} from "../model/voiceReconnect";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
 export interface TownVoiceClientProps extends TownVoiceCallbacks {
@@ -119,6 +126,14 @@ export function TownVoiceClient({
     let isMounted = true;
     let joinedRoom = false;
     let activeMeetingCleanup: (() => void) | undefined;
+    /**
+     * roomLeft 자동 재연결 및 최초 join 실패 재연결이 공유하는 시도 횟수.
+     * 무한 루프를 막는 상한이며 연결 성공 시 0으로 리셋된다.
+     */
+    let roomLeftRecoveryAttempts = 0;
+    const MAX_ROOM_LEFT_RECOVERY_ATTEMPTS = 3;
+    /** 최초 join 실패 후 backoff 재시도를 예약한 타이머. unmount 시 반드시 정리한다. */
+    let joinFailureRetryTimeout: ReturnType<typeof setTimeout> | null = null;
 
     /**
      * 새로고침/탭 종료/앱 강제 종료 시 React effect cleanup(leaveRoom)이 실행되지 않을 수 있어,
@@ -154,6 +169,11 @@ export function TownVoiceClient({
      * 하나의 순서로 처리한다.
      */
     async function connect() {
+      if (joinFailureRetryTimeout) {
+        clearTimeout(joinFailureRetryTimeout);
+        joinFailureRetryTimeout = null;
+      }
+
       try {
         setStatus("requesting-token");
         setErrorMessage(null);
@@ -224,6 +244,11 @@ export function TownVoiceClient({
             } else {
               await activeMeeting.self.enableAudio();
             }
+          } catch (err) {
+            // 재연결 도중 RealtimeKit 소켓이 아직 붙지 않은 좁은 시간창에서 발생할 수 있는
+            // transient 실패(TransportConnectionError 등)를 여기서 흡수해 unhandled rejection으로
+            // 새어나가지 않게 한다. 재시도는 하지 않는다 — roomLeft 기반 재연결이 별도로 처리한다.
+            console.warn("[TownVoiceClient] toggleLocalAudio failed", err);
           } finally {
             isAudioTogglingRef.current = false;
             notifyAudioTogglingChange(false);
@@ -253,13 +278,42 @@ export function TownVoiceClient({
           notifyAudioEnabledChange(audioEnabled);
 
           if (!nextPermissions.canUseMic && audioEnabled) {
-            void initializedMeeting.self.disableAudio();
+            // toggleLocalAudio와 동일한 이유로 transient 실패를 흡수한다(재시도 없음).
+            initializedMeeting.self.disableAudio().catch((err: unknown) => {
+              console.warn("[TownVoiceClient] keepAudioDisabled: disableAudio failed", err);
+            });
           }
         };
 
         initializedMeeting.self.addListener("audioUpdate", keepAudioDisabled);
+
+        // 탭 전환 등으로 소켓이 끊겨 SDK가 roomLeft를 발생시키는 stale connection을 복구한다.
+        // 사용자가 의도적으로 나간 경우(강퇴/종료/거절 등)는 재연결하지 않는다.
+        const handleRoomLeft = ({ state }: { state: LeaveRoomState }) => {
+          if (!isMounted) return;
+          if (!isUnintentionalRoomLeave(state)) return;
+          if (
+            !canAutoReconnectAfterRoomLeft(
+              roomLeftRecoveryAttempts,
+              MAX_ROOM_LEFT_RECOVERY_ATTEMPTS,
+            )
+          )
+            return;
+
+          roomLeftRecoveryAttempts += 1;
+          joinedRoom = false;
+          notifyConnectionChange(false);
+          activeMeetingCleanup?.();
+          activeMeetingCleanup = undefined;
+          meetingRef.current = null;
+
+          void connect();
+        };
+        initializedMeeting.self.addListener("roomLeft", handleRoomLeft);
+
         activeMeetingCleanup = () => {
           initializedMeeting.self.removeListener("audioUpdate", keepAudioDisabled);
+          initializedMeeting.self.removeListener("roomLeft", handleRoomLeft);
         };
 
         if (!isMounted) return;
@@ -297,6 +351,7 @@ export function TownVoiceClient({
 
         if (!isMounted) return;
 
+        roomLeftRecoveryAttempts = 0;
         setStatus("connected");
         notifyConnectionChange(true);
       } catch (error) {
@@ -313,6 +368,32 @@ export function TownVoiceClient({
         setErrorMessage(
           error instanceof Error ? error.message : "음성 연결 중 알 수 없는 오류가 발생했습니다.",
         );
+
+        /**
+         * 최초 join 흐름 자체가 실패하면(joinedRoom이 한 번도 true가 되지 못함) SDK가 roomLeft를
+         * 낼 이유가 없어 handleRoomLeft 기반 재연결이 트리거되지 않는다(#173, 2026-08-22 조사에서
+         * 재현 확인). roomLeft와 동일한 예산(roomLeftRecoveryAttempts/MAX_ROOM_LEFT_RECOVERY_ATTEMPTS)을
+         * 재사용해, 네트워크성/일시적 오류로 판단되고 예산이 남아있을 때만 backoff 후 재시도한다.
+         * 인증/권한/설정 오류처럼 재시도해도 의미가 없는 실패는 여기서 재시도하지 않고 error로 남긴다.
+         */
+        if (
+          !joinedRoom &&
+          isRetryableVoiceConnectError(error) &&
+          canAutoReconnectAfterRoomLeft(roomLeftRecoveryAttempts, MAX_ROOM_LEFT_RECOVERY_ATTEMPTS)
+        ) {
+          activeMeetingCleanup?.();
+          activeMeetingCleanup = undefined;
+          meetingRef.current = null;
+
+          const delay = getReconnectDelayMs(roomLeftRecoveryAttempts);
+          roomLeftRecoveryAttempts += 1;
+
+          joinFailureRetryTimeout = setTimeout(() => {
+            joinFailureRetryTimeout = null;
+            if (!isMounted) return;
+            void connect();
+          }, delay);
+        }
       }
     }
 
@@ -323,6 +404,10 @@ export function TownVoiceClient({
       window.removeEventListener("pageshow", handlePageShow);
       isMounted = false;
       isAudioTogglingRef.current = false;
+      if (joinFailureRetryTimeout) {
+        clearTimeout(joinFailureRetryTimeout);
+        joinFailureRetryTimeout = null;
+      }
       const activeMeeting = meetingRef.current;
       activeMeetingCleanup?.();
 

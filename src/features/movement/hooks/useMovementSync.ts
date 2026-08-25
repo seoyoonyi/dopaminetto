@@ -31,15 +31,10 @@ import { useEffect, useRef } from "react";
 import {
   LEGACY_PLAYER_MOVE_EVENT,
   PLAYER_MOVE_EVENT,
-  REMOTE_PLAYER_REMOVAL_GRACE_MS,
   createMovementSyncState,
   getVillageSetKey,
   shouldInitializeRemotePlayerFromPresence,
 } from "../lib/movementSyncState";
-import {
-  cancelRemotePlayerRemoval,
-  scheduleRemotePlayerRemoval as scheduleRemotePlayerRemovalWithGrace,
-} from "../lib/remotePlayerRemoval";
 
 /**
  * 현재 village + 인접 village 범위를 기준으로 Realtime/Phaser visibility를 동기화한다.
@@ -89,15 +84,7 @@ export function useMovementSync(enabled = true) {
     const syncState = syncStateRef.current;
 
     const clearPendingRemoval = (remoteUserId: string) => {
-      cancelRemotePlayerRemoval({
-        pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
-        remoteUserId,
-      });
-    };
-
-    const clearAllPendingRemovals = () => {
-      syncState.pendingRemovalTimeouts.forEach((timeout) => clearTimeout(timeout));
-      syncState.pendingRemovalTimeouts.clear();
+      syncState.departureController.cancel(remoteUserId);
     };
 
     const upsertVisibleRemotePlayer = (player: PresenceMetadata | SyncPositionPayload) => {
@@ -118,41 +105,9 @@ export function useMovementSync(enabled = true) {
       });
     };
 
-    const isRemotePlayerStillPresent = (remoteUserId: string) => {
-      const channelNames = Array.from(syncState.channelBindings.keys());
-      const isChannelReconnecting = channelNames.some(
-        (channelName) => getTownChannelStatus(channelName) !== "SUBSCRIBED",
-      );
-
-      if (isChannelReconnecting) return true;
-
-      return channelNames.some((channelName) => {
-        const channel = getTownChannel(channelName);
-        if (!channel) return false;
-
-        return Object.values(channel.presenceState<PresenceMetadata>())
-          .flat()
-          .some((presence) => presence.userId === remoteUserId);
-      });
-    };
-
-    const scheduleRemotePlayerRemoval = (remoteUserId: string) => {
-      if (!remoteUserId || remoteUserId === playerId) return;
-      if (syncState.pendingRemovalTimeouts.has(remoteUserId)) return;
-
-      scheduleRemotePlayerRemovalWithGrace({
-        pendingRemovalTimeouts: syncState.pendingRemovalTimeouts,
-        remoteUserId,
-        graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
-        isPresent: () => isRemotePlayerStillPresent(remoteUserId),
-        onConfirmed: () => {
-          removeRemotePlayer(remoteUserId);
-        },
-      });
-    };
-
     const scheduleRemotePlayerRemovalCheck = (remoteUserId: string) => {
-      scheduleRemotePlayerRemoval(remoteUserId);
+      if (!remoteUserId || remoteUserId === playerId) return;
+      syncState.departureController.schedule(remoteUserId);
     };
 
     const broadcastSyncLeave = (targetVillageId: VillageId) => {
@@ -216,6 +171,11 @@ export function useMovementSync(enabled = true) {
             scheduleRemotePlayerRemovalCheck(remoteUserId);
           }
         });
+
+        // presence sync는 신뢰할 수 있는 최신 스냅샷이므로, 재연결 중이라 확정을 보류해뒀던
+        // id들을 여기서 재검증한다. removeMissing=false로 불리는 SUBSCRIBED 직후 호출에서는
+        // presence 데이터가 아직 정착 전일 수 있어 재검증하지 않는다.
+        syncState.departureController.reconcile();
       }
 
       const binding = syncState.channelBindings.get(channelName);
@@ -309,10 +269,7 @@ export function useMovementSync(enabled = true) {
       const releaseChannel = acquireTownChannel({ supabase, channelName, userId: channelUserId });
 
       const unsubscribeStatus = observeTownChannelStatus(channelName, (nextStatus) => {
-        if (nextStatus !== "SUBSCRIBED") {
-          clearAllPendingRemovals();
-          return;
-        }
+        if (nextStatus !== "SUBSCRIBED") return;
 
         syncState.handlers.syncChannelSnapshot(channelName, false);
 
@@ -412,8 +369,7 @@ export function useMovementSync(enabled = true) {
       syncState.trackedVillageId = null;
       syncState.activeUserId = null;
 
-      syncState.pendingRemovalTimeouts.forEach((timeout) => clearTimeout(timeout));
-      syncState.pendingRemovalTimeouts.clear();
+      syncState.departureController.cancelAll();
 
       Array.from(syncState.channelBindings.values()).forEach((binding) => {
         binding.cleanupObservers();
@@ -431,6 +387,7 @@ export function useMovementSync(enabled = true) {
       broadcastSyncLeave,
       cleanupAllChannels,
       detachVillageChannel,
+      removeConfirmedRemotePlayer: removeRemotePlayer,
       scheduleRemotePlayerRemovalCheck,
       syncChannelSnapshot,
       trackCurrentPresence,
@@ -526,8 +483,9 @@ export function useMovementSync(enabled = true) {
         syncState.trackRetryTimeout = null;
       }
 
-      syncState.handlers.broadcastSyncLeave(prevTrackedVillageId);
-
+      // village 전환은 관찰 범위(getVisibleVillages) 밖으로 나가는 게 아니라 채널만 바뀌는
+      // 것이므로, 즉시 삭제 신호(broadcastSyncLeave) 대신 untrack()으로 grace가 적용되는
+      // leave만 발생시켜 깜빡임을 막는다. 실제 접속 종료(cleanupAllChannels)는 여전히 즉시 신호를 보낸다.
       const prevChannel = getTownChannel(getVillageChannelName(prevTrackedVillageId));
       if (prevChannel) {
         void prevChannel.untrack();

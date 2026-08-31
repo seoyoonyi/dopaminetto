@@ -9,6 +9,7 @@ import {
   useRealtimeKitMeeting,
 } from "@cloudflare/realtimekit-react";
 import { RtkParticipantsAudio } from "@cloudflare/realtimekit-react-ui";
+import { toast } from "sonner";
 
 // import { RtkMicToggle /*, RtkLivestreamPlayer */ } from "@cloudflare/
 // realtimekit-react-ui";
@@ -196,7 +197,7 @@ export function TownVoiceClient({
         setStatus("initializing");
 
         const mediaHandler = await initRTKMedia({
-          audio: nextPermissions.canUseMic,
+          audio: false,
           video: false,
         });
 
@@ -238,16 +239,28 @@ export function TownVoiceClient({
 
           isAudioTogglingRef.current = true;
           notifyAudioTogglingChange(true);
+          const nextAudioEnabled = !activeMeeting.self.audioEnabled;
           try {
-            if (activeMeeting.self.audioEnabled) {
+            if (!nextAudioEnabled) {
               await activeMeeting.self.disableAudio();
             } else {
               await activeMeeting.self.enableAudio();
             }
+            // SDK 이벤트가 누락되어도 수동 토글 결과가 UI와 Presence에 반영되도록 동기화한다.
+            notifyAudioEnabledChange(activeMeeting.self.audioEnabled);
+            // SDK가 권한 오류를 내부 처리해 resolve해도 실제 상태가 false이면 권한 안내를 표시한다.
+            if (nextAudioEnabled && !activeMeeting.self.audioEnabled) {
+              toast.error("마이크 권한을 허용해주세요.");
+            }
           } catch (err) {
             // 재연결 도중 RealtimeKit 소켓이 아직 붙지 않은 좁은 시간창에서 발생할 수 있는
             // transient 실패(TransportConnectionError 등)를 여기서 흡수해 unhandled rejection으로
-            // 새어나가지 않게 한다. 재시도는 하지 않는다 — roomLeft 기반 재연결이 별도로 처리한다.
+            // 새어나가지 않게 한다. 실패 시 SDK의 현재 상태를 반영해 UI가 방송 중으로 남지 않게 하고,
+            // 재시도는 하지 않는다 — roomLeft 기반 재연결이 별도로 처리한다.
+            notifyAudioEnabledChange(activeMeeting.self.audioEnabled);
+            if (nextAudioEnabled) {
+              toast.error("마이크 권한을 허용해주세요.");
+            }
             console.warn("[TownVoiceClient] toggleLocalAudio failed", err);
           } finally {
             isAudioTogglingRef.current = false;
@@ -336,9 +349,10 @@ export function TownVoiceClient({
           notifyListeningControllerChange(false, null);
           try {
             await initializedMeeting.self.enableAudio();
-            notifyAudioEnabledChange(true);
+            notifyAudioEnabledChange(initializedMeeting.self.audioEnabled);
           } catch (audioError) {
             console.error("enableAudio error", audioError);
+            notifyAudioEnabledChange(initializedMeeting.self.audioEnabled);
             if (isMounted) {
               setErrorMessage(
                 audioError instanceof Error

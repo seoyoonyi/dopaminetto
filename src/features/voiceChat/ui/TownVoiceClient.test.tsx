@@ -479,7 +479,9 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
 
     expect(meeting.self.audioEnabled).toBe(false);
     expect(onAudioEnabledChange).toHaveBeenLastCalledWith(false);
-    expect(toastErrorMock).toHaveBeenCalledWith("마이크 권한을 허용해주세요.");
+    expect(toastErrorMock).toHaveBeenCalledWith("브라우저의 마이크 권한을 허용해주세요.", {
+      icon: expect.anything(),
+    });
   });
 
   it("마이크 권한이 없어도 입장 후 토글할 수 있고 권한 안내 토스트를 표시한다", async () => {
@@ -510,11 +512,17 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
 
     expect(initRTKMediaMock).toHaveBeenCalledWith({ audio: false, video: false });
     const toggleAudio = getAudioToggle(onAudioControllerChange);
+    toastErrorMock.mockClear();
 
     await act(async () => {
       await toggleAudio();
     });
 
-    expect(toastErrorMock).toHaveBeenCalledWith("마이크 권한을 허용해주세요.");
+    expect(toastErrorMock).toHaveBeenCalledWith("브라우저의 마이크 권한을 허용해주세요.", {
+      icon: expect.anything(),
+    });
+    expect(toastErrorMock.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ icon: expect.anything() }),
+    );
   });
 });

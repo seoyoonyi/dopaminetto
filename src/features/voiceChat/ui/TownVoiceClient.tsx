@@ -9,6 +9,7 @@ import {
   useRealtimeKitMeeting,
 } from "@cloudflare/realtimekit-react";
 import { RtkParticipantsAudio } from "@cloudflare/realtimekit-react-ui";
+import { MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 // import { RtkMicToggle /*, RtkLivestreamPlayer */ } from "@cloudflare/
@@ -250,7 +251,9 @@ export function TownVoiceClient({
             notifyAudioEnabledChange(activeMeeting.self.audioEnabled);
             // SDK가 권한 오류를 내부 처리해 resolve해도 실제 상태가 false이면 권한 안내를 표시한다.
             if (nextAudioEnabled && !activeMeeting.self.audioEnabled) {
-              toast.error("마이크 권한을 허용해주세요.");
+              toast.error("브라우저의 마이크 권한을 허용해주세요.", {
+                icon: <MicOff className="h-4 w-4" aria-hidden="true" />,
+              });
             }
           } catch (err) {
             // 재연결 도중 RealtimeKit 소켓이 아직 붙지 않은 좁은 시간창에서 발생할 수 있는
@@ -259,7 +262,9 @@ export function TownVoiceClient({
             // 재시도는 하지 않는다 — roomLeft 기반 재연결이 별도로 처리한다.
             notifyAudioEnabledChange(activeMeeting.self.audioEnabled);
             if (nextAudioEnabled) {
-              toast.error("마이크 권한을 허용해주세요.");
+              toast.error("브라우저의 마이크 권한을 허용해주세요.", {
+                icon: <MicOff className="h-4 w-4" aria-hidden="true" />,
+              });
             }
             console.warn("[TownVoiceClient] toggleLocalAudio failed", err);
           } finally {

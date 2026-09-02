@@ -50,6 +50,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
     isConnecting = true;
 
     const channel = supabase.channel(channelName);
+    currentChannel = channel;
     channel
       .on<T>(
         "postgres_changes",
@@ -57,6 +58,10 @@ export function subscribeChatChannelWithReconnect<T extends object>({
         (payload) => onInsert(payload),
       )
       .subscribe((status) => {
+        // 이전 채널의 뒤늦은 CLOSED 콜백이 정상 연결된 새 채널을 재연결시키지 않도록,
+        // 현재 활성 채널의 콜백이 아니면 무시한다.
+        if (channel !== currentChannel) return;
+
         isConnecting = false;
 
         if (!isActive) return;
@@ -74,8 +79,6 @@ export function subscribeChatChannelWithReconnect<T extends object>({
           scheduleReconnect();
         }
       });
-
-    currentChannel = channel;
   };
 
   const scheduleReconnect = (immediate = false) => {

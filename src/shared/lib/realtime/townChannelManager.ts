@@ -597,6 +597,11 @@ const reconnectStaleChannelsOnVisible = async (supabase: SupabaseClient) => {
   }
 
   staleChannelNames.forEach((channelName) => {
+    // auth 확인을 await하는 동안 채널이 스스로 정상 연결됐을 수 있으므로,
+    // 재연결 직전에 상태를 다시 확인해 이미 연결된 채널을 끊지 않는다.
+    const status = globals.statuses.get(channelName);
+    if (status === "SUBSCRIBED" || status === "SUBSCRIBING") return;
+
     const userId = globals.channelUserIds.get(channelName);
     if (!userId) return;
 

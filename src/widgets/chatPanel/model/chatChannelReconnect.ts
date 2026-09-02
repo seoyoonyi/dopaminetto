@@ -103,9 +103,10 @@ export function subscribeChatChannelWithReconnect<T extends object>({
     }, delay);
   };
 
-  // 백그라운드 탭에서는 타이머가 스로틀링돼 backoff가 늦어질 수 있어, 탭 복귀 시 즉시 재연결한다.
-  const handleVisibilityChange = () => {
-    if (document.visibilityState !== "visible") return;
+  // 탭 복귀(visible)나 네트워크 복구(online) 시, 채널 status가 바뀌지 않아
+  // scheduleReconnect가 호출되지 않는 경우를 대비해 즉시 재연결을 시도한다.
+  // reconnectCount를 리셋하므로 MAX_AUTO_RECONNECT를 소진한 뒤에도 복구된다.
+  const forceReconnectFromRecoverySignal = () => {
     if (currentStatus === "SUBSCRIBED" || isConnecting) return;
 
     clearReconnectTimer();
@@ -113,8 +114,16 @@ export function subscribeChatChannelWithReconnect<T extends object>({
     scheduleReconnect(true);
   };
 
+  const handleVisibilityChange = () => {
+    if (document.visibilityState !== "visible") return;
+    forceReconnectFromRecoverySignal();
+  };
+
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", handleVisibilityChange);
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", forceReconnectFromRecoverySignal);
   }
 
   connect();
@@ -125,6 +134,9 @@ export function subscribeChatChannelWithReconnect<T extends object>({
 
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", forceReconnectFromRecoverySignal);
     }
 
     const staleChannel = currentChannel;

@@ -39,8 +39,13 @@ const createFakeSupabase = () => {
 };
 
 let visibilityHandler: (() => void) | undefined;
+let onlineHandler: (() => void) | undefined;
 let fakeDocument: {
   visibilityState: string;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
+};
+let fakeWindow: {
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
 };
@@ -48,6 +53,7 @@ let fakeDocument: {
 beforeEach(() => {
   vi.useFakeTimers();
   visibilityHandler = undefined;
+  onlineHandler = undefined;
   fakeDocument = {
     visibilityState: "visible",
     addEventListener: vi.fn((_event: string, handler: () => void) => {
@@ -55,7 +61,14 @@ beforeEach(() => {
     }),
     removeEventListener: vi.fn(),
   };
+  fakeWindow = {
+    addEventListener: vi.fn((event: string, handler: () => void) => {
+      if (event === "online") onlineHandler = handler;
+    }),
+    removeEventListener: vi.fn(),
+  };
   vi.stubGlobal("document", fakeDocument);
+  vi.stubGlobal("window", fakeWindow);
 });
 
 afterEach(() => {
@@ -161,6 +174,63 @@ describe("subscribeChatChannelWithReconnect", () => {
     expect(supabase.removeChannel).toHaveBeenCalledWith(supabase.channels[0]);
   });
 
+  it("재연결로 교체된 이전 채널의 뒤늦은 CLOSED 콜백은 무시한다", () => {
+    const { supabase } = startSubscription();
+
+    // 첫 채널이 끊겨 재연결 → 두 번째 채널이 SUBSCRIBED 된다.
+    supabase.channels[0].emitStatus("CLOSED");
+    vi.advanceTimersByTime(RECONNECT_BACKOFF_MS[0]);
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+    supabase.channels[1].emitStatus("SUBSCRIBED");
+
+    // 이미 제거된 첫 채널이 CLOSED를 뒤늦게 전달해도 재연결을 트리거하지 않는다.
+    supabase.channels[0].emitStatus("CLOSED");
+    vi.advanceTimersByTime(RECONNECT_BACKOFF_MS[RECONNECT_BACKOFF_MS.length - 1] + 1000);
+
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+  });
+
+  it("online 이벤트 발생 시 backoff를 건너뛰고 즉시 재연결한다", () => {
+    const { supabase } = startSubscription();
+
+    supabase.channels[0].emitStatus("CLOSED");
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+
+    onlineHandler?.();
+    vi.advanceTimersByTime(0);
+
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+    expect(supabase.removeChannel).toHaveBeenCalledWith(supabase.channels[0]);
+  });
+
+  it("MAX_AUTO_RECONNECT 소진 후에도 online 이벤트가 오면 재연결을 재개한다", () => {
+    const { supabase } = startSubscription();
+
+    for (let attempt = 0; attempt < MAX_AUTO_RECONNECT; attempt += 1) {
+      const lastChannel = supabase.channels[supabase.channels.length - 1];
+      lastChannel.emitStatus("CLOSED");
+      vi.runOnlyPendingTimers();
+    }
+    supabase.channels[supabase.channels.length - 1].emitStatus("CLOSED");
+    vi.runOnlyPendingTimers();
+    expect(supabase.channel).toHaveBeenCalledTimes(1 + MAX_AUTO_RECONNECT);
+
+    onlineHandler?.();
+    vi.advanceTimersByTime(0);
+
+    expect(supabase.channel).toHaveBeenCalledTimes(2 + MAX_AUTO_RECONNECT);
+  });
+
+  it("이미 SUBSCRIBED 상태에서 online 이벤트가 발생해도 채널을 중복 생성하지 않는다", () => {
+    const { supabase } = startSubscription();
+
+    supabase.channels[0].emitStatus("SUBSCRIBED");
+    onlineHandler?.();
+    vi.advanceTimersByTime(0);
+
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+  });
+
   it("이미 SUBSCRIBED 상태에서 탭 가시성이 바뀌어도 채널을 중복 생성하지 않는다", () => {
     const { supabase } = startSubscription();
 
@@ -192,6 +262,7 @@ describe("subscribeChatChannelWithReconnect", () => {
       "visibilitychange",
       visibilityHandler,
     );
+    expect(fakeWindow.removeEventListener).toHaveBeenCalledWith("online", onlineHandler);
   });
 
   it("cleanup 이후에는 insert와 상태 업데이트 전달을 중단한다", () => {

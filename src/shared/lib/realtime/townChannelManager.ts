@@ -46,7 +46,7 @@ interface TownChannelGlobalState {
   lastSubscribedAt: Map<string, number>;
   // visibilitychange 리스너가 탭 복귀 시 재연결을 걸 때 필요한, 채널별 마지막 userId.
   channelUserIds: Map<string, string>;
-  visibilityListenerRegistered: boolean;
+  recoveryListenersRegistered: boolean;
   lastSupabaseClient: SupabaseClient | null;
 }
 
@@ -69,7 +69,7 @@ function getGlobals(): TownChannelGlobalState {
       stabilityTimers: new Map(),
       lastSubscribedAt: new Map(),
       channelUserIds: new Map(),
-      visibilityListenerRegistered: false,
+      recoveryListenersRegistered: false,
       lastSupabaseClient: null,
     };
   }
@@ -498,7 +498,7 @@ export const acquireTownChannel = ({
   clearCleanupTimeout(channelName);
   globals.channelUserIds.set(channelName, userId);
   globals.lastSupabaseClient = supabase;
-  ensureVisibilityListenerRegistered();
+  ensureRecoveryListenersRegistered();
 
   scheduleConnect({
     supabase,
@@ -569,12 +569,14 @@ export const reconnectTownChannel = ({
 };
 
 /**
- * 탭이 숨겨졌다가 다시 보일 때(hidden -> visible), 현재 구독 중(subscribers > 0)이면서
- * SUBSCRIBED가 아닌 채널만 즉시 재연결한다. 백그라운드 탭에서는 브라우저가 타이머를
- * 강하게 스로틀링해서 backoff 재연결 자체가 늦게 발동할 수 있으므로, 탭 복귀는
- * 대기 없이 바로 재연결을 시도할 좋은 신호다.
+ * 탭 복귀(hidden -> visible)나 네트워크 복구(offline -> online) 시, 현재 구독 중
+ * (subscribers > 0)이면서 SUBSCRIBED가 아닌 채널만 즉시 재연결한다. 백그라운드 탭에서는
+ * 브라우저가 타이머를 강하게 스로틀링해서 backoff 재연결이 늦게 발동할 수 있고, 네트워크
+ * 복구는 status 변화 없이 조용히 일어날 수 있으므로, 두 신호 모두 대기 없이 재연결을
+ * 시도할 좋은 계기다. reconnectTownChannel이 reconnectCount를 리셋하므로, auth 실패나
+ * MAX_AUTO_RECONNECT 소진으로 멈춰 있던 채널도 이 경로로 다시 복구된다.
  */
-const reconnectStaleChannelsOnVisible = async (supabase: SupabaseClient) => {
+const reconnectStaleChannels = async (supabase: SupabaseClient) => {
   const staleChannelNames = Array.from(globals.subscribersCount.entries())
     .filter(([, count]) => count > 0)
     .map(([name]) => name)
@@ -586,12 +588,12 @@ const reconnectStaleChannelsOnVisible = async (supabase: SupabaseClient) => {
   if (staleChannelNames.length === 0) return;
 
   // 여러 채널이 동시에 stale이어도 auth freshness 확인은 한 번만 수행한다. 실패하면
-  // (예: 만료된 JWT를 갱신하지 못함) 어떤 채널도 재연결을 시도하지 않고 이번 탭 복귀
-  // 이벤트에서는 그냥 넘어간다 — 다음 visibilitychange가 다시 시도한다.
+  // (예: 만료된 JWT를 갱신하지 못함) 어떤 채널도 재연결을 시도하지 않고 이번 이벤트에서는
+  // 그냥 넘어간다 — 다음 visibilitychange 또는 online 이벤트가 다시 시도한다.
   const freshAccessToken = await ensureFreshRealtimeAuthOnce(supabase);
   if (!freshAccessToken) {
     console.warn(
-      "[townChannelManager] visibility 복귀: auth freshness 확보 실패로 이번 재연결을 건너뜁니다.",
+      "[townChannelManager] 복구 신호: auth freshness 확보 실패로 이번 재연결을 건너뜁니다.",
     );
     return;
   }
@@ -613,13 +615,22 @@ const handleVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
   if (!globals.lastSupabaseClient) return;
 
-  void reconnectStaleChannelsOnVisible(globals.lastSupabaseClient);
+  void reconnectStaleChannels(globals.lastSupabaseClient);
 };
 
-const ensureVisibilityListenerRegistered = () => {
-  if (globals.visibilityListenerRegistered) return;
+const handleOnline = () => {
+  if (!globals.lastSupabaseClient) return;
+
+  void reconnectStaleChannels(globals.lastSupabaseClient);
+};
+
+const ensureRecoveryListenersRegistered = () => {
+  if (globals.recoveryListenersRegistered) return;
   if (typeof document === "undefined") return;
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  globals.visibilityListenerRegistered = true;
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", handleOnline);
+  }
+  globals.recoveryListenersRegistered = true;
 };

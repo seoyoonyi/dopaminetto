@@ -3,10 +3,15 @@
 import { LOBBY_VILLAGE_ID, VILLAGES, VillageId } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
-import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
+import {
+  PRESENCE_RECONCILE_INTERVAL_MS,
+  PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS,
+} from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
+import { TOWN_MAIN_CHANNEL } from "@/shared/lib/realtime";
+import { getTownChannel, getTownChannelStatus } from "@/shared/lib/realtime/townChannelManager";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
@@ -200,6 +205,33 @@ export const useTownPresence = () => {
       unsubscribe();
     };
   }, [channel, subscribeToPresence, setParticipantsState, userId]);
+
+  useEffect(() => {
+    /**
+     * 이탈 확정(departureGrace.reconcile)과 재입장 반영은 setParticipants() 안에서만
+     * 일어나는데, setParticipants()는 서버 sync/join/leave 이벤트로만 호출된다. 장시간
+     * 재연결 뒤 채널이 안정화됐지만 아무도 join/leave하지 않으면 재검증 트리거가 오지 않아
+     * stale 이탈/재입장이 새로고침 전까지 남는다(#173). 이 폴링이 그 공백을 메운다.
+     */
+    if (channelStatus !== "SUBSCRIBED") return;
+
+    const reconcileFromLocalPresence = () => {
+      // 클로저의 낡은 채널을 쓰지 않도록 매 tick 최신값을 조회한다.
+      if (getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED") return;
+
+      const liveChannel = getTownChannel(TOWN_MAIN_CHANNEL);
+      if (!liveChannel) return;
+
+      // 재연결 직후 미완성 스냅샷을 전원 이탈로 오판하지 않는다.
+      const state = liveChannel.presenceState();
+      if (Object.keys(state).length === 0) return;
+
+      setParticipantsState(mapPresenceState(state), userId || "");
+    };
+
+    const interval = setInterval(reconcileFromLocalPresence, PRESENCE_RECONCILE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [channelStatus, setParticipantsState, userId]);
 
   // 4. 연결 피드백 토스트
   useEffect(() => {

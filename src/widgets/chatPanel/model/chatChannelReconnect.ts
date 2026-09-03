@@ -18,6 +18,13 @@ interface SubscribeChatChannelParams<T extends object> {
   roomFilter: string;
   onInsert: (payload: RealtimePostgresInsertPayload<T>) => void;
   onStatusChange: (status: ChatChannelStatus) => void;
+  /**
+   * 한 번 SUBSCRIBED 됐다가 끊긴 뒤 다시 SUBSCRIBED 될 때마다 호출한다. 채널이 끊겨
+   * 있던 구간(재구독 갭)에 서버로 들어온 postgres_changes INSERT는 이 클라이언트가
+   * 받지 못하므로, 호출부에서 메시지 목록을 다시 fetch해 유실분을 backfill 한다.
+   * 최초 SUBSCRIBED에는 호출하지 않는다(초기 목록 fetch가 이미 최신이므로).
+   */
+  onResubscribe?: () => void;
 }
 
 /**
@@ -33,6 +40,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
   roomFilter,
   onInsert,
   onStatusChange,
+  onResubscribe,
 }: SubscribeChatChannelParams<T>): () => void {
   let isActive = true;
   let currentChannel: RealtimeChannel | null = null;
@@ -41,6 +49,10 @@ export function subscribeChatChannelWithReconnect<T extends object>({
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** connect() 호출 직후(auth await 포함)부터 첫 상태 콜백까지의 in-flight 구간. */
   let isConnecting = false;
+  /** 한 번이라도 SUBSCRIBED에 도달한 적이 있는지. 최초 구독과 재구독을 구분한다. */
+  let hasEverSubscribed = false;
+  /** 마지막 SUBSCRIBED 이후 CLOSED/CHANNEL_ERROR/TIMED_OUT을 본 적이 있는지. */
+  let sawDisconnectSinceSubscribe = false;
 
   const clearReconnectTimer = () => {
     if (reconnectTimer) {
@@ -97,10 +109,17 @@ export function subscribeChatChannelWithReconnect<T extends object>({
         if (status === "SUBSCRIBED") {
           reconnectCount = 0;
           clearReconnectTimer();
+          // 재구독(끊겼다가 다시 붙음)이면, 끊긴 구간에 유실됐을 수 있는 메시지를 backfill 한다.
+          if (hasEverSubscribed && sawDisconnectSinceSubscribe) {
+            onResubscribe?.();
+          }
+          hasEverSubscribed = true;
+          sawDisconnectSinceSubscribe = false;
           return;
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          sawDisconnectSinceSubscribe = true;
           scheduleReconnect();
         }
       });

@@ -20,6 +20,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { subscribeChatChannelWithReconnect } from "./chatChannelReconnect";
 
 /**
+ * realtime 채널이 SUBSCRIBED로 확인된 동안의 재동기화 폴링 간격. 채널이 조용히 죽어
+ * 상태만 SUBSCRIBED로 stale하게 남는 경우를 대비한 느린 안전망이다.
+ */
+const CHAT_RECONCILE_INTERVAL_SUBSCRIBED_MS = 60_000;
+/** 채널이 끊겼거나 아직 SUBSCRIBED로 확인되지 않은 동안의 빠른 재동기화 폴링 간격. */
+const CHAT_RECONCILE_INTERVAL_DISCONNECTED_MS = 15_000;
+
+/**
  * 채팅 패널의 주요 비즈니스 로직을 관리하는 커스텀 훅입니다.
  *
  * 주요 기능:
@@ -50,8 +58,18 @@ export function useChatPanel() {
   const { setVisiblePages } = useChatVisibilityActions();
   const visiblePageIndices = useVisiblePageIndices();
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useMessagesQuery(roomId);
+  // realtime 채널 상태에 따라 재동기화 간격을 조절한다. 재구독 시점의 backfill(아래
+  // onResubscribe)이 갭 대부분을 메우고, 이 폴링은 재연결이 영영 안 되거나 상태만
+  // stale하게 SUBSCRIBED로 남는 경우까지 커버하는 안전망이다.
+  const reconcileIntervalMs =
+    channelStatus === "SUBSCRIBED"
+      ? CHAT_RECONCILE_INTERVAL_SUBSCRIBED_MS
+      : CHAT_RECONCILE_INTERVAL_DISCONNECTED_MS;
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useMessagesQuery(
+    roomId,
+    { reconcileIntervalMs },
+  );
 
   // 빌리지 이동 시 낙관적 메시지 초기화
   // React 공식 권장 패턴: useState로 이전 roomId를 추적하여 렌더 중 비교합니다.
@@ -149,6 +167,10 @@ export function useChatPanel() {
         );
       },
       onStatusChange: setChannelStatus,
+      onResubscribe: () => {
+        // 재구독 갭 동안 realtime이 놓친 메시지를 다시 fetch해 채워 넣는다.
+        void queryClient.invalidateQueries({ queryKey: ["messages", roomId] });
+      },
     });
   }, [chatChannelName, userNickname, supabase, queryClient, roomId]);
 

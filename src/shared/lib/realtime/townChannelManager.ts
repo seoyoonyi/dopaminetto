@@ -23,6 +23,11 @@ const MAX_FLAPS_BEFORE_SOCKET_RESET = 3;
 // 타임아웃 초과 시에는 (onclose 누락 대비) 그냥 connect()를 시도한다.
 const SOCKET_CLOSE_POLL_INTERVAL_MS = 20;
 const SOCKET_CLOSE_WAIT_TIMEOUT_MS = 1000;
+// online/visibilitychange 복구 신호가 auth 게이트 실패로 무산됐을 때, 처음 MAX_RECOVERY_RETRIES회는
+// backoff로 재시도하고 그 뒤엔 keepalive 간격으로 계속 재시도한다(#173: 신호는 edge-triggered라
+// 한 번만 오므로, 재시도가 없으면 새로고침 전까지 stale하게 남았다).
+const MAX_RECOVERY_RETRIES = RECONNECT_BACKOFF_MS.length;
+const RECOVERY_RETRY_KEEPALIVE_MS = 30_000;
 
 type ChannelStatus = string;
 type StatusObserver = (status: ChannelStatus, err?: Error) => void;
@@ -48,6 +53,9 @@ interface TownChannelGlobalState {
   channelUserIds: Map<string, string>;
   recoveryListenersRegistered: boolean;
   lastSupabaseClient: SupabaseClient | null;
+  // 복구 신호 이후 auth 게이트 실패 시의 재시도 상태.
+  recoveryRetryTimer: ReturnType<typeof setTimeout> | null;
+  recoveryRetryCount: number;
 }
 
 function getGlobals(): TownChannelGlobalState {
@@ -71,6 +79,8 @@ function getGlobals(): TownChannelGlobalState {
       channelUserIds: new Map(),
       recoveryListenersRegistered: false,
       lastSupabaseClient: null,
+      recoveryRetryTimer: null,
+      recoveryRetryCount: 0,
     };
   }
 
@@ -109,6 +119,31 @@ const clearStabilityTimer = (channelName: string) => {
     clearTimeout(timer);
     globals.stabilityTimers.delete(channelName);
   }
+};
+
+/** 복구 재시도 타이머/예산을 리셋한다. SUBSCRIBED 도달, 새 복구 신호, stale 채널 없음일 때 호출. */
+const clearRecoveryRetry = () => {
+  if (globals.recoveryRetryTimer) {
+    clearTimeout(globals.recoveryRetryTimer);
+    globals.recoveryRetryTimer = null;
+  }
+  globals.recoveryRetryCount = 0;
+};
+
+/** auth 게이트 실패로 무산된 복구를 재시도한다. backoff MAX_RECOVERY_RETRIES회 → 이후 keepalive 간격. */
+const scheduleRecoveryRetry = (supabase: SupabaseClient) => {
+  if (globals.recoveryRetryTimer) return;
+
+  const exhausted = globals.recoveryRetryCount >= MAX_RECOVERY_RETRIES;
+  const delay = exhausted
+    ? RECOVERY_RETRY_KEEPALIVE_MS
+    : (RECONNECT_BACKOFF_MS[globals.recoveryRetryCount] ?? 16000);
+  if (!exhausted) globals.recoveryRetryCount += 1;
+
+  globals.recoveryRetryTimer = setTimeout(() => {
+    globals.recoveryRetryTimer = null;
+    void reconnectStaleChannels(supabase);
+  }, delay);
 };
 
 /** SUBSCRIBED가 FLAP_STABILITY_MS 동안 유지되면 그제서야 flapping 카운트를 리셋한다. */
@@ -165,6 +200,8 @@ const notifyStatusObservers = (channelName: string, status: ChannelStatus, err?:
     globals.reconnectCounts.set(channelName, 0);
     globals.lastSubscribedAt.set(channelName, Date.now());
     scheduleFlapStabilityReset(channelName);
+    // 하나라도 SUBSCRIBED면 네트워크가 회복된 것 → 복구 재시도 타이머 취소.
+    clearRecoveryRetry();
   }
 
   const observers = globals.statusObservers.get(channelName);
@@ -585,18 +622,23 @@ const reconnectStaleChannels = async (supabase: SupabaseClient) => {
       return status !== "SUBSCRIBED" && status !== "SUBSCRIBING";
     });
 
-  if (staleChannelNames.length === 0) return;
+  if (staleChannelNames.length === 0) {
+    clearRecoveryRetry();
+    return;
+  }
 
-  // 여러 채널이 동시에 stale이어도 auth freshness 확인은 한 번만 수행한다. 실패하면
-  // (예: 만료된 JWT를 갱신하지 못함) 어떤 채널도 재연결을 시도하지 않고 이번 이벤트에서는
-  // 그냥 넘어간다 — 다음 visibilitychange 또는 online 이벤트가 다시 시도한다.
+  // 여러 채널이 동시에 stale이어도 auth freshness 확인은 한 번만 한다. 실패하면 이번엔
+  // 재연결하지 않고 scheduleRecoveryRetry로 재시도를 예약한다(신호가 다시 안 와도 복구되도록).
   const freshAccessToken = await ensureFreshRealtimeAuthOnce(supabase);
   if (!freshAccessToken) {
     console.warn(
-      "[townChannelManager] 복구 신호: auth freshness 확보 실패로 이번 재연결을 건너뜁니다.",
+      "[townChannelManager] 복구 신호: auth freshness 확보 실패. 잠시 후 다시 시도합니다.",
     );
+    scheduleRecoveryRetry(supabase);
     return;
   }
+
+  clearRecoveryRetry();
 
   staleChannelNames.forEach((channelName) => {
     // auth 확인을 await하는 동안 채널이 스스로 정상 연결됐을 수 있으므로,
@@ -615,12 +657,15 @@ const handleVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
   if (!globals.lastSupabaseClient) return;
 
+  // 새 신호이므로 재시도 예산을 새로 준다.
+  clearRecoveryRetry();
   void reconnectStaleChannels(globals.lastSupabaseClient);
 };
 
 const handleOnline = () => {
   if (!globals.lastSupabaseClient) return;
 
+  clearRecoveryRetry();
   void reconnectStaleChannels(globals.lastSupabaseClient);
 };
 

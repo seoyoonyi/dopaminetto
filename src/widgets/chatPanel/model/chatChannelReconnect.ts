@@ -1,3 +1,4 @@
+import { ensureFreshRealtimeAuthOnce } from "@/shared/lib/realtime/realtimeAuthFreshness";
 import { MAX_AUTO_RECONNECT, getReconnectDelayMs } from "@/shared/lib/realtime/reconnectBackoff";
 import type {
   RealtimeChannel,
@@ -6,6 +7,9 @@ import type {
 } from "@supabase/supabase-js";
 
 type ChatChannelStatus = string;
+
+/** MAX_AUTO_RECONNECT 소진 후에도 이 간격으로 재구독을 계속 시도한다(#173: 영구 정지 방지). */
+export const KEEPALIVE_RECONNECT_INTERVAL_MS = 30_000;
 
 interface SubscribeChatChannelParams<T extends object> {
   supabase: SupabaseClient;
@@ -18,8 +22,9 @@ interface SubscribeChatChannelParams<T extends object> {
 
 /**
  * 채팅 채널은 town 채널과 같은 Supabase Realtime 소켓을 공유하지만 독립적으로 관리되므로,
- * townChannelManager가 소켓을 재연결해도 그 사실을 알 수 없다. 이 함수가 CLOSED/CHANNEL_ERROR/
- * TIMED_OUT을 직접 감지해 backoff로 재구독한다.
+ * townChannelManager가 소켓을 재연결해도 알 수 없다. 이 함수가 CLOSED/CHANNEL_ERROR/TIMED_OUT을
+ * 직접 감지해 backoff로 재구독하고, 재구독 직전에 ensureFreshRealtimeAuthOnce()로 stale JWT를
+ * 막는다(town 채널과 동일 패턴).
  */
 export function subscribeChatChannelWithReconnect<T extends object>({
   supabase,
@@ -34,7 +39,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
   let currentStatus: ChatChannelStatus = "INITIAL";
   let reconnectCount = 0;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  /** connect() 호출 직후부터 첫 상태 콜백을 받기 전까지의 in-flight 구간을 나타낸다. */
+  /** connect() 호출 직후(auth await 포함)부터 첫 상태 콜백까지의 in-flight 구간. */
   let isConnecting = false;
 
   const clearReconnectTimer = () => {
@@ -44,10 +49,30 @@ export function subscribeChatChannelWithReconnect<T extends object>({
     }
   };
 
-  const connect = () => {
-    if (!isActive) return;
+  const connect = async () => {
+    if (!isActive || isConnecting) return;
 
     isConnecting = true;
+
+    // 재구독 직전 auth session을 최신화한다. 실패하면 이번 시도만 건너뛰고 재예약한다.
+    const freshAccessToken = await ensureFreshRealtimeAuthOnce(supabase);
+
+    if (!isActive) {
+      isConnecting = false;
+      return;
+    }
+
+    // await 도중 이미 정상 연결됐으면 중복 채널을 만들지 않는다.
+    if (currentStatus === "SUBSCRIBED") {
+      isConnecting = false;
+      return;
+    }
+
+    if (!freshAccessToken) {
+      isConnecting = false;
+      scheduleReconnect();
+      return;
+    }
 
     const channel = supabase.channel(channelName);
     currentChannel = channel;
@@ -84,10 +109,16 @@ export function subscribeChatChannelWithReconnect<T extends object>({
   const scheduleReconnect = (immediate = false) => {
     if (!isActive) return;
     if (isConnecting || reconnectTimer) return;
-    if (reconnectCount >= MAX_AUTO_RECONNECT) return;
 
-    const delay = immediate ? 0 : getReconnectDelayMs(reconnectCount);
-    reconnectCount += 1;
+    // 소진 후에는 backoff 대신 keepalive 간격으로 계속 시도한다(reconnectCount는 더 안 올림).
+    const exhausted = reconnectCount >= MAX_AUTO_RECONNECT;
+    const delay = immediate
+      ? 0
+      : exhausted
+        ? KEEPALIVE_RECONNECT_INTERVAL_MS
+        : getReconnectDelayMs(reconnectCount);
+
+    if (!exhausted) reconnectCount += 1;
 
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -99,7 +130,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
         void supabase.removeChannel(staleChannel);
       }
 
-      connect();
+      void connect();
     }, delay);
   };
 
@@ -126,7 +157,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
     window.addEventListener("online", forceReconnectFromRecoverySignal);
   }
 
-  connect();
+  void connect();
 
   return () => {
     isActive = false;

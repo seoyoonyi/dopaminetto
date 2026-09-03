@@ -13,6 +13,7 @@ export function ChatPanel() {
     data,
     handleMessageSend,
     isConnected,
+    canSendMessage,
     fetchNextPage,
     hasNextPage,
     isLoading,
@@ -38,7 +39,7 @@ export function ChatPanel() {
         onVisiblePagesUpdate={onVisiblePagesUpdate}
         currentUserId={userId}
       />
-      <MessageField onMessageSend={handleMessageSend} isConnected={isConnected} roomId={roomId} />
+      <MessageField onMessageSend={handleMessageSend} canSend={canSendMessage} roomId={roomId} />
     </div>
   );
 }

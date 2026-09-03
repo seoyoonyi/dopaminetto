@@ -11,6 +11,17 @@ type ChatChannelStatus = string;
 /** MAX_AUTO_RECONNECT 소진 후에도 이 간격으로 재구독을 계속 시도한다(#173: 영구 정지 방지). */
 export const KEEPALIVE_RECONNECT_INTERVAL_MS = 30_000;
 
+/**
+ * subscribe() 후 이 시간 안에 상태 콜백이 한 번도 오지 않으면 hang으로 보고 강제 재시도한다.
+ * realtime-js의 channel(topic)은 같은 topic의 기존 인스턴스가 남아 있으면 그대로 반환하는데,
+ * 그 인스턴스의 state가 closed가 아니면 subscribe()가 조용히 no-op이 되어(#173) 상태 콜백이
+ * 영영 오지 않고 isConnecting이 고착된다. 이 watchdog이 그 경우를 스스로 회복시킨다.
+ */
+export const SUBSCRIBE_WATCHDOG_MS = 15_000;
+
+/** 새 채널 생성 전, 같은 topic의 잔존 채널 제거를 기다리는 상한. 넘으면 그냥 진행한다. */
+const STALE_CHANNEL_REMOVAL_TIMEOUT_MS = 3_000;
+
 interface SubscribeChatChannelParams<T extends object> {
   supabase: SupabaseClient;
   channelName: string;
@@ -49,6 +60,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** connect() 호출 직후(auth await 포함)부터 첫 상태 콜백까지의 in-flight 구간. */
   let isConnecting = false;
+  let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
   /** 한 번이라도 SUBSCRIBED에 도달한 적이 있는지. 최초 구독과 재구독을 구분한다. */
   let hasEverSubscribed = false;
   /** 마지막 SUBSCRIBED 이후 CLOSED/CHANNEL_ERROR/TIMED_OUT을 본 적이 있는지. */
@@ -59,6 +71,29 @@ export function subscribeChatChannelWithReconnect<T extends object>({
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
+  };
+
+  const clearWatchdog = () => {
+    if (watchdogTimer) {
+      clearTimeout(watchdogTimer);
+      watchdogTimer = null;
+    }
+  };
+
+  /**
+   * 같은 topic의 잔존 채널을 모두 제거한다. realtime-js의 channel(topic)은 기존 인스턴스가
+   * 남아 있으면 그대로 반환하므로, 새 채널을 만들기 전에 반드시 정리해야 subscribe()가
+   * no-op으로 새는 것을 막을 수 있다(#173). removeChannel이 늦어져도 상한을 두고 진행한다.
+   */
+  const removeStaleChannels = async () => {
+    const realtimeTopic = `realtime:${channelName}`;
+    const lingering = supabase.getChannels().filter((c) => c.topic === realtimeTopic);
+    if (lingering.length === 0) return;
+
+    await Promise.race([
+      Promise.all(lingering.map((c) => supabase.removeChannel(c))),
+      new Promise((resolve) => setTimeout(resolve, STALE_CHANNEL_REMOVAL_TIMEOUT_MS)),
+    ]);
   };
 
   const connect = async () => {
@@ -86,6 +121,19 @@ export function subscribeChatChannelWithReconnect<T extends object>({
       return;
     }
 
+    // 낡은 인스턴스가 재사용돼 subscribe()가 no-op 되는 것을 막는다.
+    currentChannel = null;
+    await removeStaleChannels();
+
+    if (!isActive) {
+      isConnecting = false;
+      return;
+    }
+    if (currentStatus === "SUBSCRIBED") {
+      isConnecting = false;
+      return;
+    }
+
     const channel = supabase.channel(channelName);
     currentChannel = channel;
     channel
@@ -99,6 +147,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
         // 현재 활성 채널의 콜백이 아니면 무시한다.
         if (channel !== currentChannel) return;
 
+        clearWatchdog();
         isConnecting = false;
 
         if (!isActive) return;
@@ -123,6 +172,19 @@ export function subscribeChatChannelWithReconnect<T extends object>({
           scheduleReconnect();
         }
       });
+
+    // subscribe()가 조용히 no-op 되거나 서버 응답이 영영 안 오는 경우, 상태 콜백이 한 번도
+    // 오지 않아 isConnecting이 고착된다. 일정 시간 안에 콜백이 없으면 강제로 정리하고 재시도한다.
+    clearWatchdog();
+    watchdogTimer = setTimeout(() => {
+      watchdogTimer = null;
+      if (!isActive || channel !== currentChannel || currentStatus === "SUBSCRIBED") return;
+
+      isConnecting = false;
+      currentChannel = null;
+      void supabase.removeChannel(channel);
+      scheduleReconnect(true);
+    }, SUBSCRIBE_WATCHDOG_MS);
   };
 
   const scheduleReconnect = (immediate = false) => {
@@ -181,6 +243,7 @@ export function subscribeChatChannelWithReconnect<T extends object>({
   return () => {
     isActive = false;
     clearReconnectTimer();
+    clearWatchdog();
 
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", handleVisibilityChange);

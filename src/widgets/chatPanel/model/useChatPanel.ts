@@ -227,6 +227,10 @@ export function useChatPanel() {
     data,
     handleMessageSend,
     isConnected: channelStatus === "SUBSCRIBED",
+    // 메시지 전송은 REST insert라 realtime 채널 상태와 무관하게 동작한다. 재연결 중이어도
+    // 신원(userId/nickname)만 있으면 보낼 수 있어야 한다(#173). 수신 상태는 헤더의
+    // "연결 중..." 표시로 별도 안내한다.
+    canSendMessage: Boolean(userId && userNickname),
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   KEEPALIVE_RECONNECT_INTERVAL_MS,
+  SUBSCRIBE_WATCHDOG_MS,
   subscribeChatChannelWithReconnect,
 } from "./chatChannelReconnect";
 
@@ -43,8 +44,11 @@ const createFakeSupabase = () => {
     return fakeChannel;
   });
   const removeChannel = vi.fn();
+  // 실제 supabase.getChannels()는 realtime에 남아 있는 채널 목록을 반환한다.
+  // removeStaleChannels()가 topic으로 필터링하므로 기본은 빈 배열로 둔다.
+  const getChannels = vi.fn(() => [] as { topic: string }[]);
 
-  return { channel, removeChannel, channels };
+  return { channel, removeChannel, getChannels, channels };
 };
 
 /** connect()의 `await ensureFreshRealtimeAuthOnce` 이후 continuation(microtask)까지 흘려보낸다. */
@@ -202,7 +206,10 @@ describe("subscribeChatChannelWithReconnect", () => {
     expect(supabase.channel).toHaveBeenCalledTimes(1 + MAX_AUTO_RECONNECT);
 
     // keepalive 간격이 지나면 다시 재구독을 시도한다(영구 정지하지 않는다).
-    await vi.advanceTimersByTimeAsync(KEEPALIVE_RECONNECT_INTERVAL_MS);
+    // watchdog(SUBSCRIBE_WATCHDOG_MS)가 끼어들지 않도록 keepalive 시점까지만 진행한다.
+    await vi.advanceTimersByTimeAsync(
+      KEEPALIVE_RECONNECT_INTERVAL_MS - RECONNECT_BACKOFF_MS[RECONNECT_BACKOFF_MS.length - 1],
+    );
     await flushMicrotasks();
     expect(supabase.channel).toHaveBeenCalledTimes(2 + MAX_AUTO_RECONNECT);
   });
@@ -366,6 +373,53 @@ describe("subscribeChatChannelWithReconnect", () => {
     supabase.channels[supabase.channels.length - 1].emitStatus("SUBSCRIBED");
 
     expect(onResubscribe).toHaveBeenCalledTimes(3);
+  });
+
+  it("subscribe 후 상태 콜백이 오지 않으면 watchdog가 채널을 정리하고 재연결한다", async () => {
+    const { supabase } = await startSubscription();
+
+    // 최초 채널은 만들어졌지만 어떤 상태 콜백도 오지 않는다(subscribe no-op hang 재현).
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(SUBSCRIBE_WATCHDOG_MS);
+    await flushMicrotasks();
+    await vi.runOnlyPendingTimersAsync();
+    await flushMicrotasks();
+
+    // watchdog가 고착된 채널을 제거하고 즉시 재연결을 시도한다.
+    expect(supabase.removeChannel).toHaveBeenCalledWith(supabase.channels[0]);
+    expect(supabase.channel).toHaveBeenCalledTimes(2);
+  });
+
+  it("상태 콜백을 한 번 받은 뒤에는 watchdog가 발동하지 않는다", async () => {
+    const { supabase } = await startSubscription();
+
+    supabase.channels[0].emitStatus("SUBSCRIBED");
+
+    await vi.advanceTimersByTimeAsync(SUBSCRIBE_WATCHDOG_MS + 1000);
+
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+  });
+
+  it("재연결 시 같은 topic의 잔존 채널을 먼저 제거한 뒤 새 채널을 만든다", async () => {
+    const supabase = createFakeSupabase();
+    const lingering = { topic: "realtime:chat:lobby" };
+    supabase.getChannels.mockReturnValue([lingering]);
+
+    const cleanup = subscribeChatChannelWithReconnect({
+      supabase: supabase as unknown as SupabaseClient,
+      channelName: "chat:lobby",
+      table: "chat",
+      roomFilter: "room_id=eq.lobby",
+      onInsert: vi.fn(),
+      onStatusChange: vi.fn(),
+    });
+    await flushMicrotasks();
+
+    expect(supabase.removeChannel).toHaveBeenCalledWith(lingering);
+    expect(supabase.channel).toHaveBeenCalledTimes(1);
+
+    cleanup();
   });
 
   it("cleanup 시 대기 중인 재연결 타이머를 취소하고 가시성 리스너를 제거한다", async () => {

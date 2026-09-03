@@ -259,6 +259,15 @@ describe("useChatPanel: insert 성공 응답으로 즉시 temp -> confirmed 전�
     });
   });
 
+  it("realtime 채널이 SUBSCRIBED가 아니어도 신원만 있으면 canSendMessage는 true다", async () => {
+    initialStatusRef.current = "CLOSED";
+    const supabase = createFakeSupabase(async () => ({ data: null, error: null }));
+    const { resultRef } = await mount(supabase);
+
+    expect(resultRef.current!.isConnected).toBe(false);
+    expect(resultRef.current!.canSendMessage).toBe(true);
+  });
+
   it("insert 실패 → optimistic 메시지가 제거된다", async () => {
     const supabase = createFakeSupabase(async () => ({
       data: null,

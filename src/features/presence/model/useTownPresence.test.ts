@@ -1,3 +1,4 @@
+import { PRESENCE_RECONCILE_INTERVAL_MS } from "@/shared/constants";
 import { DEPARTURE_GRACE_MS } from "@/shared/lib/realtime/departureGrace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +44,7 @@ vi.mock("@/features/movement/model/useMovementStore", () => ({
 
 vi.mock("@/shared/constants", () => ({
   PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS: 0,
+  PRESENCE_RECONCILE_INTERVAL_MS: 10_000,
 }));
 
 vi.mock("@/shared/hooks/useDebouncedValue", () => ({
@@ -65,6 +67,7 @@ vi.mock("@/shared/hooks/useTownChannel", () => ({
 
 vi.mock("@/shared/lib/realtime/townChannelManager", () => ({
   getTownChannelStatus: () => channelStatus,
+  getTownChannel: () => currentChannel,
 }));
 
 vi.mock("@/features/presence/model/useTownPresenceStore", async () => {
@@ -199,5 +202,59 @@ describe("useTownPresence: town:main 재연결 시 stale participant 회귀 방�
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toEqual(
       expect.arrayContaining(["me", "remote-a"]),
     );
+  });
+
+  it("재연결 중 grace가 만료돼 보류된 이탈이, 서버 이벤트 없이 폴링으로 확정된다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    // 1. 3명 정상 상태.
+    channelStatus = "SUBSCRIBED";
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+
+    // 2. B가 실제 퇴장 — 서버 leave 이벤트로 스냅샷에서 빠지고 grace가 시작된다.
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("leave", { leftPresences: [REMOTE_B] });
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain("remote-b");
+
+    // 3. 관찰자 채널이 재연결에 들어간다 → grace 만료 시 확정을 보류한다.
+    channelStatus = "CHANNEL_ERROR";
+    useTownPresence();
+    vi.advanceTimersByTime(DEPARTURE_GRACE_MS);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain("remote-b");
+
+    // 4. 채널이 복구되지만 아무도 join/leave하지 않아 서버 재검증 이벤트가 오지 않는다.
+    channelStatus = "SUBSCRIBED";
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+
+    // 5. 폴링 tick만으로 보류된 B의 이탈이 확정된다.
+    vi.advanceTimersByTime(PRESENCE_RECONCILE_INTERVAL_MS);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      "remote-b",
+    );
+  });
+
+  it("재입장한 참여자가 서버 join 이벤트 없이도 폴링으로 다시 목록에 나타난다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    channelStatus = "SUBSCRIBED";
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      "remote-b",
+    );
+
+    // B가 재입장해 로컬 presence 맵에는 반영됐지만 join 이벤트가 유실된 상황.
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]) };
+    useTownPresence();
+
+    vi.advanceTimersByTime(PRESENCE_RECONCILE_INTERVAL_MS);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain("remote-b");
   });
 });

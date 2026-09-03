@@ -1,6 +1,8 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RECONNECT_BACKOFF_MS } from "./reconnectBackoff";
+
 /**
  * townChannelManager는 대부분 다른 feature 테스트에서 mock으로 간접 검증되지만,
  * "auth freshness 확보 실패 시 소켓 리셋을 진행하지 않는다"는 이번 수정의 핵심 보장은
@@ -302,6 +304,185 @@ describe("townChannelManager: subscribe 직전 auth freshness 게이트", () => 
     channels["test:normal-flow"].getLatestCallback()("SUBSCRIBED");
 
     expect(getTownChannelStatus("test:normal-flow")).toBe("SUBSCRIBED");
+  });
+});
+
+/**
+ * #173 후속: online/visibilitychange 복구 신호는 edge-triggered라서 딱 한 번만 온다. 그 시점에
+ * 네트워크가 아직 불안정해 auth freshness 확보가 실패하면, 예전에는 그 한 번으로 복구를 포기해
+ * (재시도 예산을 모두 소진한 장시간 offline 상황에서) 새로고침 전까지 채널이 stale하게 남았다.
+ * 이제 복구 신호 이후 auth 게이트가 실패하면 짧은 backoff로 몇 번 더 재시도한다.
+ */
+describe("townChannelManager: 복구 신호(online) 이후 auth 게이트 실패 시 재시도", () => {
+  let onlineHandler: (() => void) | undefined;
+
+  beforeEach(() => {
+    vi.resetModules();
+    delete (globalThis as unknown as Record<string, unknown>).__townChannelState;
+    vi.useFakeTimers();
+
+    onlineHandler = undefined;
+    vi.stubGlobal("document", {
+      visibilityState: "hidden",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "online") onlineHandler = handler;
+      }),
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const buildSupabase = (
+    getSession: ReturnType<typeof vi.fn>,
+    signInAnonymously: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue({ error: null }),
+  ) => {
+    const channelFactories: Record<string, ReturnType<typeof createFakeChannel>> = {};
+    const channel = vi.fn((channelName: string) => {
+      channelFactories[channelName] = createFakeChannel();
+      return channelFactories[channelName].channel;
+    });
+
+    const supabase = {
+      channel,
+      removeChannel: vi.fn().mockResolvedValue(undefined),
+      auth: { getSession, signInAnonymously },
+      realtime: {
+        disconnect: vi.fn(),
+        connect: vi.fn(),
+        isDisconnecting: vi.fn(() => false),
+        accessTokenValue: null,
+        setAuth: vi.fn().mockResolvedValue(undefined),
+      },
+    } as unknown as SupabaseClient;
+
+    return { supabase, channel, channelFactories };
+  };
+
+  const drainChannelLevelRetries = async () => {
+    // acquireTownChannel 직후의 채널 레벨 재시도(즉시 + RECONNECT_BACKOFF_MS)를 전부 소진시켜,
+    // 이후 복구가 오직 복구-신호 재시도 경로로만 일어나도록 만든다.
+    await vi.advanceTimersByTimeAsync(0);
+    for (const delay of RECONNECT_BACKOFF_MS) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  };
+
+  /** 여러 await 홉(auth 확인 → reconnectTownChannel → scheduleConnect → attemptConnect)을 흘려보낸다. */
+  const flushAsync = async () => {
+    for (let i = 0; i < 8; i += 1) {
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  };
+
+  it("online 시점 auth 실패로 무산돼도 backoff 후 재시도해 채널을 재연결한다", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let sessionReady = false;
+    const getSession = vi.fn(async () =>
+      sessionReady
+        ? { data: { session: { access_token: "fresh-token" } }, error: null }
+        : { data: { session: null }, error: null },
+    );
+    const signInAnonymously = vi.fn(async () =>
+      sessionReady ? { error: null } : { error: { message: "network down" } },
+    );
+    const { supabase, channel } = buildSupabase(getSession, signInAnonymously);
+    const { acquireTownChannel } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await drainChannelLevelRetries();
+
+    // 채널 레벨은 소진됐고, 스스로 재시도를 트리거할 콜백도 없다.
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(channel).not.toHaveBeenCalled();
+
+    // online 신호가 오지만, 아직 네트워크가 불안정해 auth 확보에 실패한다.
+    onlineHandler?.();
+    await flushAsync();
+    expect(channel).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("잠시 후 다시 시도"));
+
+    // 곧 네트워크가 안정되고, 복구 재시도 backoff가 지나면 다시 시도해 이번엔 성공한다.
+    sessionReady = true;
+    await vi.runAllTimersAsync();
+
+    expect(channel).toHaveBeenCalledWith("town:main", expect.anything());
+  });
+
+  it("빠른 backoff 재시도를 소진한 뒤에도 느린 keepalive 간격으로 계속 재시도한다", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getSession = vi.fn().mockResolvedValue({ data: { session: null }, error: null });
+    const signInAnonymously = vi.fn().mockResolvedValue({ error: { message: "network down" } });
+    const { supabase } = buildSupabase(getSession, signInAnonymously);
+    const { acquireTownChannel } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await drainChannelLevelRetries();
+
+    const retryWarnCount = () =>
+      warnSpy.mock.calls.filter(
+        ([msg]) => typeof msg === "string" && msg.includes("잠시 후 다시 시도"),
+      ).length;
+
+    // online 후 빠른 backoff 재시도가 전부 소진될 때까지 흘려보낸다.
+    onlineHandler?.();
+    for (const delay of RECONNECT_BACKOFF_MS) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await flushAsync();
+    }
+    const afterFastRetries = retryWarnCount();
+    expect(afterFastRetries).toBeGreaterThanOrEqual(1 + RECONNECT_BACKOFF_MS.length);
+
+    // 소진 후에도 keepalive 간격이 지날 때마다 계속 재시도한다(영구 정지하지 않는다).
+    await vi.advanceTimersByTimeAsync(30_000);
+    await flushAsync();
+    expect(retryWarnCount()).toBe(afterFastRetries + 1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await flushAsync();
+    expect(retryWarnCount()).toBe(afterFastRetries + 2);
+  });
+
+  it("다음 online 신호가 오면 소진됐던 재시도 예산이 새로 주어진다", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let sessionReady = false;
+    const getSession = vi.fn(async () =>
+      sessionReady
+        ? { data: { session: { access_token: "fresh-token" } }, error: null }
+        : { data: { session: null }, error: null },
+    );
+    const signInAnonymously = vi.fn(async () =>
+      sessionReady ? { error: null } : { error: { message: "still down" } },
+    );
+    const { supabase, channel } = buildSupabase(getSession, signInAnonymously);
+    const { acquireTownChannel } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await drainChannelLevelRetries();
+
+    // 1차 online: 빠른 backoff 재시도 예산을 전부 소진시킨다(이후엔 느린 keepalive로만 재시도).
+    onlineHandler?.();
+    for (const delay of RECONNECT_BACKOFF_MS) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await flushAsync();
+    }
+    expect(channel).not.toHaveBeenCalled();
+
+    // 2차 online: 이번엔 네트워크가 안정된 상태 → 소진 여부와 무관하게 즉시 복구돼야 한다.
+    sessionReady = true;
+    onlineHandler?.();
+    await flushAsync();
+
+    expect(channel).toHaveBeenCalledWith("town:main", expect.anything());
   });
 });
 

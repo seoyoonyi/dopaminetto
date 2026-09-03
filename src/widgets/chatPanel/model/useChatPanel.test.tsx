@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useMessagesQuery } from "@/features/chat/hooks/useMessagesQuery";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,14 +23,23 @@ import { useChatPanel } from "./useChatPanel";
  * 그 자리에서 바로 temp -> confirmed 전환한다(useChatPanel.ts의 handleMessageSend).
  */
 
-const { useSupabaseMock, onInsertRef } = vi.hoisted(() => ({
+const { useSupabaseMock, onInsertRef, onResubscribeRef, initialStatusRef } = vi.hoisted(() => ({
   useSupabaseMock: vi.fn(),
   onInsertRef: { current: null as ((payload: { new: unknown }) => void) | null },
+  onResubscribeRef: { current: null as (() => void) | null },
+  initialStatusRef: { current: "SUBSCRIBED" as string },
 }));
 
 vi.mock("@/app/providers/SupabaseProvider", () => ({
   useSupabase: useSupabaseMock,
 }));
+
+// useMessagesQuery는 실제 구현을 그대로 쓰되(아래 insert 플로우 테스트가 의존), 호출 인자를
+// 검증할 수 있도록 spy로 감싼다.
+vi.mock("@/features/chat/hooks/useMessagesQuery", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/chat/hooks/useMessagesQuery")>();
+  return { useMessagesQuery: vi.fn(actual.useMessagesQuery) };
+});
 
 // 실제 supabase.client.ts는 모듈 로드 시점에 createBrowserClient()를 호출해 env var가
 // 필요하다(messageUtils.test.ts와 동일한 이유). `@/features/chat` barrel이 재export하는
@@ -50,11 +60,14 @@ vi.mock("./chatChannelReconnect", () => ({
   subscribeChatChannelWithReconnect: (opts: {
     onInsert: (payload: { new: unknown }) => void;
     onStatusChange: (status: string) => void;
+    onResubscribe?: () => void;
   }) => {
     onInsertRef.current = opts.onInsert;
-    opts.onStatusChange("SUBSCRIBED");
+    onResubscribeRef.current = opts.onResubscribe ?? null;
+    opts.onStatusChange(initialStatusRef.current);
     return () => {
       onInsertRef.current = null;
+      onResubscribeRef.current = null;
     };
   },
 }));
@@ -62,7 +75,10 @@ vi.mock("./chatChannelReconnect", () => ({
 type InsertResult = { data: unknown; error: unknown };
 
 /** fetchMessages(읽기)와 handleMessageSend(쓰기)를 모두 지원하는 최소 fake supabase client다. */
-function createFakeSupabase(insertImpl: () => Promise<InsertResult>) {
+function createFakeSupabase(
+  insertImpl: () => Promise<InsertResult>,
+  readImpl: () => unknown[] = () => [],
+) {
   const from = vi.fn(() => ({
     select: vi.fn(() => {
       const readBuilder = {
@@ -71,7 +87,7 @@ function createFakeSupabase(insertImpl: () => Promise<InsertResult>) {
         limit: vi.fn(() => readBuilder),
         lt: vi.fn(() => readBuilder),
         then: (resolve: (value: { data: unknown[]; error: null }) => void) =>
-          resolve({ data: [], error: null }),
+          resolve({ data: readImpl(), error: null }),
       };
       return readBuilder;
     }),
@@ -128,6 +144,7 @@ async function mount(supabase: unknown) {
 describe("useChatPanel: insert 성공 응답으로 즉시 temp -> confirmed 전환", () => {
   beforeEach(() => {
     useUserStore.setState({ userId: "user-1", userNickname: "tester" });
+    initialStatusRef.current = "SUBSCRIBED";
   });
 
   afterEach(() => {
@@ -190,6 +207,56 @@ describe("useChatPanel: insert 성공 응답으로 즉시 temp -> confirmed 전�
     const messages = resultRef.current!.messages;
     expect(messages).toHaveLength(1);
     expect(messages.filter((m) => m.id === 102)).toHaveLength(1);
+  });
+
+  it("재구독(onResubscribe) 시 messages 쿼리를 다시 fetch해 유실 메시지를 채운다", async () => {
+    const missed = {
+      id: 303,
+      user_id: "user-2",
+      room_id: "village:lobby",
+      nickname: "other",
+      message: "manual-long-recovery-3",
+      created_at: "2026-08-23T23:10:00.000Z",
+    };
+    let readCount = 0;
+    const supabase = createFakeSupabase(
+      async () => ({ data: null, error: null }),
+      () => {
+        readCount += 1;
+        // 최초 로드에는 없던 메시지가, 재구독 후 refetch에서 나타나는 상황을 재현한다.
+        return readCount >= 2 ? [missed] : [];
+      },
+    );
+    const { resultRef } = await mount(supabase);
+
+    expect(resultRef.current!.messages).toHaveLength(0);
+
+    await act(async () => {
+      onResubscribeRef.current?.();
+    });
+    await flush();
+
+    expect(resultRef.current!.messages.some((m) => m.id === 303)).toBe(true);
+  });
+
+  it("채널이 SUBSCRIBED면 재동기화 폴링 간격을 60초로 useMessagesQuery에 전달한다", async () => {
+    initialStatusRef.current = "SUBSCRIBED";
+    const supabase = createFakeSupabase(async () => ({ data: null, error: null }));
+    await mount(supabase);
+
+    expect(vi.mocked(useMessagesQuery)).toHaveBeenLastCalledWith("village:lobby", {
+      reconcileIntervalMs: 60_000,
+    });
+  });
+
+  it("채널이 SUBSCRIBED가 아니면 재동기화 폴링 간격을 15초로 좁힌다", async () => {
+    initialStatusRef.current = "CLOSED";
+    const supabase = createFakeSupabase(async () => ({ data: null, error: null }));
+    await mount(supabase);
+
+    expect(vi.mocked(useMessagesQuery)).toHaveBeenLastCalledWith("village:lobby", {
+      reconcileIntervalMs: 15_000,
+    });
   });
 
   it("insert 실패 → optimistic 메시지가 제거된다", async () => {

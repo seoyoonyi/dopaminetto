@@ -98,6 +98,7 @@ const startSubscription = async () => {
   const supabase = createFakeSupabase();
   const onStatusChange = vi.fn();
   const onInsert = vi.fn();
+  const onResubscribe = vi.fn();
 
   const cleanup = subscribeChatChannelWithReconnect({
     supabase: supabase as unknown as SupabaseClient,
@@ -106,12 +107,13 @@ const startSubscription = async () => {
     roomFilter: "room_id=eq.lobby",
     onInsert,
     onStatusChange,
+    onResubscribe,
   });
 
   // 최초 connect()의 auth 확인 microtask를 흘려보내 채널이 실제로 만들어지게 한다.
   await flushMicrotasks();
 
-  return { supabase, onStatusChange, onInsert, cleanup };
+  return { supabase, onStatusChange, onInsert, onResubscribe, cleanup };
 };
 
 describe("subscribeChatChannelWithReconnect", () => {
@@ -320,6 +322,50 @@ describe("subscribeChatChannelWithReconnect", () => {
     await flushMicrotasks();
 
     expect(supabase.channel).toHaveBeenCalledTimes(1);
+  });
+
+  it("최초 SUBSCRIBED에는 onResubscribe를 호출하지 않는다", async () => {
+    const { supabase, onResubscribe } = await startSubscription();
+
+    supabase.channels[0].emitStatus("SUBSCRIBED");
+
+    expect(onResubscribe).not.toHaveBeenCalled();
+  });
+
+  it("끊겼다가 다시 SUBSCRIBED 되면 onResubscribe를 정확히 한 번 호출한다", async () => {
+    const { supabase, onResubscribe } = await startSubscription();
+
+    supabase.channels[0].emitStatus("SUBSCRIBED");
+    supabase.channels[0].emitStatus("CLOSED");
+    await vi.advanceTimersByTimeAsync(RECONNECT_BACKOFF_MS[0]);
+    await flushMicrotasks();
+    supabase.channels[1].emitStatus("SUBSCRIBED");
+
+    expect(onResubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("끊김 없이 SUBSCRIBED 콜백이 중복으로 와도 onResubscribe를 호출하지 않는다", async () => {
+    const { supabase, onResubscribe } = await startSubscription();
+
+    supabase.channels[0].emitStatus("SUBSCRIBED");
+    supabase.channels[0].emitStatus("SUBSCRIBED");
+
+    expect(onResubscribe).not.toHaveBeenCalled();
+  });
+
+  it("재연결 사이클이 여러 번 돌면 각 사이클마다 onResubscribe가 호출된다", async () => {
+    const { supabase, onResubscribe } = await startSubscription();
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      const lastChannel = supabase.channels[supabase.channels.length - 1];
+      lastChannel.emitStatus("SUBSCRIBED");
+      lastChannel.emitStatus("CLOSED");
+      await vi.advanceTimersByTimeAsync(RECONNECT_BACKOFF_MS[0]);
+      await flushMicrotasks();
+    }
+    supabase.channels[supabase.channels.length - 1].emitStatus("SUBSCRIBED");
+
+    expect(onResubscribe).toHaveBeenCalledTimes(3);
   });
 
   it("cleanup 시 대기 중인 재연결 타이머를 취소하고 가시성 리스너를 제거한다", async () => {

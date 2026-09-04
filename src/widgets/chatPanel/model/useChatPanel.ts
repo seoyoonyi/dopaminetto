@@ -15,7 +15,17 @@ import { getChatChannelName, getChatRoomId } from "@/shared/lib";
 import { useChatVisibilityActions, useUserStore, useVisiblePageIndices } from "@/shared/store";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { subscribeChatChannelWithReconnect } from "./chatChannelReconnect";
+
+/**
+ * realtime 채널이 SUBSCRIBED로 확인된 동안의 재동기화 폴링 간격. 채널이 조용히 죽어
+ * 상태만 SUBSCRIBED로 stale하게 남는 경우를 대비한 느린 안전망이다.
+ */
+const CHAT_RECONCILE_INTERVAL_SUBSCRIBED_MS = 60_000;
+/** 채널이 끊겼거나 아직 SUBSCRIBED로 확인되지 않은 동안의 빠른 재동기화 폴링 간격. */
+const CHAT_RECONCILE_INTERVAL_DISCONNECTED_MS = 15_000;
 
 /**
  * 채팅 패널의 주요 비즈니스 로직을 관리하는 커스텀 훅입니다.
@@ -38,13 +48,28 @@ export function useChatPanel() {
 
   const [channelStatus, setChannelStatus] = useState("INITIAL");
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+  /**
+   * temp 메시지 id 발급용 단조 증가 카운터다. `-Date.now()`는 같은 밀리초에 연속
+   * 전송하면 두 temp가 동일한 id를 가져, 하나만 확정돼도 둘 다 사라지는 문제가 있었다.
+   */
+  const tempMessageIdRef = useRef(0);
 
   // Zustand 스토어 사용
   const { setVisiblePages } = useChatVisibilityActions();
   const visiblePageIndices = useVisiblePageIndices();
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useMessagesQuery(roomId);
+  // realtime 채널 상태에 따라 재동기화 간격을 조절한다. 재구독 시점의 backfill(아래
+  // onResubscribe)이 갭 대부분을 메우고, 이 폴링은 재연결이 영영 안 되거나 상태만
+  // stale하게 SUBSCRIBED로 남는 경우까지 커버하는 안전망이다.
+  const reconcileIntervalMs =
+    channelStatus === "SUBSCRIBED"
+      ? CHAT_RECONCILE_INTERVAL_SUBSCRIBED_MS
+      : CHAT_RECONCILE_INTERVAL_DISCONNECTED_MS;
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useMessagesQuery(
+    roomId,
+    { reconcileIntervalMs },
+  );
 
   // 빌리지 이동 시 낙관적 메시지 초기화
   // React 공식 권장 패턴: useState로 이전 roomId를 추적하여 렌더 중 비교합니다.
@@ -128,43 +153,31 @@ export function useChatPanel() {
   useEffect(() => {
     if (!userNickname || !supabase) return;
 
-    let isActive = true;
+    return subscribeChatChannelWithReconnect<Message>({
+      supabase,
+      channelName: chatChannelName,
+      table: CHAT_TABLE_NAME,
+      roomFilter: `room_id=eq.${roomId}`,
+      onInsert: (payload) => {
+        const newMessage = payload.new;
 
-    const chatChannel = supabase.channel(chatChannelName);
-
-    chatChannel
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: CHAT_TABLE_NAME,
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const newMessage = payload.new as Message;
-
-          setOptimisticMessages((prev) => removeMatchingTempMessage(prev, newMessage));
-          queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", roomId], (oldData) =>
-            addMessageToCache(oldData, newMessage),
-          );
-        },
-      )
-      .subscribe((status) => {
-        if (!isActive) return;
-        setChannelStatus(status);
-      });
-
-    return () => {
-      isActive = false;
-      supabase.removeChannel(chatChannel);
-    };
+        setOptimisticMessages((prev) => removeMatchingTempMessage(prev, newMessage));
+        queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", roomId], (oldData) =>
+          addMessageToCache(oldData, newMessage),
+        );
+      },
+      onStatusChange: setChannelStatus,
+      onResubscribe: () => {
+        // 재구독 갭 동안 realtime이 놓친 메시지를 다시 fetch해 채워 넣는다.
+        void queryClient.invalidateQueries({ queryKey: ["messages", roomId] });
+      },
+    });
   }, [chatChannelName, userNickname, supabase, queryClient, roomId]);
 
   const handleMessageSend = async (messageText: string): Promise<{ error?: string }> => {
     if (!messageText || !userNickname || !userId) return {};
 
-    const tempId = -Date.now();
+    const tempId = -++tempMessageIdRef.current;
     const tempMessage: Message = {
       id: tempId,
       user_id: userId,
@@ -176,18 +189,33 @@ export function useChatPanel() {
 
     setOptimisticMessages((prev) => [...prev, tempMessage]);
 
-    const { error } = await supabase.from(CHAT_TABLE_NAME).insert({
-      user_id: userId,
-      room_id: roomId,
-      nickname: userNickname,
-      message: messageText,
-    });
+    const { data, error } = await supabase
+      .from(CHAT_TABLE_NAME)
+      .insert({
+        user_id: userId,
+        room_id: roomId,
+        nickname: userNickname,
+        message: messageText,
+      })
+      .select()
+      .single();
 
     if (error) {
       setOptimisticMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       console.error("메시지 전송 실패:", error);
       return { error: error.message };
     }
+
+    // Realtime postgres_changes INSERT echo를 기다리지 않고, insert 성공 응답으로 즉시
+    // temp -> confirmed 전환한다. background/재연결 중이라 채널이 SUBSCRIBED가 아니어서
+    // echo를 영영 못 받는 경우에도 내 메시지는 회색으로 고착되지 않는다. tempId로 직접
+    // 제거하므로(내용 매칭이 아님) 동일 문구를 연속 전송해도 서로 다른 temp가 잘못 지워지지
+    // 않는다. echo가 나중에 도착해도 addMessageToCache의 id 중복 체크가 재추가를 막는다.
+    const confirmedMessage = data as Message;
+    setOptimisticMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+    queryClient.setQueryData<InfiniteData<MessagesPage>>(["messages", roomId], (oldData) =>
+      addMessageToCache(oldData, confirmedMessage),
+    );
 
     return {};
   };
@@ -199,6 +227,10 @@ export function useChatPanel() {
     data,
     handleMessageSend,
     isConnected: channelStatus === "SUBSCRIBED",
+    // 메시지 전송은 REST insert라 realtime 채널 상태와 무관하게 동작한다. 재연결 중이어도
+    // 신원(userId/nickname)만 있으면 보낼 수 있어야 한다(#173). 수신 상태는 헤더의
+    // "연결 중..." 표시로 별도 안내한다.
+    canSendMessage: Boolean(userId && userNickname),
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

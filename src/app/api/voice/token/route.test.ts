@@ -36,11 +36,12 @@ describe("POST /api/voice/token", () => {
     vi.stubEnv("CLOUDFLARE_REALTIME_APP_ID", "app-id");
     vi.stubEnv("CLOUDFLARE_REALTIME_MEETING_ID", "meeting-id");
     vi.stubEnv("CLOUDFLARE_API_TOKEN", "api-token");
+    vi.stubEnv("NEXT_PUBLIC_SPEAKER_NICKNAME", "방송자");
     vi.mocked(createSupabaseServerClient).mockReturnValue({
       auth: { getUser: getUserMock },
     } as never);
     vi.stubGlobal("fetch", cloudflareFetchMock);
-    cloudflareFetchMock.mockResolvedValue(cloudflareResponse());
+    cloudflareFetchMock.mockImplementation(() => Promise.resolve(cloudflareResponse()));
   });
 
   it("rejects requests without an authenticated Supabase user", async () => {
@@ -78,6 +79,7 @@ describe("POST /api/voice/token", () => {
     expect(await response.json()).toMatchObject({
       role: "listener",
       presetName: "group_call_participant",
+      speakerAccessDenied: false,
     });
     expect(cloudflareFetchMock).toHaveBeenCalledWith(
       expect.any(String),
@@ -109,6 +111,107 @@ describe("POST /api/voice/token", () => {
     expect(await response.json()).toMatchObject({
       role: "speaker",
       presetName: "group_call_host",
+      speakerAccessDenied: false,
     });
+  });
+
+  it("issues the listener preset to an authorized speaker using a regular nickname", async () => {
+    getUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: "speaker-user-id",
+          user_metadata: { nickname: "일반 사용자" },
+          app_metadata: { role: "speaker" },
+        },
+      },
+      error: null,
+    });
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      role: "listener",
+      presetName: "group_call_participant",
+      speakerAccessDenied: false,
+    });
+  });
+
+  it("preserves UID speaker permission across nickname-based role transitions", async () => {
+    const speakerPermission = { role: "speaker" };
+    const user = {
+      id: "speaker-user-id",
+      user_metadata: { nickname: "방송자" },
+      app_metadata: speakerPermission,
+    };
+
+    getUserMock
+      .mockResolvedValueOnce({ data: { user }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          user: { ...user, user_metadata: { nickname: "일반 사용자" } },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { user }, error: null });
+
+    const firstResponse = await POST(createRequest());
+    const secondResponse = await POST(createRequest());
+    const thirdResponse = await POST(createRequest());
+
+    expect(await firstResponse.json()).toMatchObject({
+      role: "speaker",
+      presetName: "group_call_host",
+    });
+    expect(await secondResponse.json()).toMatchObject({
+      role: "listener",
+      presetName: "group_call_participant",
+    });
+    expect(await thirdResponse.json()).toMatchObject({
+      role: "speaker",
+      presetName: "group_call_host",
+    });
+    expect(user.app_metadata).toEqual(speakerPermission);
+  });
+
+  it("marks speaker access denied for a regular user using the speaker nickname", async () => {
+    getUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: "regular-user-id",
+          user_metadata: { nickname: " 방송자 " },
+          app_metadata: {},
+        },
+      },
+      error: null,
+    });
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      role: "listener",
+      presetName: "group_call_participant",
+      speakerAccessDenied: true,
+    });
+  });
+
+  it("rejects token requests when the speaker nickname setting is missing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SPEAKER_NICKNAME", "");
+    getUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: "regular-user-id",
+          user_metadata: { nickname: "일반 사용자" },
+          app_metadata: {},
+        },
+      },
+      error: null,
+    });
+
+    const response = await POST(createRequest());
+
+    expect(response.status).toBe(500);
+    expect(cloudflareFetchMock).not.toHaveBeenCalled();
   });
 });

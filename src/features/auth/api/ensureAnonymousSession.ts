@@ -1,20 +1,7 @@
 import { supabase } from "@/shared/config/supabase.client";
+import { ensureAnonymousSession as ensureAnonymousSessionWithClient } from "@/shared/lib/auth/ensureAnonymousSession";
 
-/** 기존 익명 세션을 유지하고, 세션이 없을 때만 새 익명 사용자를 생성한다. */
+/** 앱 전역 singleton supabase client로 기존 호출부(`ensureAnonymousSession()`) 호환성을 유지하는 wrapper다. */
 export async function ensureAnonymousSession(): Promise<void> {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-
-  if (sessionError) {
-    throw new Error(`익명 세션 확인에 실패했습니다: ${sessionError.message}`);
-  }
-
-  if (session) return;
-
-  const { error: signInError } = await supabase.auth.signInAnonymously();
-  if (signInError) {
-    throw new Error(`익명 로그인에 실패했습니다: ${signInError.message}`);
-  }
+  return ensureAnonymousSessionWithClient(supabase);
 }

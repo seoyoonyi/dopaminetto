@@ -3,10 +3,19 @@
 import { LOBBY_VILLAGE_ID, VILLAGES, VillageId } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
-import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
+import {
+  PRESENCE_RECONCILE_INTERVAL_MS,
+  PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS,
+} from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
+import { TOWN_MAIN_CHANNEL } from "@/shared/lib/realtime";
+import {
+  getTownChannel,
+  getTownChannelStatus,
+  observeTownChannelBroadcast,
+} from "@/shared/lib/realtime/townChannelManager";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
@@ -89,12 +98,14 @@ export const useTownPresence = (isSpeaker = false) => {
     reconnect,
   } = useTownChannel();
 
-  const { setParticipantsState, setConnectionState } = useTownPresenceStore(
-    useShallow((state) => ({
-      setParticipantsState: state.setParticipants,
-      setConnectionState: state.setConnectionState,
-    })),
-  );
+  const { setParticipantsState, setConnectionState, markParticipantDeparted } =
+    useTownPresenceStore(
+      useShallow((state) => ({
+        setParticipantsState: state.setParticipants,
+        setConnectionState: state.setConnectionState,
+        markParticipantDeparted: state.markParticipantDeparted,
+      })),
+    );
   const localJoinedAt = useTownPresenceStore((state) => state.localJoinedAt);
   const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
   const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
@@ -180,6 +191,15 @@ export const useTownPresence = (isSpeaker = false) => {
   ]);
 
   useEffect(() => {
+    /**
+     * channel 참조는 재연결/소켓 리셋 때마다 바뀌지만(town:main이 아닌 다른 채널의
+     * flapping으로 인한 socket reset 포함), 새로 만들어진 채널 객체는 아직 구독이
+     * 완료되기 전이라 이 시점의 presenceState()는 서버 상태를 반영하지 않는다.
+     * 여기서 즉시 읽어버리면 "아무도 없다"는 가짜 스냅샷이 실제 sync인 것처럼
+     * store에 들어가 정상 참여자까지 이탈 후보로 잘못 분류될 수 있다(#173).
+     * Movement(useMovementSync.ts)와 동일하게, town:main이 실제로 보낸
+     * sync/join/leave 이벤트(subscribeToPresence)만을 신뢰한다.
+     */
     const onPresenceEvent = () => {
       if (channel) {
         const state = channel.presenceState();
@@ -188,15 +208,70 @@ export const useTownPresence = (isSpeaker = false) => {
       }
     };
 
-    if (channel) {
-      onPresenceEvent();
-    }
-
     const unsubscribe = subscribeToPresence(onPresenceEvent);
     return () => {
       unsubscribe();
     };
   }, [channel, subscribeToPresence, setParticipantsState, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    /**
+     * 정상 퇴장(뒤로가기/페이지 이탈)은 sync-leave 브로드캐스트로 즉시 목록에 반영한다.
+     * Movement(useMovementSync.ts)의 원격 캐릭터 제거와 같은 신호를 써서 접속자 목록과
+     * 캐릭터 렌더링의 퇴장 시점을 맞춘다. 신호가 없는 비정상 종료(크래시/네트워크 단절)는
+     * presence leave + grace가 fallback으로 처리한다.
+     */
+    const unsubscribe = observeTownChannelBroadcast(TOWN_MAIN_CHANNEL, (event, payload) => {
+      if (event !== "sync-leave" || !payload) return;
+
+      const leavingUserId = (payload as { userId?: string }).userId;
+      if (!leavingUserId || leavingUserId === userId) return;
+
+      markParticipantDeparted(leavingUserId);
+    });
+
+    return () => {
+      unsubscribe();
+
+      // 언마운트 시점의 최신 채널을 조회해 낡은 참조로 보내지 않는다.
+      if (getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED") return;
+
+      void getTownChannel(TOWN_MAIN_CHANNEL)?.send({
+        type: "broadcast",
+        event: "sync-leave",
+        payload: { userId },
+      });
+    };
+  }, [userId, markParticipantDeparted]);
+
+  useEffect(() => {
+    /**
+     * 이탈 확정(departureGrace.reconcile)과 재입장 반영은 setParticipants() 안에서만
+     * 일어나는데, setParticipants()는 서버 sync/join/leave 이벤트로만 호출된다. 장시간
+     * 재연결 뒤 채널이 안정화됐지만 아무도 join/leave하지 않으면 재검증 트리거가 오지 않아
+     * stale 이탈/재입장이 새로고침 전까지 남는다(#173). 이 폴링이 그 공백을 메운다.
+     */
+    if (channelStatus !== "SUBSCRIBED") return;
+
+    const reconcileFromLocalPresence = () => {
+      // 클로저의 낡은 채널을 쓰지 않도록 매 tick 최신값을 조회한다.
+      if (getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED") return;
+
+      const liveChannel = getTownChannel(TOWN_MAIN_CHANNEL);
+      if (!liveChannel) return;
+
+      // 재연결 직후 미완성 스냅샷을 전원 이탈로 오판하지 않는다.
+      const state = liveChannel.presenceState();
+      if (Object.keys(state).length === 0) return;
+
+      setParticipantsState(mapPresenceState(state), userId || "");
+    };
+
+    const interval = setInterval(reconcileFromLocalPresence, PRESENCE_RECONCILE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [channelStatus, setParticipantsState, userId]);
 
   // 4. 연결 피드백 토스트
   useEffect(() => {

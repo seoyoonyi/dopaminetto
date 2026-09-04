@@ -75,7 +75,7 @@ function ActiveTownPage() {
   const { setUserProfile } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
-  useTownPresence();
+  useTownPresence(voiceRole === "speaker");
 
   /** 페이지 이탈 시 타운 이동 상태를 초기화해 이전 씬 데이터를 남기지 않는다. */
   useEffect(() => {

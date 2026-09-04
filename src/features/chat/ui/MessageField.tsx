@@ -11,7 +11,11 @@ import { CharacterCounter } from "./CharacterCounter";
 interface MessageFieldProps {
   channelType?: "public" | "private";
   onMessageSend?: (message: string) => Promise<{ error?: string }>;
-  isConnected: boolean;
+  /**
+   * 메시지를 보낼 수 있는지 여부. 전송은 REST insert라 realtime 수신 채널 상태와 무관하며,
+   * 신원(로그인)만 있으면 가능하다(#173). realtime 재연결 중이어도 입력/전송을 막지 않는다.
+   */
+  canSend: boolean;
   roomId: string;
 }
 
@@ -28,7 +32,7 @@ const WRAPPER_PADDING = 24;
 export default function MessageField({
   channelType = "public",
   onMessageSend,
-  isConnected,
+  canSend,
   roomId,
 }: MessageFieldProps) {
   const [message, setMessage] = useState("");
@@ -57,15 +61,15 @@ export default function MessageField({
   });
 
   const isPrivateChannel = channelType === "private";
-  const isButtonDisabled = isPrivateChannel || !message.trim() || !isConnected;
+  const isButtonDisabled = isPrivateChannel || !message.trim() || !canSend;
 
   const isValidMessage = (trimmed: string) => {
     if (isPrivateChannel) {
       console.warn(ERROR_MESSAGES.PRIVATE_CHANNEL);
       return false;
     }
-    if (!isConnected) {
-      console.warn("메시지 전송 시도: 채널이 연결되지 않았습니다.");
+    if (!canSend) {
+      console.warn("메시지 전송 시도: 전송할 수 없는 상태입니다.");
       return false;
     }
     return trimmed.length > 0;

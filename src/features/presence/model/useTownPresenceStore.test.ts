@@ -134,3 +134,61 @@ describe("useTownPresenceStore departure grace 통합", () => {
     expect(useTownPresenceStore.getState().participants).toEqual([]);
   });
 });
+
+describe("useTownPresenceStore: 정상 퇴장 신호 즉시 반영", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    channelStatus = "SUBSCRIBED";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const importStore = async () => {
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    return useTownPresenceStore;
+  };
+
+  it("markParticipantDeparted는 grace를 기다리지 않고 즉시 참여자를 제거한다", async () => {
+    const useTownPresenceStore = await importStore();
+
+    useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      REMOTE.userId,
+    );
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain(ME.userId);
+  });
+
+  it("grace 대기 중이던 참여자도 신호가 오면 즉시 확정하고 뒤늦은 타이머는 부작용이 없다", async () => {
+    const useTownPresenceStore = await importStore();
+
+    useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
+    useTownPresenceStore.getState().setParticipants([ME], ME.userId);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain(
+      REMOTE.userId,
+    );
+
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      REMOTE.userId,
+    );
+
+    vi.advanceTimersByTime(DEPARTURE_GRACE_MS * 2);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toEqual([ME.userId]);
+  });
+
+  it("이미 목록에 없는 userId에는 아무 동작도 하지 않는다", async () => {
+    const useTownPresenceStore = await importStore();
+
+    useTownPresenceStore.getState().setParticipants([ME], ME.userId);
+    const before = useTownPresenceStore.getState().participants;
+
+    useTownPresenceStore.getState().markParticipantDeparted("ghost");
+
+    expect(useTownPresenceStore.getState().participants).toBe(before);
+  });
+});

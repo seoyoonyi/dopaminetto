@@ -25,6 +25,7 @@ import {
   canAutoReconnectAfterRoomLeft,
   isRetryableVoiceConnectError,
   isUnintentionalRoomLeave,
+  shouldTriggerVoiceRecovery,
 } from "../model/voiceReconnect";
 
 /** 타운 음성 방송에서 speaker 또는 listener로 연결하기 위한 props */
@@ -43,6 +44,7 @@ type ConnectionStatus =
   | "error";
 
 const DEFAULT_LISTENING_ENABLED = true;
+const SPEAKER_ACCESS_DENIED_TOAST_ID = "voice-speaker-access-denied";
 
 /**
  * 음성 채널 연결이 완료된 뒤 오디오 엘리먼트를 준비한다.
@@ -136,6 +138,8 @@ export function TownVoiceClient({
     const MAX_ROOM_LEFT_RECOVERY_ATTEMPTS = 3;
     /** 최초 join 실패 후 backoff 재시도를 예약한 타이머. unmount 시 반드시 정리한다. */
     let joinFailureRetryTimeout: ReturnType<typeof setTimeout> | null = null;
+    /** connect() 시도가 진행 중인지(중복 트리거 방지). 성공/실패와 무관하게 시도가 끝나면 false. */
+    let connectInFlight = false;
 
     /**
      * 새로고침/탭 종료/앱 강제 종료 시 React effect cleanup(leaveRoom)이 실행되지 않을 수 있어,
@@ -167,6 +171,36 @@ export function TownVoiceClient({
     window.addEventListener("pageshow", handlePageShow);
 
     /**
+     * 네트워크 복구(online) 또는 탭 복귀(visibilitychange) 시, 음성이 끊긴 상태로 남아 있으면
+     * 재연결을 시도한다. 장시간 Offline 중에는 토큰 fetch가 `TypeError: Failed to fetch`로 실패하는데
+     * 이는 자동 재시도 대상이 아니고, 예전에는 이 리스너가 없어 새로고침 전까지 error에 고착됐다(#173).
+     */
+    const handleRecoverySignal = () => {
+      if (!isMounted) return;
+      if (!shouldTriggerVoiceRecovery({ joinedRoom, connectInFlight })) return;
+
+      roomLeftRecoveryAttempts = 0;
+      if (joinFailureRetryTimeout) {
+        clearTimeout(joinFailureRetryTimeout);
+        joinFailureRetryTimeout = null;
+      }
+      activeMeetingCleanup?.();
+      activeMeetingCleanup = undefined;
+      meetingRef.current = null;
+
+      void connect();
+    };
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        handleRecoverySignal();
+      }
+    };
+    window.addEventListener("online", handleRecoverySignal);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    /**
      * 토큰 발급, RealtimeKit 초기화, room join, speaker 마이크 활성화까지
      * 하나의 순서로 처리한다.
      */
@@ -175,6 +209,8 @@ export function TownVoiceClient({
         clearTimeout(joinFailureRetryTimeout);
         joinFailureRetryTimeout = null;
       }
+
+      connectInFlight = true;
 
       try {
         setStatus("requesting-token");
@@ -193,6 +229,13 @@ export function TownVoiceClient({
         const nextPermissions = resolveVoicePermissions(tokenResponse.role, hasNickname);
 
         if (!isMounted) return;
+
+        if (tokenResponse.speakerAccessDenied) {
+          toast.info(
+            "스피커 권한이 없습니다. 권한이 필요하면 관리자에게 문의해 주세요. 청취자로 입장합니다.",
+            { id: SPEAKER_ACCESS_DENIED_TOAST_ID },
+          );
+        }
 
         notifyRoleChange(tokenResponse.role);
         setStatus("initializing");
@@ -413,6 +456,8 @@ export function TownVoiceClient({
             void connect();
           }, delay);
         }
+      } finally {
+        connectInFlight = false;
       }
     }
 
@@ -421,6 +466,10 @@ export function TownVoiceClient({
     return () => {
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("online", handleRecoverySignal);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
       isMounted = false;
       isAudioTogglingRef.current = false;
       if (joinFailureRetryTimeout) {

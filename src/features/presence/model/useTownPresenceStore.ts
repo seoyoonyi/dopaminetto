@@ -42,6 +42,11 @@ interface TownPresenceState {
 
   setParticipants: (participants: PresenceParticipant[], currentUserId: string) => void;
   setConnectionState: (isConnected: boolean) => void;
+  /**
+   * 정상 퇴장(뒤로가기/페이지 이탈) 신호를 받으면 grace 없이 즉시 참여자를 제거한다.
+   * 신호가 없는 비정상 종료는 기존 presence leave + grace가 fallback으로 처리한다.
+   */
+  markParticipantDeparted: (userId: string) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
   /** 발표용 마이크 활성 상태를 업데이트하고 presence track이 재전송되도록 한다. */
@@ -77,26 +82,33 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
    * (shared/lib/realtime/departureGrace.ts). town:main 채널이 재연결 중일 때 grace가
    * 만료되면 즉시 확정하지 않고, 신선한 presence 스냅샷이 도착할 때(reconcile) 재검증한다.
    */
+  /**
+   * 이탈을 최종 확정한다. 참여자 목록에서 제거하고 퇴장 토스트를 띄운다.
+   * grace 만료(onConfirmed)와 정상 퇴장 신호(markParticipantDeparted) 양쪽에서 쓴다.
+   * 이미 목록에 없으면 아무 것도 하지 않는다.
+   */
+  const confirmDeparture = (userId: string) => {
+    const latestState = get();
+    const departedParticipant = latestState.participants.find((p) => p.userId === userId);
+    if (!departedParticipant) return;
+
+    const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
+
+    toast(`${departedParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
+
+    set({
+      participants: nextParticipants,
+      groupedParticipants: groupParticipantsByVillage(nextParticipants),
+      lastSyncedAt: new Date().toISOString(),
+      previousUserIds: new Set(nextParticipants.map((p) => p.userId)),
+    });
+  };
+
   const departureController = createDepartureGraceController({
     graceMs: DEPARTURE_GRACE_MS,
     isChannelReconnecting: () => getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED",
     isPresentInSnapshot: (userId) => latestRawSnapshotUserIds.has(userId),
-    onConfirmed: (userId) => {
-      const latestState = get();
-      const departedParticipant = latestState.participants.find((p) => p.userId === userId);
-      const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
-
-      if (departedParticipant) {
-        toast(`${departedParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
-      }
-
-      set({
-        participants: nextParticipants,
-        groupedParticipants: groupParticipantsByVillage(nextParticipants),
-        lastSyncedAt: new Date().toISOString(),
-        previousUserIds: new Set(nextParticipants.map((p) => p.userId)),
-      });
-    },
+    onConfirmed: (userId) => confirmDeparture(userId),
   });
 
   return {
@@ -174,6 +186,11 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
     },
 
     setConnectionState: (isConnected) => set({ isConnected }),
+
+    markParticipantDeparted: (userId) => {
+      departureController.cancel(userId);
+      confirmDeparture(userId);
+    },
 
     setVoiceConnected: (voiceConnected) => set({ voiceConnected }),
 

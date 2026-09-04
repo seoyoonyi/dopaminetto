@@ -1,3 +1,4 @@
+import { PRESENCE_RECONCILE_INTERVAL_MS } from "@/shared/constants";
 import { DEPARTURE_GRACE_MS } from "@/shared/lib/realtime/departureGrace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,16 +16,32 @@ let channelStatus = "SUBSCRIBED";
 
 type FakeChannel = { presenceState: () => Record<string, unknown[]> };
 
-let currentChannel: FakeChannel | null = null;
+let currentChannel: (FakeChannel & { send?: (message: unknown) => Promise<string> }) | null = null;
 let presenceHandler: ((event: string, payload?: unknown) => void) | undefined;
+let broadcastHandler: ((event: string, payload?: unknown) => void) | undefined;
 
 const subscribeToPresenceMock = vi.fn((callback: (event: string, payload?: unknown) => void) => {
   presenceHandler = callback;
   return vi.fn();
 });
 
+const observeTownChannelBroadcastMock = vi.fn(
+  (_channelName: string, callback: (event: string, payload?: unknown) => void) => {
+    broadcastHandler = callback;
+    return vi.fn();
+  },
+);
+
+const effectCleanups: Array<() => void> = [];
+const runEffectCleanups = () => {
+  effectCleanups.splice(0).forEach((cleanup) => cleanup());
+};
+
 vi.mock("react", () => ({
-  useEffect: (effect: () => void) => effect(),
+  useEffect: (effect: () => void | (() => void)) => {
+    const cleanup = effect();
+    if (typeof cleanup === "function") effectCleanups.push(cleanup);
+  },
 }));
 
 vi.mock("zustand/react/shallow", () => ({
@@ -43,6 +60,7 @@ vi.mock("@/features/movement/model/useMovementStore", () => ({
 
 vi.mock("@/shared/constants", () => ({
   PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS: 0,
+  PRESENCE_RECONCILE_INTERVAL_MS: 10_000,
 }));
 
 vi.mock("@/shared/hooks/useDebouncedValue", () => ({
@@ -65,6 +83,8 @@ vi.mock("@/shared/hooks/useTownChannel", () => ({
 
 vi.mock("@/shared/lib/realtime/townChannelManager", () => ({
   getTownChannelStatus: () => channelStatus,
+  getTownChannel: () => currentChannel,
+  observeTownChannelBroadcast: observeTownChannelBroadcastMock,
 }));
 
 vi.mock("@/features/presence/model/useTownPresenceStore", async () => {
@@ -105,6 +125,8 @@ describe("useTownPresence: town:main 재연결 시 stale participant 회귀 방�
     channelStatus = "SUBSCRIBED";
     currentChannel = null;
     presenceHandler = undefined;
+    broadcastHandler = undefined;
+    effectCleanups.length = 0;
 
     const { useTownPresenceStore } = await import("./useTownPresenceStore");
     useTownPresenceStore.getState().reset();
@@ -199,5 +221,143 @@ describe("useTownPresence: town:main 재연결 시 stale participant 회귀 방�
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toEqual(
       expect.arrayContaining(["me", "remote-a"]),
     );
+  });
+
+  it("재연결 중 grace가 만료돼 보류된 이탈이, 서버 이벤트 없이 폴링으로 확정된다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    // 1. 3명 정상 상태.
+    channelStatus = "SUBSCRIBED";
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+
+    // 2. B가 실제 퇴장 — 서버 leave 이벤트로 스냅샷에서 빠지고 grace가 시작된다.
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("leave", { leftPresences: [REMOTE_B] });
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain("remote-b");
+
+    // 3. 관찰자 채널이 재연결에 들어간다 → grace 만료 시 확정을 보류한다.
+    channelStatus = "CHANNEL_ERROR";
+    useTownPresence();
+    vi.advanceTimersByTime(DEPARTURE_GRACE_MS);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain("remote-b");
+
+    // 4. 채널이 복구되지만 아무도 join/leave하지 않아 서버 재검증 이벤트가 오지 않는다.
+    channelStatus = "SUBSCRIBED";
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+
+    // 5. 폴링 tick만으로 보류된 B의 이탈이 확정된다.
+    vi.advanceTimersByTime(PRESENCE_RECONCILE_INTERVAL_MS);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      "remote-b",
+    );
+  });
+
+  it("재입장한 참여자가 서버 join 이벤트 없이도 폴링으로 다시 목록에 나타난다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    channelStatus = "SUBSCRIBED";
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      "remote-b",
+    );
+
+    // B가 재입장해 로컬 presence 맵에는 반영됐지만 join 이벤트가 유실된 상황.
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]) };
+    useTownPresence();
+
+    vi.advanceTimersByTime(PRESENCE_RECONCILE_INTERVAL_MS);
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain("remote-b");
+  });
+});
+
+describe("useTownPresence: 정상 퇴장(sync-leave)을 접속자 목록에 즉시 반영", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    channelStatus = "SUBSCRIBED";
+    currentChannel = null;
+    presenceHandler = undefined;
+    broadcastHandler = undefined;
+    effectCleanups.length = 0;
+
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    useTownPresenceStore.getState().reset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("sync-leave 브로드캐스트를 받으면 grace 없이 즉시 참여자를 제거한다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+
+    broadcastHandler?.("sync-leave", { userId: REMOTE_B.userId });
+
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
+      REMOTE_B.userId,
+    );
+    expect(
+      useTownPresenceStore
+        .getState()
+        .participants.map((p) => p.userId)
+        .sort(),
+    ).toEqual(["me", "remote-a"].sort());
+  });
+
+  it("본인 userId의 sync-leave 신호는 무시한다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+
+    broadcastHandler?.("sync-leave", { userId: ME.userId });
+
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain(ME.userId);
+  });
+
+  it("언마운트 시 town:main이 SUBSCRIBED면 sync-leave를 브로드캐스트한다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+
+    const send = vi.fn().mockResolvedValue("ok");
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]), send };
+    useTownPresence();
+
+    runEffectCleanups();
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "broadcast",
+        event: "sync-leave",
+        payload: { userId: ME.userId },
+      }),
+    );
+  });
+
+  it("언마운트 시 town:main이 SUBSCRIBED가 아니면 sync-leave를 보내지 않는다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+
+    const send = vi.fn().mockResolvedValue("ok");
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]), send };
+    useTownPresence();
+
+    channelStatus = "CHANNEL_ERROR";
+    runEffectCleanups();
+
+    expect(send).not.toHaveBeenCalled();
   });
 });

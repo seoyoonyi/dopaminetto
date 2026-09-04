@@ -338,3 +338,121 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
     expect(joinRoom).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * #173: 장시간 Offline 중 토큰 fetch가 `TypeError: Failed to fetch`로 실패하면 자동 재시도 대상이
+ * 아니라 "Failed to fetch" error에 고착됐다. online/visibilitychange 복구 신호에서 재연결하는지 검증한다.
+ */
+describe("TownVoiceClient — online/visible 복구 신호로 재연결", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let isRootMounted = false;
+
+  const unmountRoot = () => {
+    if (!isRootMounted) return;
+    act(() => {
+      root.unmount();
+    });
+    isRootMounted = false;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    requestVoiceTokenMock.mockReset().mockResolvedValue({
+      token: "test-token",
+      participantId: "p1",
+      role: "listener",
+      presetName: "listener_preset",
+    });
+    initRTKMediaMock.mockReset().mockResolvedValue({});
+    initMeetingMock.mockReset();
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    isRootMounted = true;
+  });
+
+  afterEach(() => {
+    unmountRoot();
+    container.remove();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("Failed to fetch로 고착된 뒤 online 이벤트가 오면 재연결한다", async () => {
+    requestVoiceTokenMock.mockReset();
+    requestVoiceTokenMock
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({
+        token: "test-token",
+        participantId: "p1",
+        role: "listener",
+        presetName: "listener_preset",
+      });
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    initMeetingMock.mockResolvedValue(createFakeMeeting(joinRoom));
+
+    const onConnectionChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TownVoiceClient
+          nickname="tester"
+          voiceRole={null}
+          onConnectionChange={onConnectionChange}
+        />,
+      );
+      await flushMicrotasks();
+    });
+
+    // 최초 연결은 Failed to fetch로 실패하고, TypeError는 자동 재시도 대상이 아니다.
+    expect(container.textContent).toContain("Failed to fetch");
+    expect(initMeetingMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(5 * 60 * 1000);
+      await flushMicrotasks();
+    });
+    expect(requestVoiceTokenMock).toHaveBeenCalledTimes(1);
+
+    // 네트워크가 돌아오고 online 이벤트가 발생하면 다시 연결을 시도해 성공한다.
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await flushMicrotasks();
+    });
+
+    expect(requestVoiceTokenMock).toHaveBeenCalledTimes(2);
+    expect(joinRoom).toHaveBeenCalledTimes(1);
+    expect(onConnectionChange).toHaveBeenCalledWith(true);
+  });
+
+  it("이미 연결된 상태에서는 online 이벤트가 와도 재연결하지 않는다", async () => {
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    initMeetingMock.mockResolvedValue(createFakeMeeting(joinRoom));
+
+    const onConnectionChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TownVoiceClient
+          nickname="tester"
+          voiceRole={null}
+          onConnectionChange={onConnectionChange}
+        />,
+      );
+      await flushMicrotasks();
+    });
+
+    expect(onConnectionChange).toHaveBeenCalledWith(true);
+    expect(initMeetingMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await flushMicrotasks();
+    });
+
+    expect(initMeetingMock).toHaveBeenCalledTimes(1);
+    expect(requestVoiceTokenMock).toHaveBeenCalledTimes(1);
+  });
+});

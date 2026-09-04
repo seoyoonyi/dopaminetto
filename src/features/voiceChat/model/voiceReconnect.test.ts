@@ -4,6 +4,7 @@ import {
   canAutoReconnectAfterRoomLeft,
   isRetryableVoiceConnectError,
   isUnintentionalRoomLeave,
+  shouldTriggerVoiceRecovery,
 } from "./voiceReconnect";
 
 describe("isUnintentionalRoomLeave", () => {
@@ -31,6 +32,20 @@ describe("canAutoReconnectAfterRoomLeft", () => {
   it("최대 횟수에 도달하면 추가 재연결 시도를 막는다", () => {
     expect(canAutoReconnectAfterRoomLeft(3, 3)).toBe(false);
     expect(canAutoReconnectAfterRoomLeft(10, 3)).toBe(false);
+  });
+});
+
+describe("shouldTriggerVoiceRecovery", () => {
+  it("끊긴 상태이고 연결 시도가 진행 중이 아니면 재연결한다", () => {
+    expect(shouldTriggerVoiceRecovery({ joinedRoom: false, connectInFlight: false })).toBe(true);
+  });
+
+  it("이미 방에 있으면 재연결하지 않는다", () => {
+    expect(shouldTriggerVoiceRecovery({ joinedRoom: true, connectInFlight: false })).toBe(false);
+  });
+
+  it("연결 시도가 진행 중이면 중복 트리거하지 않는다", () => {
+    expect(shouldTriggerVoiceRecovery({ joinedRoom: false, connectInFlight: true })).toBe(false);
   });
 });
 

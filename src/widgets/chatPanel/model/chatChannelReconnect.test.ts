@@ -45,7 +45,7 @@ const createFakeSupabase = () => {
   });
   const removeChannel = vi.fn();
   // 실제 supabase.getChannels()는 realtime에 남아 있는 채널 목록을 반환한다.
-  // removeStaleChannels()가 topic으로 필터링하므로 기본은 빈 배열로 둔다.
+  // 공용 topic cleanup이 topic으로 필터링하므로 기본은 빈 배열로 둔다.
   const getChannels = vi.fn(() => [] as { topic: string }[]);
 
   return { channel, removeChannel, getChannels, channels };
@@ -404,7 +404,7 @@ describe("subscribeChatChannelWithReconnect", () => {
   it("재연결 시 같은 topic의 잔존 채널을 먼저 제거한 뒤 새 채널을 만든다", async () => {
     const supabase = createFakeSupabase();
     const lingering = { topic: "realtime:chat:lobby" };
-    supabase.getChannels.mockReturnValue([lingering]);
+    supabase.getChannels.mockReturnValueOnce([lingering]).mockReturnValue([]);
 
     const cleanup = subscribeChatChannelWithReconnect({
       supabase: supabase as unknown as SupabaseClient,

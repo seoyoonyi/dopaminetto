@@ -1,4 +1,6 @@
 import { ensureFreshRealtimeAuthOnce } from "@/shared/lib/realtime/realtimeAuthFreshness";
+import { SUBSCRIBE_WATCHDOG_MS } from "@/shared/lib/realtime/realtimeRecoveryConstants";
+import { removeRealtimeTopic } from "@/shared/lib/realtime/realtimeTopicCleanup";
 import { MAX_AUTO_RECONNECT, getReconnectDelayMs } from "@/shared/lib/realtime/reconnectBackoff";
 import type {
   RealtimeChannel,
@@ -6,21 +8,12 @@ import type {
   SupabaseClient,
 } from "@supabase/supabase-js";
 
+export { SUBSCRIBE_WATCHDOG_MS } from "@/shared/lib/realtime/realtimeRecoveryConstants";
+
 type ChatChannelStatus = string;
 
 /** MAX_AUTO_RECONNECT 소진 후에도 이 간격으로 재구독을 계속 시도한다(#173: 영구 정지 방지). */
 export const KEEPALIVE_RECONNECT_INTERVAL_MS = 30_000;
-
-/**
- * subscribe() 후 이 시간 안에 상태 콜백이 한 번도 오지 않으면 hang으로 보고 강제 재시도한다.
- * realtime-js의 channel(topic)은 같은 topic의 기존 인스턴스가 남아 있으면 그대로 반환하는데,
- * 그 인스턴스의 state가 closed가 아니면 subscribe()가 조용히 no-op이 되어(#173) 상태 콜백이
- * 영영 오지 않고 isConnecting이 고착된다. 이 watchdog이 그 경우를 스스로 회복시킨다.
- */
-export const SUBSCRIBE_WATCHDOG_MS = 15_000;
-
-/** 새 채널 생성 전, 같은 topic의 잔존 채널 제거를 기다리는 상한. 넘으면 그냥 진행한다. */
-const STALE_CHANNEL_REMOVAL_TIMEOUT_MS = 3_000;
 
 interface SubscribeChatChannelParams<T extends object> {
   supabase: SupabaseClient;
@@ -80,22 +73,6 @@ export function subscribeChatChannelWithReconnect<T extends object>({
     }
   };
 
-  /**
-   * 같은 topic의 잔존 채널을 모두 제거한다. realtime-js의 channel(topic)은 기존 인스턴스가
-   * 남아 있으면 그대로 반환하므로, 새 채널을 만들기 전에 반드시 정리해야 subscribe()가
-   * no-op으로 새는 것을 막을 수 있다(#173). removeChannel이 늦어져도 상한을 두고 진행한다.
-   */
-  const removeStaleChannels = async () => {
-    const realtimeTopic = `realtime:${channelName}`;
-    const lingering = supabase.getChannels().filter((c) => c.topic === realtimeTopic);
-    if (lingering.length === 0) return;
-
-    await Promise.race([
-      Promise.all(lingering.map((c) => supabase.removeChannel(c))),
-      new Promise((resolve) => setTimeout(resolve, STALE_CHANNEL_REMOVAL_TIMEOUT_MS)),
-    ]);
-  };
-
   const connect = async () => {
     if (!isActive || isConnecting) return;
 
@@ -123,7 +100,9 @@ export function subscribeChatChannelWithReconnect<T extends object>({
 
     // 낡은 인스턴스가 재사용돼 subscribe()가 no-op 되는 것을 막는다.
     currentChannel = null;
-    await removeStaleChannels();
+    await removeRealtimeTopic(supabase, channelName, {
+      logPrefix: "chatChannelReconnect",
+    });
 
     if (!isActive) {
       isConnecting = false;

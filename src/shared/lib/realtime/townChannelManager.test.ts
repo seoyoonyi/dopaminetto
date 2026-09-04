@@ -347,8 +347,13 @@ describe("townChannelManager: 복구 신호(online) 이후 auth 게이트 실패
   ) => {
     const channelFactories: Record<string, ReturnType<typeof createFakeChannel>> = {};
     const channel = vi.fn((channelName: string) => {
-      channelFactories[channelName] = createFakeChannel();
-      return channelFactories[channelName].channel;
+      const fake = createFakeChannel();
+      fake.channel.subscribe.mockImplementation((callback: SubscribeCallback) => {
+        callback("SUBSCRIBED");
+        return fake.channel;
+      });
+      channelFactories[channelName] = fake;
+      return fake.channel;
     });
 
     const supabase = {
@@ -714,14 +719,24 @@ describe("townChannelManager: 좀비 SUBSCRIBED 채널 강제 재구독", () => 
 
   const buildSupabase = () => {
     const fakes: ReturnType<typeof createFakeChannel>[] = [];
+    const realtimeChannels: { topic: string }[] = [];
     const channel = vi.fn(() => {
       const fake = createFakeChannel();
       fakes.push(fake);
+      const fakeWithTopic = fake.channel as typeof fake.channel & { topic: string };
+      fakeWithTopic.topic = `realtime:town:main`;
+      realtimeChannels.push(fakeWithTopic);
       return fake.channel;
+    });
+    const removeChannel = vi.fn().mockImplementation(async (channelToRemove: unknown) => {
+      const index = realtimeChannels.indexOf(channelToRemove as { topic: string });
+      if (index >= 0) realtimeChannels.splice(index, 1);
+      return undefined;
     });
     const supabase = {
       channel,
-      removeChannel: vi.fn().mockResolvedValue(undefined),
+      removeChannel,
+      getChannels: vi.fn(() => realtimeChannels),
       auth: {
         getSession: vi
           .fn()
@@ -740,7 +755,10 @@ describe("townChannelManager: 좀비 SUBSCRIBED 채널 강제 재구독", () => 
   };
 
   const flushAsync = async () => {
-    for (let i = 0; i < 8; i += 1) await vi.advanceTimersByTimeAsync(0);
+    for (let i = 0; i < 8; i += 1) {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1);
+    }
   };
 
   /** town:main을 SUBSCRIBED 상태까지 올린다. */
@@ -823,5 +841,237 @@ describe("townChannelManager: 좀비 SUBSCRIBED 채널 강제 재구독", () => 
 
     expect(supabase.removeChannel).not.toHaveBeenCalled();
     expect(channel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("townChannelManager: SUBSCRIBING 고착 watchdog과 topic 제거", () => {
+  type RuntimeChannel = {
+    topic: string;
+    state: string;
+    on: ReturnType<typeof vi.fn>;
+    subscribe: ReturnType<typeof vi.fn>;
+    presenceState: ReturnType<typeof vi.fn>;
+  };
+
+  type RemovalMode = "immediate" | "defer-first";
+  let onlineHandler: (() => void) | undefined;
+
+  beforeEach(() => {
+    vi.resetModules();
+    delete (globalThis as unknown as Record<string, unknown>).__townChannelState;
+    vi.useFakeTimers();
+    onlineHandler = undefined;
+
+    vi.stubGlobal("document", {
+      visibilityState: "visible",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "online") onlineHandler = handler;
+      }),
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const buildSupabase = (removalMode: RemovalMode = "immediate") => {
+    const runtimeChannels: RuntimeChannel[] = [];
+    const fakes: Array<{ channel: RuntimeChannel; getLatestCallback: () => SubscribeCallback }> =
+      [];
+    let removalCount = 0;
+    let resolveFirstRemoval: (() => void) | undefined;
+    const realtimeClient = {
+      channels: runtimeChannels,
+      disconnect: vi.fn(),
+      connect: vi.fn(),
+      isDisconnecting: vi.fn(() => false),
+      accessTokenValue: null,
+      setAuth: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const createRuntimeChannel = (topic: string): RuntimeChannel => {
+      let latestCallback: SubscribeCallback = () => {};
+      const channel = {
+        topic,
+        state: "closed",
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn((callback: SubscribeCallback) => {
+          if (channel.state === "closed") latestCallback = callback;
+          return channel;
+        }),
+        presenceState: vi.fn(() => ({})),
+      } as RuntimeChannel;
+
+      fakes.push({ channel, getLatestCallback: () => latestCallback });
+      return channel;
+    };
+
+    const channel = vi.fn((channelName: string) => {
+      const topic = `realtime:${channelName}`;
+      const lingering = realtimeClient.channels.find((candidate) => candidate.topic === topic);
+      if (lingering) return lingering;
+
+      const nextChannel = createRuntimeChannel(topic);
+      realtimeClient.channels.push(nextChannel);
+      return nextChannel;
+    });
+
+    const removeChannel = vi.fn((channelToRemove: RuntimeChannel) => {
+      removalCount += 1;
+
+      if (removalMode === "defer-first" && removalCount === 1) {
+        return new Promise<void>((resolve) => {
+          resolveFirstRemoval = () => {
+            const index = realtimeClient.channels.indexOf(channelToRemove);
+            if (index >= 0) realtimeClient.channels.splice(index, 1);
+            resolve();
+          };
+        });
+      }
+
+      const index = realtimeClient.channels.indexOf(channelToRemove);
+      if (index >= 0) realtimeClient.channels.splice(index, 1);
+      return Promise.resolve();
+    });
+
+    const supabase = {
+      channel,
+      getChannels: vi.fn(() => realtimeClient.channels),
+      removeChannel,
+      auth: {
+        getSession: vi
+          .fn()
+          .mockResolvedValue({ data: { session: { access_token: "fresh-token" } }, error: null }),
+        signInAnonymously: vi.fn(),
+      },
+      realtime: realtimeClient,
+    } as unknown as SupabaseClient;
+
+    return {
+      supabase,
+      channel,
+      fakes,
+      removeChannel,
+      resolveFirstRemoval: () => resolveFirstRemoval?.(),
+    };
+  };
+
+  const flushAsync = async () => {
+    for (let i = 0; i < 8; i += 1) {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1);
+    }
+  };
+
+  const flushMicrotasks = async () => {
+    for (let i = 0; i < 8; i += 1) await Promise.resolve();
+  };
+
+  it("잔존 topic 제거가 끝나기 전에는 channel(topic)을 재사용하지 않는다", async () => {
+    const { supabase, channel, fakes, removeChannel, resolveFirstRemoval } =
+      buildSupabase("defer-first");
+    const { acquireTownChannel, getTownChannelStatus } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await flushAsync();
+
+    fakes[0].channel.state = "errored";
+    fakes[0].getLatestCallback()("CHANNEL_ERROR");
+    await vi.advanceTimersByTimeAsync(RECONNECT_BACKOFF_MS[1]);
+    await flushAsync();
+
+    expect(removeChannel).toHaveBeenCalledTimes(1);
+    expect(channel).toHaveBeenCalledTimes(1);
+    expect(getTownChannelStatus("town:main")).toBe("CLOSED");
+
+    resolveFirstRemoval?.();
+    await flushAsync();
+
+    expect(channel).toHaveBeenCalledTimes(2);
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBING");
+  });
+
+  it("subscribe() 상태 callback이 고착돼도 watchdog이 새 lifecycle을 시작한다", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { supabase, channel, fakes, removeChannel } = buildSupabase("defer-first");
+    const { SUBSCRIBE_WATCHDOG_MS, acquireTownChannel, getTownChannelStatus } =
+      await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await flushAsync();
+
+    fakes[0].channel.state = "errored";
+    fakes[0].getLatestCallback()("CHANNEL_ERROR");
+    await vi.advanceTimersByTimeAsync(RECONNECT_BACKOFF_MS[1] + 3_000);
+    await flushAsync();
+
+    // 재연결된 채널이 상태 callback을 전혀 보내지 않는 고착을 재현한다. manager 상태만
+    // SUBSCRIBING에 남아도 watchdog이 이 lifecycle을 회수해야 한다.
+    expect(channel).toHaveBeenCalledTimes(2);
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBING");
+    expect(removeChannel).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(SUBSCRIBE_WATCHDOG_MS);
+    await flushAsync();
+
+    expect(removeChannel).toHaveBeenCalledTimes(2);
+    expect(channel).toHaveBeenCalledTimes(3);
+    expect(supabase.realtime.disconnect).not.toHaveBeenCalled();
+
+    fakes[fakes.length - 1].getLatestCallback()("SUBSCRIBED");
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBED");
+  });
+
+  it("watchdog deadline 전의 정상 SUBSCRIBING은 online 신호로 끊지 않는다", async () => {
+    const { supabase, channel, fakes, removeChannel } = buildSupabase();
+    const { SUBSCRIBE_WATCHDOG_MS, acquireTownChannel, getTownChannelStatus } =
+      await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await flushAsync();
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBING");
+
+    await vi.advanceTimersByTimeAsync(SUBSCRIBE_WATCHDOG_MS - 100);
+    await flushMicrotasks();
+    onlineHandler?.();
+    await flushMicrotasks();
+    expect(removeChannel).not.toHaveBeenCalled();
+
+    fakes[0].getLatestCallback()("SUBSCRIBED");
+    expect(channel).toHaveBeenCalledTimes(1);
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBED");
+  });
+
+  it("deadline이 지난 SUBSCRIBING은 online force 신호에서 회수한다", async () => {
+    const { supabase, channel, fakes, removeChannel } = buildSupabase();
+    const { SUBSCRIBE_WATCHDOG_MS, acquireTownChannel, getTownChannelStatus } =
+      await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await flushAsync();
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBING");
+
+    // watchdog timer 자체는 아직 실행하지 않고, 시계만 deadline 뒤로 이동해 force 필터가
+    // stale SUBSCRIBING을 대상에 포함하는지 별도로 검증한다.
+    await vi.advanceTimersByTimeAsync(SUBSCRIBE_WATCHDOG_MS - 100);
+    vi.setSystemTime(Date.now() + 101);
+    onlineHandler?.();
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(1);
+    await flushMicrotasks();
+
+    expect(removeChannel).toHaveBeenCalledTimes(1);
+    expect(channel).toHaveBeenCalledTimes(2);
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBING");
+
+    fakes[1].getLatestCallback()("SUBSCRIBED");
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBED");
   });
 });

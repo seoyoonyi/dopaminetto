@@ -7,6 +7,21 @@ export const canAutoReconnectAfterRoomLeft = (attempts: number, maxAttempts: num
   attempts < maxAttempts;
 
 /**
+ * online/visible 복구 신호가 왔을 때 음성 재연결을 트리거해야 하는지 판단한다(#173).
+ * 장시간 Offline 중에는 `fetch("/api/voice/token")`가 `TypeError: Failed to fetch`로 실패하는데,
+ * 이는 isRetryableVoiceConnectError에서 재시도 불가로 분류되고 TownVoiceClient에는 online 리스너가
+ * 없어서, 네트워크가 돌아와도 새로고침 전까지 "Failed to fetch" error에 고착됐다.
+ * 이미 방에 있거나(joinedRoom) 연결 시도가 진행 중이면(connectInFlight) 재연결하지 않는다.
+ */
+export const shouldTriggerVoiceRecovery = ({
+  joinedRoom,
+  connectInFlight,
+}: {
+  joinedRoom: boolean;
+  connectInFlight: boolean;
+}) => !joinedRoom && !connectInFlight;
+
+/**
  * RealtimeKit이 소켓/전송 계층에서 스스로 정의하는 에러 이름이다(node_modules/@cloudflare/
  * realtimekit/dist/index.es.js 확인). 서버가 명시적으로 거부한 게 아니라 로컬 소켓이 아직
  * 붙지 않았거나(재연결 도중의 좁은 시간창) 일시적으로 끊긴 상태를 뜻하므로 재시도할 가치가 있다.

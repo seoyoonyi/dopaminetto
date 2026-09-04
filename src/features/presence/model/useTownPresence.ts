@@ -11,7 +11,11 @@ import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { TOWN_MAIN_CHANNEL } from "@/shared/lib/realtime";
-import { getTownChannel, getTownChannelStatus } from "@/shared/lib/realtime/townChannelManager";
+import {
+  getTownChannel,
+  getTownChannelStatus,
+  observeTownChannelBroadcast,
+} from "@/shared/lib/realtime/townChannelManager";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
@@ -90,12 +94,14 @@ export const useTownPresence = () => {
     reconnect,
   } = useTownChannel();
 
-  const { setParticipantsState, setConnectionState } = useTownPresenceStore(
-    useShallow((state) => ({
-      setParticipantsState: state.setParticipants,
-      setConnectionState: state.setConnectionState,
-    })),
-  );
+  const { setParticipantsState, setConnectionState, markParticipantDeparted } =
+    useTownPresenceStore(
+      useShallow((state) => ({
+        setParticipantsState: state.setParticipants,
+        setConnectionState: state.setConnectionState,
+        markParticipantDeparted: state.markParticipantDeparted,
+      })),
+    );
   const localJoinedAt = useTownPresenceStore((state) => state.localJoinedAt);
   const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
   const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
@@ -205,6 +211,38 @@ export const useTownPresence = () => {
       unsubscribe();
     };
   }, [channel, subscribeToPresence, setParticipantsState, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    /**
+     * 정상 퇴장(뒤로가기/페이지 이탈)은 sync-leave 브로드캐스트로 즉시 목록에 반영한다.
+     * Movement(useMovementSync.ts)의 원격 캐릭터 제거와 같은 신호를 써서 접속자 목록과
+     * 캐릭터 렌더링의 퇴장 시점을 맞춘다. 신호가 없는 비정상 종료(크래시/네트워크 단절)는
+     * presence leave + grace가 fallback으로 처리한다.
+     */
+    const unsubscribe = observeTownChannelBroadcast(TOWN_MAIN_CHANNEL, (event, payload) => {
+      if (event !== "sync-leave" || !payload) return;
+
+      const leavingUserId = (payload as { userId?: string }).userId;
+      if (!leavingUserId || leavingUserId === userId) return;
+
+      markParticipantDeparted(leavingUserId);
+    });
+
+    return () => {
+      unsubscribe();
+
+      // 언마운트 시점의 최신 채널을 조회해 낡은 참조로 보내지 않는다.
+      if (getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED") return;
+
+      void getTownChannel(TOWN_MAIN_CHANNEL)?.send({
+        type: "broadcast",
+        event: "sync-leave",
+        payload: { userId },
+      });
+    };
+  }, [userId, markParticipantDeparted]);
 
   useEffect(() => {
     /**

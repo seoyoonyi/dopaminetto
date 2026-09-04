@@ -667,3 +667,161 @@ describe("townChannelManager: flapping 판정의 stale 이력 처리", () => {
     expect(connect).toHaveBeenCalled();
   });
 });
+
+/**
+ * #173 후속: "소켓은 죽었는데 status가 SUBSCRIBED로 남는" 좀비 채널.
+ * 개발자도구 offline·백그라운드 탭·sleep에서는 heartbeat가 CLOSED를 못 잡아, 복구 신호가 와도
+ * reconnectStaleChannels가 "이미 SUBSCRIBED"라며 건너뛰고 → 서버 leave/join 이벤트 유실 →
+ * 관찰자 화면에서 Presence 퇴장/재입장이 새로고침 전까지 stale하게 남았다.
+ * online 전이와 "장시간 hidden 후 visible"에서는 SUBSCRIBED 채널도 강제 재구독하도록 고친 부분을 검증한다.
+ */
+describe("townChannelManager: 좀비 SUBSCRIBED 채널 강제 재구독", () => {
+  let onlineHandler: (() => void) | undefined;
+  let visibilityHandler: (() => void) | undefined;
+  const doc = { visibilityState: "visible" as "visible" | "hidden" };
+
+  beforeEach(() => {
+    vi.resetModules();
+    delete (globalThis as unknown as Record<string, unknown>).__townChannelState;
+    vi.useFakeTimers();
+
+    onlineHandler = undefined;
+    visibilityHandler = undefined;
+    doc.visibilityState = "visible";
+
+    vi.stubGlobal("document", {
+      get visibilityState() {
+        return doc.visibilityState;
+      },
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "visibilitychange") visibilityHandler = handler;
+      }),
+      removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("window", {
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "online") onlineHandler = handler;
+      }),
+      removeEventListener: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const buildSupabase = () => {
+    const fakes: ReturnType<typeof createFakeChannel>[] = [];
+    const channel = vi.fn(() => {
+      const fake = createFakeChannel();
+      fakes.push(fake);
+      return fake.channel;
+    });
+    const supabase = {
+      channel,
+      removeChannel: vi.fn().mockResolvedValue(undefined),
+      auth: {
+        getSession: vi
+          .fn()
+          .mockResolvedValue({ data: { session: { access_token: "fresh-token" } }, error: null }),
+        signInAnonymously: vi.fn(),
+      },
+      realtime: {
+        disconnect: vi.fn(),
+        connect: vi.fn(),
+        isDisconnecting: vi.fn(() => false),
+        accessTokenValue: null,
+        setAuth: vi.fn().mockResolvedValue(undefined),
+      },
+    } as unknown as SupabaseClient;
+    return { supabase, channel, fakes };
+  };
+
+  const flushAsync = async () => {
+    for (let i = 0; i < 8; i += 1) await vi.advanceTimersByTimeAsync(0);
+  };
+
+  /** town:main을 SUBSCRIBED 상태까지 올린다. */
+  const subscribeTownMain = async (channelFakes: ReturnType<typeof createFakeChannel>[]) => {
+    await flushAsync();
+    channelFakes[channelFakes.length - 1].getLatestCallback()("SUBSCRIBED");
+  };
+
+  it("online 전이 시 SUBSCRIBED 채널도 teardown 후 재구독한다", async () => {
+    const { supabase, channel, fakes } = buildSupabase();
+    const { acquireTownChannel, getTownChannelStatus } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await subscribeTownMain(fakes);
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBED");
+    expect(channel).toHaveBeenCalledTimes(1);
+
+    onlineHandler?.();
+    await flushAsync();
+
+    // 좀비 가능성을 의심해 기존 채널을 제거하고 새 채널로 재구독한다.
+    expect(supabase.removeChannel).toHaveBeenCalled();
+    expect(channel).toHaveBeenCalledTimes(2);
+
+    // 새 구독이 SUBSCRIBED로 확정되면 정상 상태로 수렴한다.
+    fakes[fakes.length - 1].getLatestCallback()("SUBSCRIBED");
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBED");
+  });
+
+  it("짧게 hidden(<30초)이었다가 visible로 오면 SUBSCRIBED 채널을 건드리지 않는다", async () => {
+    const { supabase, channel, fakes } = buildSupabase();
+    const { acquireTownChannel } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await subscribeTownMain(fakes);
+    expect(channel).toHaveBeenCalledTimes(1);
+
+    doc.visibilityState = "hidden";
+    visibilityHandler?.();
+    await vi.advanceTimersByTimeAsync(5_000);
+    doc.visibilityState = "visible";
+    visibilityHandler?.();
+    await flushAsync();
+
+    expect(supabase.removeChannel).not.toHaveBeenCalled();
+    expect(channel).toHaveBeenCalledTimes(1);
+  });
+
+  it("30초 이상 hidden이었다가 visible로 오면 SUBSCRIBED 채널을 강제 재구독한다", async () => {
+    const { supabase, channel, fakes } = buildSupabase();
+    const { acquireTownChannel } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    await subscribeTownMain(fakes);
+    expect(channel).toHaveBeenCalledTimes(1);
+
+    doc.visibilityState = "hidden";
+    visibilityHandler?.();
+    await vi.advanceTimersByTimeAsync(35_000);
+    doc.visibilityState = "visible";
+    visibilityHandler?.();
+    await flushAsync();
+
+    expect(supabase.removeChannel).toHaveBeenCalled();
+    expect(channel).toHaveBeenCalledTimes(2);
+  });
+
+  it("아직 SUBSCRIBING 중인 채널은 online 강제 신호에도 재구독하지 않는다", async () => {
+    const { supabase, channel } = buildSupabase();
+    const { acquireTownChannel, getTownChannelStatus } = await import("./townChannelManager");
+
+    acquireTownChannel({ supabase, channelName: "town:main", userId: "user-1" });
+    // 채널은 만들어졌지만 subscribe 콜백을 아직 안 받아 SUBSCRIBING 상태.
+    await flushAsync();
+    expect(getTownChannelStatus("town:main")).toBe("SUBSCRIBING");
+    expect(channel).toHaveBeenCalledTimes(1);
+
+    onlineHandler?.();
+    await flushAsync();
+
+    expect(supabase.removeChannel).not.toHaveBeenCalled();
+    expect(channel).toHaveBeenCalledTimes(1);
+  });
+});

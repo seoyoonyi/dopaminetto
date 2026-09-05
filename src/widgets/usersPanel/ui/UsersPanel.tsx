@@ -114,12 +114,12 @@ export function UsersPanel() {
         >
           <div className="flex min-w-0 flex-col">
             <div className="flex items-center gap-1.5">
-              <span className="truncate font-medium text-gray-900">
+              <span className="font-display truncate text-xs font-medium text-gray-900">
                 {resolvedParticipant.nickname}
               </span>
               {voiceControl}
             </div>
-            <span className="text-xs text-gray-500">
+            <span className="font-display text-[11px] text-gray-500">
               {formatJoinedTime(resolvedParticipant.joinedAt)}
             </span>
           </div>
@@ -163,7 +163,7 @@ export function UsersPanel() {
 
               return (
                 <div key={vId} className="flex flex-col">
-                  <div className="bg-gray-100/80 px-4 py-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wider sticky top-0 backdrop-blur-sm border-b border-gray-200/50">
+                  <div className="font-display sticky top-0 border-b border-gray-200/50 bg-gray-100/80 px-4 py-1.5 text-xs font-semibold tracking-wider text-gray-600 uppercase backdrop-blur-sm">
                     {config.name} ({list.length})
                   </div>
                   <div className="divide-y divide-gray-50">{renderParticipantList(list)}</div>

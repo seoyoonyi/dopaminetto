@@ -34,8 +34,12 @@ export function ChatMessageItem({ message, previousMessage }: ChatMessageItemPro
       <div className="min-w-0 flex-1">
         {!isContinuous && (
           <div className="mb-1 flex items-baseline gap-2">
-            <span className="text-sm font-medium text-gray-900">{message.nickname}</span>
-            <span className="text-xs text-gray-400">{formatTime(message.created_at)}</span>
+            <span className="font-display text-xs font-medium text-gray-900">
+              {message.nickname}
+            </span>
+            <span className="font-display text-[11px] text-gray-400">
+              {formatTime(message.created_at)}
+            </span>
           </div>
         )}
         <div

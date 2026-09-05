@@ -94,7 +94,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
     const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
 
-    toast(`${departedParticipant.nickname} 퇴장했습니다.`, { duration: 3000 });
+    toast(`${departedParticipant.nickname}님이 퇴장했습니다.`, { duration: 3000 });
 
     set({
       participants: nextParticipants,
@@ -154,7 +154,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
       );
 
       if (resolvedParticipants.initialJoinParticipant) {
-        toast(`${resolvedParticipants.initialJoinParticipant.nickname} 입장했습니다.`, {
+        toast(`${resolvedParticipants.initialJoinParticipant.nickname}님이 입장했습니다.`, {
           duration: 3000,
         });
 
@@ -171,7 +171,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
       }
 
       resolvedParticipants.joinToastParticipants.forEach((participant) => {
-        toast(`${participant.nickname} 입장했습니다.`, { duration: 3000 });
+        toast(`${participant.nickname}님이 입장했습니다.`, { duration: 3000 });
       });
 
       set({

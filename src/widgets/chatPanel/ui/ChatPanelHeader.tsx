@@ -16,8 +16,10 @@ export function ChatPanelHeader({ villageName, isConnected }: ChatPanelHeaderPro
           isConnected ? "bg-green-500" : "bg-yellow-400",
         )}
       />
-      <span className="text-sm font-medium truncate">{villageName} 채널</span>
-      {!isConnected && <span className="text-xs text-muted-foreground shrink-0">연결 중...</span>}
+      <span className="font-display text-sm font-medium truncate">{villageName} 채널</span>
+      {!isConnected && (
+        <span className="font-display text-xs text-muted-foreground shrink-0">연결 중...</span>
+      )}
     </div>
   );
 }

@@ -508,7 +508,7 @@ export function TownVoiceClient({
 
   return (
     <>
-      {errorMessage ? <p className="text-red-600">{errorMessage}</p> : null}
+      {errorMessage ? <p className="font-display text-red-600">{errorMessage}</p> : null}
       {status === "connected" ? (
         <RealtimeKitProvider value={client}>
           <VoicePanel

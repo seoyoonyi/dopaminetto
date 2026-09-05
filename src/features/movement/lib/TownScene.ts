@@ -53,6 +53,7 @@ const CHARACTER_DEPTH_BASE = 1000;
 const FRONT_DEPTH = 8000;
 const NAME_LABEL_DEPTH_BASE = 9000;
 const DEBUG_TEXT_DEPTH = 20000;
+const GALMURI_FONT_FAMILY = "galmuri9";
 
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -206,7 +207,8 @@ export class TownScene extends Phaser.Scene {
       initialPos.y - localCharacterConfig.labelOffsetY,
       store.nickname,
       {
-        fontSize: "14px",
+        fontFamily: GALMURI_FONT_FAMILY,
+        fontSize: "12px",
         color: "#ffffff",
         backgroundColor: "#00000088",
         padding: { x: 4, y: 2 },
@@ -384,7 +386,8 @@ export class TownScene extends Phaser.Scene {
           data.position.y - characterConfig.labelOffsetY,
           data.nickname,
           {
-            fontSize: "14px",
+            fontFamily: GALMURI_FONT_FAMILY,
+            fontSize: "12px",
             color: "#ffffff",
             backgroundColor: "#00000088",
             padding: { x: 4, y: 2 },

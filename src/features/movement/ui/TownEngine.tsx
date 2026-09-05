@@ -166,7 +166,7 @@ function TownMapLoadError({ message, onRetry }: TownMapLoadErrorProps) {
       className="absolute inset-0 z-20 flex items-center justify-center bg-[#c8aa78] px-6 text-center text-white"
       role="alert"
     >
-      <div className="max-w-sm rounded-lg border border-black/15 bg-black/60 px-6 py-5 shadow-xl backdrop-blur-sm">
+      <div className="font-display max-w-sm rounded-lg border border-black/15 bg-black/60 px-6 py-5 shadow-xl backdrop-blur-sm">
         <h2 className="text-base font-semibold">마을 지도를 불러오지 못했습니다.</h2>
         <p className="mt-2 wrap-break-word text-sm leading-6 text-white/80">{message}</p>
         <Button className="mt-4" onClick={onRetry} type="button" variant="secondary">

@@ -23,7 +23,7 @@ export function NewMessageNotification({ onClick, show, count = 0 }: NewMessageN
 
   return (
     <ScrollToBottomButton show={show} onClick={onClick} ariaLabel={`새 메시지 ${displayCount}개`}>
-      <span>
+      <span className="font-display text-xs">
         새 메시지 <strong className="text-amber-300">{displayCount}개</strong>
       </span>
     </ScrollToBottomButton>

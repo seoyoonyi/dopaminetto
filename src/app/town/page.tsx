@@ -36,7 +36,7 @@ export default function TownPage() {
   if (mobileAccess === "checking") {
     return (
       <div className="flex h-dvh flex-col items-center justify-center overflow-hidden">
-        <p>접속 환경을 확인하는 중...</p>
+        <p className="font-display">접속 환경을 확인하는 중...</p>
       </div>
     );
   }
@@ -54,7 +54,7 @@ function TownSingleTabGate() {
   if (entryStatus === "checking") {
     return (
       <div className="flex h-dvh flex-col items-center justify-center overflow-hidden">
-        <p>타운 입장 상태를 확인하는 중...</p>
+        <p className="font-display">타운 입장 상태를 확인하는 중...</p>
       </div>
     );
   }
@@ -123,7 +123,7 @@ function ActiveTownPage() {
   if (isLoading && !userNickname) {
     return (
       <div className="flex h-dvh flex-col items-center justify-center overflow-hidden">
-        <p>사용자 정보를 불러오는 중...</p>
+        <p className="font-display">사용자 정보를 불러오는 중...</p>
       </div>
     );
   }
@@ -134,7 +134,7 @@ function ActiveTownPage() {
     ) : userNickname ? (
       <ChatPanel />
     ) : (
-      <div className="flex h-full items-center justify-center text-gray-500">
+      <div className="font-display flex h-full items-center justify-center text-gray-500">
         닉네임을 설정해주세요.
       </div>
     );

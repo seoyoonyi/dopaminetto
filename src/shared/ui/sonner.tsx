@@ -1,10 +1,12 @@
-"use client"
+"use client";
 
-import { useTheme } from "next-themes"
-import { Toaster as Sonner, ToasterProps } from "sonner"
+import { cn } from "@/lib/utils";
+import { Toaster as Sonner, ToasterProps } from "sonner";
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+import { useTheme } from "next-themes";
+
+const Toaster = ({ toastOptions, ...props }: ToasterProps) => {
+  const { theme = "system" } = useTheme();
 
   return (
     <Sonner
@@ -17,9 +19,20 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-border": "var(--border)",
         } as React.CSSProperties
       }
+      toastOptions={{
+        ...toastOptions,
+        classNames: {
+          ...toastOptions?.classNames,
+          toast: cn(toastOptions?.classNames?.toast, "font-display text-xs"),
+          title: cn(toastOptions?.classNames?.title, "font-display text-xs"),
+          description: cn(toastOptions?.classNames?.description, "font-display text-xs"),
+          actionButton: cn(toastOptions?.classNames?.actionButton, "font-display text-xs"),
+          cancelButton: cn(toastOptions?.classNames?.cancelButton, "font-display text-xs"),
+        },
+      }}
       {...props}
     />
-  )
-}
+  );
+};
 
-export { Toaster }
+export { Toaster };

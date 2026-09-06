@@ -27,6 +27,10 @@ const { requestVoiceTokenMock, initMeetingMock, initRTKMediaMock } = vi.hoisted(
   initRTKMediaMock: vi.fn(),
 }));
 
+const { toastErrorMock } = vi.hoisted(() => ({
+  toastErrorMock: vi.fn(),
+}));
+
 vi.mock("../api/requestVoiceToken", () => ({
   requestVoiceToken: requestVoiceTokenMock,
 }));
@@ -40,6 +44,10 @@ vi.mock("@cloudflare/realtimekit-react", () => ({
 
 vi.mock("@cloudflare/realtimekit-react-ui", () => ({
   RtkParticipantsAudio: () => null,
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: toastErrorMock },
 }));
 
 const flushMicrotasks = async (times = 4) => {
@@ -91,6 +99,12 @@ const getRegisteredListener = (self: FakeMeetingSelf, event: string) => {
   const call = self.addListener.mock.calls.find(([registeredEvent]) => registeredEvent === event);
   if (!call) throw new Error(`listener for "${event}" was never registered`);
   return call[1] as (payload: { state: string }) => void;
+};
+
+const getAudioToggle = (onAudioControllerChange: ReturnType<typeof vi.fn>) => {
+  const call = onAudioControllerChange.mock.calls.at(-1);
+  if (!call?.[1]) throw new Error("audio toggle controller was never registered");
+  return call[1] as () => Promise<void>;
 };
 
 describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도", () => {
@@ -336,6 +350,180 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
 
     expect(initMeetingMock).toHaveBeenCalledTimes(1);
     expect(joinRoom).toHaveBeenCalledTimes(1);
+  });
+
+  it("스피커의 수동 마이크 토글 결과를 audioEnabled 콜백으로 전달한다", async () => {
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    const meeting = createFakeMeeting(joinRoom);
+    meeting.self.roomJoined = true;
+    meeting.self.enableAudio.mockImplementation(async () => {
+      meeting.self.audioEnabled = true;
+    });
+    meeting.self.disableAudio.mockImplementation(async () => {
+      meeting.self.audioEnabled = false;
+    });
+    requestVoiceTokenMock.mockResolvedValue({
+      token: "test-token",
+      participantId: "p1",
+      role: "speaker",
+      presetName: "speaker_preset",
+    });
+    initMeetingMock.mockResolvedValue(meeting);
+
+    const onAudioEnabledChange = vi.fn();
+    const onAudioControllerChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TownVoiceClient
+          nickname="speaker"
+          voiceRole="speaker"
+          onAudioEnabledChange={onAudioEnabledChange}
+          onAudioControllerChange={onAudioControllerChange}
+        />,
+      );
+      await flushMicrotasks();
+    });
+
+    const toggleAudio = getAudioToggle(onAudioControllerChange);
+    await act(async () => {
+      await toggleAudio();
+    });
+    expect(meeting.self.disableAudio).toHaveBeenCalledTimes(1);
+    expect(onAudioEnabledChange).toHaveBeenLastCalledWith(false);
+
+    await act(async () => {
+      await toggleAudio();
+    });
+    expect(meeting.self.enableAudio).toHaveBeenCalledTimes(2);
+    expect(onAudioEnabledChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("마이크 활성화 실패 시 비활성 상태를 유지하고 토글 재시도를 허용한다", async () => {
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    const meeting = createFakeMeeting(joinRoom);
+    meeting.self.roomJoined = true;
+    meeting.self.enableAudio
+      .mockRejectedValueOnce(new Error("Microphone permission denied"))
+      .mockImplementationOnce(async () => {
+        meeting.self.audioEnabled = true;
+      });
+    requestVoiceTokenMock.mockResolvedValue({
+      token: "test-token",
+      participantId: "p1",
+      role: "speaker",
+      presetName: "speaker_preset",
+    });
+    initMeetingMock.mockResolvedValue(meeting);
+
+    const onAudioEnabledChange = vi.fn();
+    const onAudioControllerChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TownVoiceClient
+          nickname="speaker"
+          voiceRole="speaker"
+          onAudioEnabledChange={onAudioEnabledChange}
+          onAudioControllerChange={onAudioControllerChange}
+        />,
+      );
+      await flushMicrotasks();
+    });
+
+    expect(onAudioEnabledChange).toHaveBeenLastCalledWith(false);
+    const toggleAudio = getAudioToggle(onAudioControllerChange);
+
+    await act(async () => {
+      await toggleAudio();
+    });
+
+    expect(meeting.self.enableAudio).toHaveBeenCalledTimes(2);
+    expect(onAudioEnabledChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("enableAudio가 실패를 삼켜도 실제 audioEnabled 상태를 전달한다", async () => {
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    const meeting = createFakeMeeting(joinRoom);
+    meeting.self.roomJoined = true;
+    meeting.self.enableAudio.mockResolvedValue(undefined);
+    requestVoiceTokenMock.mockResolvedValue({
+      token: "test-token",
+      participantId: "p1",
+      role: "speaker",
+      presetName: "speaker_preset",
+    });
+    initMeetingMock.mockResolvedValue(meeting);
+
+    const onAudioEnabledChange = vi.fn();
+    const onAudioControllerChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TownVoiceClient
+          nickname="speaker"
+          voiceRole="speaker"
+          onAudioEnabledChange={onAudioEnabledChange}
+          onAudioControllerChange={onAudioControllerChange}
+        />,
+      );
+      await flushMicrotasks();
+    });
+
+    const toggleAudio = getAudioToggle(onAudioControllerChange);
+    toastErrorMock.mockClear();
+
+    await act(async () => {
+      await toggleAudio();
+    });
+
+    expect(meeting.self.audioEnabled).toBe(false);
+    expect(onAudioEnabledChange).toHaveBeenLastCalledWith(false);
+    expect(toastErrorMock).toHaveBeenCalledWith("브라우저의 마이크 권한을 허용해주세요.", {
+      icon: expect.anything(),
+    });
+  });
+
+  it("마이크 권한이 없어도 입장 후 토글할 수 있고 권한 안내 토스트를 표시한다", async () => {
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    const meeting = createFakeMeeting(joinRoom);
+    meeting.self.roomJoined = true;
+    meeting.self.enableAudio.mockRejectedValue(new Error("Microphone permission denied"));
+    requestVoiceTokenMock.mockResolvedValue({
+      token: "test-token",
+      participantId: "p1",
+      role: "speaker",
+      presetName: "speaker_preset",
+    });
+    initMeetingMock.mockResolvedValue(meeting);
+
+    const onAudioControllerChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TownVoiceClient
+          nickname="speaker"
+          voiceRole="speaker"
+          onAudioControllerChange={onAudioControllerChange}
+        />,
+      );
+      await flushMicrotasks();
+    });
+
+    expect(initRTKMediaMock).toHaveBeenCalledWith({ audio: false, video: false });
+    const toggleAudio = getAudioToggle(onAudioControllerChange);
+    toastErrorMock.mockClear();
+
+    await act(async () => {
+      await toggleAudio();
+    });
+
+    expect(toastErrorMock).toHaveBeenCalledWith("브라우저의 마이크 권한을 허용해주세요.", {
+      icon: expect.anything(),
+    });
+    expect(toastErrorMock.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ icon: expect.anything() }),
+    );
   });
 });
 

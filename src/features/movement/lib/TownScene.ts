@@ -52,7 +52,6 @@ const BACKGROUND_DEPTH = 0;
 const CHARACTER_DEPTH_BASE = 1000;
 const FRONT_DEPTH = 8000;
 const NAME_LABEL_DEPTH_BASE = 9000;
-const DEBUG_TEXT_DEPTH = 20000;
 const GALMURI_FONT_FAMILY = "galmuri9";
 
 export class TownScene extends Phaser.Scene {
@@ -75,7 +74,6 @@ export class TownScene extends Phaser.Scene {
   private activeRemoteActions: Map<string, LocalActionId> = new Map();
   private playerNameLabel!: Phaser.GameObjects.Text;
   private localUserId: string = "";
-  private debugText!: Phaser.GameObjects.Text;
   private localCharacterId: CharacterId = "p-boy";
   private activeLocalActionId: LocalActionId | null = null;
   private wasInputFocused = false;
@@ -246,16 +244,6 @@ export class TownScene extends Phaser.Scene {
 
     // 배경색 설정 (맵 이미지 로드 실패/바깥 영역용)
     this.cameras.main.setBackgroundColor("#c8aa78");
-
-    // 디버그 텍스트 추가
-    this.debugText = this.add
-      .text(10, 10, "Debug Info", {
-        fontSize: "16px",
-        color: "#00ff00",
-        backgroundColor: "#000000aa",
-      })
-      .setScrollFactor(0)
-      .setDepth(DEBUG_TEXT_DEPTH);
 
     this.campfireAmbientController = new AmbientSoundController(
       this,
@@ -592,16 +580,6 @@ export class TownScene extends Phaser.Scene {
     if (isMoving) {
       // 위치 업데이트 요청 (검증 로직은 스토어 내부에서 실행됨)
       useMovementStore.getState().updatePosition({ x: dx, y: dy });
-    }
-
-    // 디버그 정보 업데이트
-    if (this.debugText) {
-      this.debugText.setText([
-        `Village: ${store.villageId}`,
-        `Pos: ${Math.round(this.player.x)}, ${Math.round(this.player.y)}`,
-        `Remote: ${Object.keys(store.remotePlayers).length}`,
-        `ID: ${this.localUserId?.slice(0, 4)}`,
-      ]);
     }
 
     /**

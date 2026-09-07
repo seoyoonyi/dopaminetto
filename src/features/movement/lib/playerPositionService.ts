@@ -17,13 +17,9 @@ export const fetchPlayerPosition = async (userId: string): Promise<SavedPlayerPo
     .from("user_position")
     .select("village_id, x, y")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
-  if (error) {
-    // PGRST116: 행이 없는 경우 (신규 유저)
-    if (error.code === "PGRST116") return null;
-    throw error;
-  }
+  if (error) throw error;
 
   return data;
 };

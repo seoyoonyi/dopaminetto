@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 // import { RtkMicToggle /*, RtkLivestreamPlayer */ } from "@cloudflare/
 // realtimekit-react-ui";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { requestVoiceToken } from "../api/requestVoiceToken";
 import { TownVoiceCallbacks, useTownVoiceCallbacks } from "../hooks/useTownVoiceCallbacks";
@@ -32,6 +32,7 @@ import {
 export interface TownVoiceClientProps extends TownVoiceCallbacks {
   nickname: string;
   voiceRole: VoiceRole | null;
+  listeningVolume?: number;
 }
 
 /** 음성 채널 연결 진행 상태 */
@@ -55,19 +56,35 @@ const SPEAKER_ACCESS_DENIED_TOAST_ID = "voice-speaker-access-denied";
 function VoicePanel({
   isSpeaker,
   isListeningEnabled,
+  listeningVolume,
 }: {
   isSpeaker: boolean;
   isListeningEnabled: boolean;
+  listeningVolume: number;
 }) {
   const { meeting } = useRealtimeKitMeeting();
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  // 방송 음량은 Listener의 로컬 audio 출력에만 적용하고, Speaker는 기본 음량을 유지한다.
+  const playbackVolume = isSpeaker ? 1 : listeningVolume;
+
+  useEffect(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.volume = playbackVolume;
+    }
+  }, [audioElement, playbackVolume]);
+
+  const handleAudioElementRef = useCallback((element: HTMLAudioElement | null) => {
+    audioElementRef.current = element;
+    setAudioElement(element);
+  }, []);
 
   if (!meeting) return null;
 
   return (
     <>
       <audio
-        ref={setAudioElement}
+        ref={handleAudioElementRef}
         muted={shouldMuteVoicePlayback(isSpeaker, isListeningEnabled)}
         aria-hidden="true"
       />
@@ -87,6 +104,7 @@ function VoicePanel({
 export function TownVoiceClient({
   nickname,
   voiceRole,
+  listeningVolume = 1,
   onConnectionChange,
   onRoleChange,
   onAudioEnabledChange,
@@ -514,6 +532,7 @@ export function TownVoiceClient({
           <VoicePanel
             isSpeaker={voicePermissions.isSpeaker}
             isListeningEnabled={isListeningEnabled}
+            listeningVolume={listeningVolume}
           />
         </RealtimeKitProvider>
       ) : null}

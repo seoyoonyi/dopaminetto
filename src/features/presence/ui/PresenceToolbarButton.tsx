@@ -27,6 +27,8 @@ export const PresenceToolbarButton = ({
   const canToggleListening = useTownPresenceStore((state) => state.canToggleListening);
   const toggleLocalListening = useTownPresenceStore((state) => state.toggleLocalListening);
   const listeningEnabled = useTownPresenceStore((state) => state.listeningEnabled);
+  const listeningVolume = useTownPresenceStore((state) => state.listeningVolume);
+  const setListeningVolume = useTownPresenceStore((state) => state.setListeningVolume);
 
   return (
     <div className="flex items-center w-full justify-end gap-2">
@@ -40,6 +42,8 @@ export const PresenceToolbarButton = ({
         canToggleListening={canToggleListening}
         toggleLocalListening={toggleLocalListening}
         listeningEnabled={listeningEnabled}
+        listeningVolume={listeningVolume}
+        setListeningVolume={setListeningVolume}
       />
       <UsersPanelToggleButton
         participantCount={participantCount}

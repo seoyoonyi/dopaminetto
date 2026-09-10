@@ -28,14 +28,14 @@ export function UsersPanelToggleButton({
       aria-pressed={isUsersPanel}
       aria-label={toggleLabel}
       onClick={onToggle}
-      className={`flex h-10 min-w-[145px] items-center justify-between gap-2 rounded-full px-4 text-sm font-medium transition-colors shadow-sm ${
+      className={`flex h-10 min-w-36 cursor-pointer items-center justify-between gap-2 rounded-full px-4 text-sm font-medium transition-colors shadow-sm active:opacity-90 ${
         isUsersPanel
           ? "border border-gray-900 bg-gray-900 text-white"
           : "border bg-white text-gray-700"
       }`}
     >
       <div className="flex items-center gap-2">
-        <Users className="h-4 w-4" aria-hidden />
+        <Users className="size-4" aria-hidden />
         <span>{participantCount}</span>
         <span className="hidden sm:inline">{toggleText}</span>
       </div>

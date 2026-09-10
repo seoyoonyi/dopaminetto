@@ -4,13 +4,14 @@
  * 모든 캐릭터 오브젝트는 발밑(Origin 1.0)을 기준으로 정렬됨
  */
 import type { MapImageLayer } from "@/entities/village";
+import { useAmbientSoundStore } from "@/features/ambientSound";
 import {
   AMBIENT_AUDIO_KEYS,
   AMBIENT_AUDIO_URLS,
   AmbientSoundController,
   CAMPFIRE_SOUND_CONFIG,
   resolveCampfireSources,
-} from "@/features/ambientSound";
+} from "@/features/ambientSound/phaser";
 import {
   CHARACTER_OPTIONS,
   CharacterConfig,
@@ -41,6 +42,7 @@ import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
 import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
 import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
+import { useSettingsDialogStore } from "@/shared/store";
 import * as Phaser from "phaser";
 
 const BACKGROUND_RESUME_DELTA_MS = 250;
@@ -76,7 +78,7 @@ export class TownScene extends Phaser.Scene {
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
   private activeLocalActionId: LocalActionId | null = null;
-  private wasInputFocused = false;
+  private wasInputBlocked = false;
   private campfireAmbientController?: AmbientSoundController;
 
   constructor() {
@@ -499,87 +501,95 @@ export class TownScene extends Phaser.Scene {
     });
 
     // 2. 로컬 플레이어 입력 처리
-    const speed = 4;
-
+    // editable 요소 포커스(채팅 입력 등) 또는 설정 다이얼로그가 열려 있으면 게임 이동/액션 입력만
+    // 차단한다. Scene의 나머지 update와 아래 4번 환경음 갱신은 계속 실행되어야 하므로
+    // update() 전체를 early return 하지 않는다.
     const isInputFocused = isEditableElementFocused();
+    const isSettingsOpen = useSettingsDialogStore.getState().isOpen;
+    const isInputBlocked = isInputFocused || isSettingsOpen;
 
-    // 포커스 상태가 실제로 바뀐 프레임에만 캡처를 토글 (매 프레임 addCapture/removeCapture 호출 방지)
-    if (this.input.keyboard && isInputFocused !== this.wasInputFocused) {
-      if (isInputFocused) {
+    // 차단 상태가 실제로 바뀐 프레임에만 캡처를 토글 (매 프레임 addCapture/removeCapture 호출 방지)
+    if (this.input.keyboard && isInputBlocked !== this.wasInputBlocked) {
+      if (isInputBlocked) {
         this.input.keyboard.removeCapture(CAPTURED_KEYS);
       } else {
         this.input.keyboard.addCapture(CAPTURED_KEYS);
       }
-      this.wasInputFocused = isInputFocused;
+      this.wasInputBlocked = isInputBlocked;
     }
 
-    if (isInputFocused) return;
+    if (!isInputBlocked) {
+      const speed = 4;
 
-    let dx = 0;
-    let dy = 0;
+      let dx = 0;
+      let dy = 0;
 
-    if (this.cursors.left.isDown || this.wasd.A.isDown) dx = -speed;
-    else if (this.cursors.right.isDown || this.wasd.D.isDown) dx = speed;
+      if (this.cursors.left.isDown || this.wasd.A.isDown) dx = -speed;
+      else if (this.cursors.right.isDown || this.wasd.D.isDown) dx = speed;
 
-    if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -speed;
-    else if (this.cursors.down.isDown || this.wasd.S.isDown) dy = speed;
+      if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -speed;
+      else if (this.cursors.down.isDown || this.wasd.S.isDown) dy = speed;
 
-    const isMoving = dx !== 0 || dy !== 0;
-    const isSpacePressed = Phaser.Input.Keyboard.JustDown(this.spaceKey);
-    const triggeredActionInputId = this.getTriggeredLocalActionInputId();
-    const triggeredActionId = this.resolveTriggeredLocalActionId(triggeredActionInputId);
-    const actionInput = resolveLocalActionInput(this.activeLocalActionId, triggeredActionId);
+      const isMoving = dx !== 0 || dy !== 0;
+      const isSpacePressed = Phaser.Input.Keyboard.JustDown(this.spaceKey);
+      const triggeredActionInputId = this.getTriggeredLocalActionInputId();
+      const triggeredActionId = this.resolveTriggeredLocalActionId(triggeredActionInputId);
+      const actionInput = resolveLocalActionInput(this.activeLocalActionId, triggeredActionId);
 
-    if (this.activeLocalActionId && (isMoving || isSpacePressed)) {
-      this.stopLocalAction();
-    } else if (actionInput.type === "stop") {
-      this.stopLocalAction();
-    } else if (!isMoving && actionInput.type === "play") {
-      this.playLocalAction(actionInput.actionId);
-    }
+      if (this.activeLocalActionId && (isMoving || isSpacePressed)) {
+        this.stopLocalAction();
+      } else if (actionInput.type === "stop") {
+        this.stopLocalAction();
+      } else if (!isMoving && actionInput.type === "play") {
+        this.playLocalAction(actionInput.actionId);
+      }
 
-    if (
-      this.activeLocalActionId &&
-      LOCAL_ACTION_ANIMATIONS[this.activeLocalActionId].repeat === 0 &&
-      !this.player.anims.isPlaying
-    ) {
-      this.stopLocalAction();
-    }
+      if (
+        this.activeLocalActionId &&
+        LOCAL_ACTION_ANIMATIONS[this.activeLocalActionId].repeat === 0 &&
+        !this.player.anims.isPlaying
+      ) {
+        this.stopLocalAction();
+      }
 
-    /**
-     * 액션 재생 중에는 걷기 애니메이션이 texture를 덮어쓰지 않도록 한다.
-     */
-    if (!this.activeLocalActionId) {
-      if (isMoving) {
-        // 좌우 이동과 상하 이동 중 어느 쪽이 우선인지 판단 (여기선 dx와 dy의 절대값이 같으면 좌우 우선)
-        if (Math.abs(dx) >= Math.abs(dy)) {
-          if (dx < 0) {
-            this.player.setFlipX(false);
-            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-left"), true);
+      /**
+       * 액션 재생 중에는 걷기 애니메이션이 texture를 덮어쓰지 않도록 한다.
+       */
+      if (!this.activeLocalActionId) {
+        if (isMoving) {
+          // 좌우 이동과 상하 이동 중 어느 쪽이 우선인지 판단 (여기선 dx와 dy의 절대값이 같으면 좌우 우선)
+          if (Math.abs(dx) >= Math.abs(dy)) {
+            if (dx < 0) {
+              this.player.setFlipX(false);
+              this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-left"), true);
+            } else {
+              this.player.setFlipX(false);
+              this.player.anims.play(
+                this.getAnimationKeyById(this.localUserId, "walk-right"),
+                true,
+              );
+            }
           } else {
-            this.player.setFlipX(false);
-            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-right"), true);
+            if (dy < 0) {
+              this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-up"), true);
+            } else {
+              this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-down"), true);
+            }
           }
         } else {
-          if (dy < 0) {
-            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-up"), true);
-          } else {
-            this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-down"), true);
-          }
+          this.player.anims.stop();
+          const currentAnim = this.player.anims.currentAnim?.key;
+          if (currentAnim?.endsWith("walk-left")) this.player.setFrame(3);
+          else if (currentAnim?.endsWith("walk-right")) this.player.setFrame(6);
+          else if (currentAnim?.endsWith("walk-up")) this.player.setFrame(9);
+          else this.player.setFrame(0);
         }
-      } else {
-        this.player.anims.stop();
-        const currentAnim = this.player.anims.currentAnim?.key;
-        if (currentAnim?.endsWith("walk-left")) this.player.setFrame(3);
-        else if (currentAnim?.endsWith("walk-right")) this.player.setFrame(6);
-        else if (currentAnim?.endsWith("walk-up")) this.player.setFrame(9);
-        else this.player.setFrame(0);
       }
-    }
 
-    if (isMoving) {
-      // 위치 업데이트 요청 (검증 로직은 스토어 내부에서 실행됨)
-      useMovementStore.getState().updatePosition({ x: dx, y: dy });
+      if (isMoving) {
+        // 위치 업데이트 요청 (검증 로직은 스토어 내부에서 실행됨)
+        useMovementStore.getState().updatePosition({ x: dx, y: dy });
+      }
     }
 
     /**
@@ -596,8 +606,14 @@ export class TownScene extends Phaser.Scene {
     }
 
     // 4. 모닥불 환경음 거리 기반 볼륨 갱신
-    // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용
-    this.campfireAmbientController?.update(this.player, useMovementStore.getState().villageId);
+    // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용한다.
+    // 사용자 볼륨/음소거 설정은 매 프레임 store snapshot을 pull해 출력 배율로 반영한다(별도 구독 없음).
+    const ambientSettings = useAmbientSoundStore.getState();
+    this.campfireAmbientController?.update(
+      this.player,
+      useMovementStore.getState().villageId,
+      ambientSettings.isMuted ? 0 : ambientSettings.volume,
+    );
   };
 
   private getAnimationKey(character: CharacterConfig, animationKey: string) {

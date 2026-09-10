@@ -67,12 +67,12 @@ export function VoiceControlGroup({
           aria-pressed={audioEnabled}
           disabled={isAudioButtonDisabled}
           onClick={handleToggleAudio}
-          className="flex h-10 min-w-[120px] cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm disabled:pointer-events-auto disabled:cursor-not-allowed"
+          className="flex h-10 min-w-30 cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm active:opacity-90 disabled:pointer-events-auto disabled:cursor-not-allowed has-[>svg]:px-4"
         >
           {audioEnabled ? (
-            <Mic className="h-4 w-4" aria-hidden />
+            <Mic className="size-4" aria-hidden />
           ) : (
-            <MicOff className="h-4 w-4" aria-hidden />
+            <MicOff className="size-4" aria-hidden />
           )}
           <span>{audioEnabled ? "방송 중" : "마이크 켜기"}</span>
         </Button>
@@ -85,12 +85,12 @@ export function VoiceControlGroup({
           aria-pressed={listeningEnabled}
           disabled={isListeningButtonDisabled}
           onClick={handleToggleListening}
-          className="flex h-10 min-w-[120px] cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm disabled:pointer-events-auto disabled:cursor-not-allowed"
+          className="flex h-10 min-w-30 cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm active:opacity-90 disabled:pointer-events-auto disabled:cursor-not-allowed has-[>svg]:px-4"
         >
           {listeningEnabled ? (
-            <Volume2 className="h-4 w-4" aria-hidden />
+            <Volume2 className="size-4" aria-hidden />
           ) : (
-            <VolumeX className="h-4 w-4" aria-hidden />
+            <VolumeX className="size-4" aria-hidden />
           )}
           <span>{listeningEnabled ? "청취 중" : "청취 시작"}</span>
         </Button>

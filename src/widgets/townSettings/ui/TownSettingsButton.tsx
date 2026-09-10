@@ -3,7 +3,6 @@
 import { useSettingsDialogStore } from "@/shared/store";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogTrigger } from "@/shared/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { Settings } from "lucide-react";
 
 import { useEffect } from "react";
@@ -15,7 +14,7 @@ import { TownSettingsDialog } from "./TownSettingsDialog";
  *
  * - `Dialog` root와 controlled open 상태(`useSettingsDialogStore`)를 여기서 소유한다.
  *   (앱 전체에서 이 진입점의 `Dialog` root는 하나만 존재)
- * - trigger는 툴바 오른쪽 끝에 배치되는 compact icon 버튼이다. 배치는 app layer에서 한다.
+ * - trigger는 툴바 오른쪽 끝에 배치되는 아이콘 + 텍스트 버튼이다. 배치는 app layer에서 한다.
  * - 닫힘 후 focus 복귀는 Radix Dialog 기본 동작에 맡긴다(커스텀 focus 관리 없음).
  */
 export function TownSettingsButton() {
@@ -46,16 +45,19 @@ export function TownSettingsButton() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DialogTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="설정">
-              <Settings className="size-4" aria-hidden />
-            </Button>
-          </DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>설정</TooltipContent>
-      </Tooltip>
+      <span aria-hidden className="bg-border mx-1 h-5 w-px" />
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="h-10 cursor-pointer gap-2 rounded-full px-4 hover:bg-border active:opacity-90 has-[>svg]:px-4"
+          aria-label="설정"
+        >
+          <Settings className="size-4" aria-hidden />
+          설정
+        </Button>
+      </DialogTrigger>
 
       <TownSettingsDialog />
     </Dialog>

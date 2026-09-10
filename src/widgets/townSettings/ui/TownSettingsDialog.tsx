@@ -28,7 +28,7 @@ export function TownSettingsDialog() {
               <button
                 type="button"
                 aria-current="page"
-                className="bg-accent text-accent-foreground focus-visible:ring-ring w-full rounded-md px-3 py-2 text-left text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
+                className="bg-accent text-accent-foreground focus-visible:ring-ring w-full rounded-md px-3 py-2 text-center text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
               >
                 사운드
               </button>

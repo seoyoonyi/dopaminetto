@@ -86,8 +86,17 @@ export class AmbientSoundController {
    * 플레이어 좌표와 현재 마을 기준으로 소스별 목표 볼륨을 계산하고 currentVolume을 매 프레임
    * 보간한다. 볼륨이 무음에서 벗어나면 loop 노드를 1회 생성하고, 완전히 0에 도달하면 1회 정지한다.
    * 플레이어의 villageId가 소스와 다르면(예: lobby) 거리와 무관하게 목표 볼륨을 0으로 둔다.
+   *
+   * userVolume은 사용자가 지정한 출력 배율(0~1, 기본 1)이다. 거리 기반 currentVolume에 곱해
+   * gain 출력에만 반영하며, currentVolume/보간/loop 생성·정지 판정에는 관여하지 않는다.
+   * 따라서 음소거(0)여도 loop 노드와 공유 AudioContext는 그대로 유지되고, 배율 변경은 다음
+   * 프레임에 즉시 반영된다. 이미 정규화된 값이 전달되는 것을 전제로 하며 여기서 다시 clamp하지 않는다.
    */
-  update(playerPosition: { x: number; y: number }, playerVillageId: VillageId) {
+  update(
+    playerPosition: { x: number; y: number },
+    playerVillageId: VillageId,
+    userVolume: number = 1,
+  ) {
     const delta = this.scene.game.loop.delta;
     const smoothing = Phaser.Math.Clamp(delta * this.falloffConfig.volumeSmoothingRate, 0, 1);
 
@@ -106,12 +115,14 @@ export class AmbientSoundController {
         instance.currentVolume = targetVolume;
       }
 
+      // loop 생성/정지 판정은 거리 기반 currentVolume만 기준으로 한다(userVolume은 관여하지 않음).
       if (instance.currentVolume <= SILENCE_THRESHOLD) {
         this.stopPlayback(instance);
         return;
       }
 
-      instance.gain.gain.value = instance.currentVolume;
+      // 실제 스피커로 나가는 출력에만 사용자 배율을 곱한다.
+      instance.gain.gain.value = instance.currentVolume * userVolume;
 
       if (!instance.playback) {
         const playback = this.soundManager.context.createBufferSource();

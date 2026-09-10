@@ -10,6 +10,7 @@ import type { VoiceRole } from "@/features/voiceChat";
 import { useUserInfo } from "@/shared/hooks";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
+import { TownSettingsButton } from "@/widgets/townSettings";
 import { TownToolbar } from "@/widgets/townToolbar";
 import { TownVoiceSection } from "@/widgets/townVoiceSection";
 import { UsersPanel } from "@/widgets/usersPanel";
@@ -157,7 +158,7 @@ function ActiveTownPage() {
           onRoleChange={setVoiceRole}
         />
       ) : null}
-      <TownToolbar isSpeaker={voiceRole === "speaker"} />
+      <TownToolbar isSpeaker={voiceRole === "speaker"} trailingSlot={<TownSettingsButton />} />
     </div>
   );
 }

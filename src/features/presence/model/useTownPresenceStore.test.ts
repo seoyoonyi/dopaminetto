@@ -39,16 +39,6 @@ describe("useTownPresenceStore departure grace 통합", () => {
     return useTownPresenceStore;
   };
 
-  it("Listener 방송 음량은 100%로 시작하고 설정할 수 있다", async () => {
-    const useTownPresenceStore = await importStore();
-
-    expect(useTownPresenceStore.getState().listeningVolume).toBe(1);
-
-    useTownPresenceStore.getState().setListeningVolume(0.3);
-
-    expect(useTownPresenceStore.getState().listeningVolume).toBe(0.3);
-  });
-
   it("스냅샷에서 빠지자마자 즉시 참여자를 제거하지 않는다(grace 적용)", async () => {
     const useTownPresenceStore = await importStore();
 
@@ -142,7 +132,6 @@ describe("useTownPresenceStore departure grace 통합", () => {
     vi.advanceTimersByTime(DEPARTURE_GRACE_MS * 2);
 
     expect(useTownPresenceStore.getState().participants).toEqual([]);
-    expect(useTownPresenceStore.getState().listeningVolume).toBe(1);
   });
 });
 

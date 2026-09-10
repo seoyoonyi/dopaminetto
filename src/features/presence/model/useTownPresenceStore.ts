@@ -39,8 +39,6 @@ interface TownPresenceState {
   listeningEnabled: boolean;
   /** 현재 유저의 청취 on/off를 수행하는 로컬 제어 함수 */
   toggleLocalListening: (() => Promise<void>) | null;
-  /** 현재 유저가 듣는 방송의 로컬 출력 음량(0~1) */
-  listeningVolume: number;
 
   setParticipants: (participants: PresenceParticipant[], currentUserId: string) => void;
   setConnectionState: (isConnected: boolean) => void;
@@ -67,8 +65,6 @@ interface TownPresenceState {
   ) => void;
   /** 현재 유저의 청취 on/off 상태를 업데이트한다. */
   setListeningEnabled: (listeningEnabled: boolean) => void;
-  /** 현재 유저가 듣는 방송의 로컬 출력 음량을 업데이트한다. */
-  setListeningVolume: (listeningVolume: number) => void;
   reset: () => void;
 }
 
@@ -131,7 +127,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
     canToggleListening: false,
     listeningEnabled: true,
     toggleLocalListening: null,
-    listeningVolume: 1,
 
     setParticipants: (participants, currentUserId) => {
       latestRawSnapshotUserIds = new Set(participants.map((p) => p.userId));
@@ -229,9 +224,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
      */
     setListeningEnabled: (listeningEnabled) => set({ listeningEnabled }),
 
-    setListeningVolume: (listeningVolume) =>
-      set({ listeningVolume: Math.min(1, Math.max(0, listeningVolume)) }),
-
     reset: () => {
       departureController.cancelAll();
 
@@ -250,7 +242,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
         canToggleListening: false,
         listeningEnabled: true,
         toggleLocalListening: null,
-        listeningVolume: 1,
       });
     },
   };

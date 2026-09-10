@@ -158,4 +158,53 @@ describe("AmbientSoundController", () => {
     controller.update(INSIDE, "village-a");
     expect(nodes).toHaveLength(1);
   });
+
+  it("userVolume 배율을 거리 기반 볼륨에 곱해 gain 출력에만 반영하고, 배율만 바뀌어도 노드를 재생성하지 않는다", () => {
+    const { controller, nodes, gains } = setup();
+
+    controller.update(INSIDE, "village-a", 0.5);
+    expect(nodes).toHaveLength(1);
+    expect(gains[0].gain.value).toBeCloseTo(0.5, 10); // currentVolume(1) * 0.5
+
+    controller.update(INSIDE, "village-a", 0.2);
+    expect(gains[0].gain.value).toBeCloseTo(0.2, 10);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].start).toHaveBeenCalledTimes(1);
+    expect(nodes[0].stop).not.toHaveBeenCalled();
+  });
+
+  it("userVolume 0(음소거)이어도 거리상 가청이면 loop 노드를 유지하고 출력만 0이 되며, 해제 시 같은 노드로 복원한다", () => {
+    const { controller, nodes, gains } = setup();
+
+    controller.update(INSIDE, "village-a", 0);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].start).toHaveBeenCalledTimes(1);
+    expect(gains[0].gain.value).toBe(0);
+
+    controller.update(INSIDE, "village-a", 0);
+    controller.update(INSIDE, "village-a", 0);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0].stop).not.toHaveBeenCalled();
+
+    controller.update(INSIDE, "village-a", 0.8);
+    expect(gains[0].gain.value).toBeCloseTo(0.8, 10);
+    expect(nodes).toHaveLength(1);
+  });
+
+  it("userVolume 생략 시 배율 1과 동일하다", () => {
+    const { controller, gains } = setup();
+    controller.update(INSIDE, "village-a");
+    expect(gains[0].gain.value).toBe(1);
+  });
+
+  it("거리 밖이면 userVolume과 무관하게 한 번만 정리한다", () => {
+    for (const userVolume of [1, 0]) {
+      const { controller, nodes } = setup();
+      controller.update(INSIDE, "village-a", userVolume);
+      controller.update(OUTSIDE, "village-a", userVolume);
+      controller.update(OUTSIDE, "village-a", userVolume);
+      expect(nodes[0].stop).toHaveBeenCalledTimes(1);
+      expect(nodes[0].disconnect).toHaveBeenCalledTimes(1);
+    }
+  });
 });

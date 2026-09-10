@@ -4,3 +4,4 @@ export {
   useChatVisibilityStore,
   useVisiblePageIndices,
 } from "./useChatVisibilityStore";
+export { useSettingsDialogStore } from "./useSettingsDialogStore";

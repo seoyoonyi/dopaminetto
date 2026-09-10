@@ -1,12 +1,13 @@
-// 비즈니스 로직 레이어
-export { AmbientSoundController } from "./lib/AmbientSoundController";
-export { resolveCampfireSources } from "./lib/resolveCampfireSources";
+/**
+ * ambientSound feature의 기본 public API.
+ *
+ * 여기서 export하는 항목은 모두 SSR-safe하다(React/일반 app·widget 코드에서 자유롭게 import 가능).
+ * Phaser 런타임에 의존하는 API(AmbientSoundController, campfire 소스/오디오 키 등)는
+ * `@/features/ambientSound/phaser`로 분리되어 있으며, 이 파일은 그것을 re-export하지 않는다.
+ */
 
-// 설정 상수
-export {
-  AMBIENT_AUDIO_KEYS,
-  AMBIENT_AUDIO_URLS,
-  CAMPFIRE_SOUND_CONFIG,
-  CAMPFIRE_VILLAGE_IDS,
-} from "./model/config";
-export type { AmbientSoundFalloffConfig, AmbientSoundSource } from "./model/types";
+// 사용자 환경음 설정 상태 (로컬 전용)
+export { useAmbientSoundStore } from "./model/useAmbientSoundStore";
+
+// UI 레이어
+export { AmbientSoundSettings } from "./ui/AmbientSoundSettings";

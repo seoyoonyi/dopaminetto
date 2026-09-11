@@ -27,6 +27,10 @@ const { requestVoiceTokenMock, initMeetingMock, initRTKMediaMock } = vi.hoisted(
   initRTKMediaMock: vi.fn(),
 }));
 
+const { realtimeKitMeetingMock } = vi.hoisted(() => ({
+  realtimeKitMeetingMock: { current: null as unknown },
+}));
+
 const { toastErrorMock } = vi.hoisted(() => ({
   toastErrorMock: vi.fn(),
 }));
@@ -39,7 +43,7 @@ vi.mock("@cloudflare/realtimekit-react", () => ({
   RealtimeKitProvider: ({ children }: { children: React.ReactNode }) => children,
   initRTKMedia: initRTKMediaMock,
   useRealtimeKitClient: () => [undefined, initMeetingMock],
-  useRealtimeKitMeeting: () => ({ meeting: undefined }),
+  useRealtimeKitMeeting: () => ({ meeting: realtimeKitMeetingMock.current }),
 }));
 
 vi.mock("@cloudflare/realtimekit-react-ui", () => ({
@@ -130,6 +134,7 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
     });
     initRTKMediaMock.mockReset().mockResolvedValue({});
     initMeetingMock.mockReset();
+    realtimeKitMeetingMock.current = null;
 
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -524,6 +529,29 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
     expect(toastErrorMock.mock.calls[0][1]).toEqual(
       expect.objectContaining({ icon: expect.anything() }),
     );
+  });
+
+  it("Listener의 방송 음량을 앱 소유 audio 요소의 volume에 반영한다", async () => {
+    const joinRoom = vi.fn().mockResolvedValue(undefined);
+    const meeting = createFakeMeeting(joinRoom);
+    initMeetingMock.mockResolvedValue(meeting);
+    realtimeKitMeetingMock.current = meeting;
+
+    await act(async () => {
+      root.render(<TownVoiceClient nickname="listener" voiceRole={null} listeningVolume={0.3} />);
+      await flushMicrotasks();
+    });
+
+    const audioElement = container.querySelector("audio");
+    expect(audioElement).not.toBeNull();
+    expect(audioElement?.volume).toBeCloseTo(0.3);
+
+    await act(async () => {
+      root.render(<TownVoiceClient nickname="listener" voiceRole={null} listeningVolume={0.7} />);
+      await flushMicrotasks();
+    });
+
+    expect(audioElement?.volume).toBeCloseTo(0.7);
   });
 });
 

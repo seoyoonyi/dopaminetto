@@ -1,6 +1,6 @@
 "use client";
 
-import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
+import { useListeningVolumeStore, useTownPresenceStore } from "@/features/presence";
 import { TownVoiceClient } from "@/features/voiceChat";
 import type { VoiceRole } from "@/features/voiceChat";
 
@@ -16,12 +16,14 @@ export function TownVoiceSection({ userNickname, voiceRole, onRoleChange }: Town
   const setAudioController = useTownPresenceStore((state) => state.setAudioController);
   const setListeningController = useTownPresenceStore((state) => state.setListeningController);
   const setListeningEnabled = useTownPresenceStore((state) => state.setListeningEnabled);
+  const listeningVolume = useListeningVolumeStore((state) => state.listeningVolume);
   const setAudioToggling = useTownPresenceStore((state) => state.setAudioToggling);
 
   return (
     <TownVoiceClient
       nickname={userNickname}
       voiceRole={voiceRole}
+      listeningVolume={listeningVolume}
       onRoleChange={onRoleChange}
       onConnectionChange={setVoiceConnected}
       onAudioEnabledChange={setAudioEnabled}

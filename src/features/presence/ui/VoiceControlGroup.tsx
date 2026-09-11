@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/shared/ui/button";
-import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { HeadphoneOff, Headphones, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 
 interface VoiceControlGroupProps {
   isSpeaker: boolean;
@@ -13,6 +13,8 @@ interface VoiceControlGroupProps {
   canToggleListening: boolean;
   toggleLocalListening: (() => Promise<void>) | null;
   listeningEnabled: boolean;
+  listeningVolume: number;
+  setListeningVolume: (volume: number) => void;
 }
 
 export function VoiceControlGroup({
@@ -25,6 +27,8 @@ export function VoiceControlGroup({
   canToggleListening,
   toggleLocalListening,
   listeningEnabled,
+  listeningVolume,
+  setListeningVolume,
 }: VoiceControlGroupProps) {
   /**
    * 음성 역할 상태와 실제 음성 제어 버튼을 한 묶음으로 렌더링한다.
@@ -34,6 +38,8 @@ export function VoiceControlGroup({
   const connectionIndicatorText = voiceConnected ? "연결됨" : "연결 중";
   const isAudioButtonDisabled = !canToggleAudio || !toggleLocalAudio || isAudioToggling;
   const isListeningButtonDisabled = !canToggleListening || !toggleLocalListening;
+  const displayedListeningVolume = listeningEnabled ? listeningVolume : 0;
+  const isPlaybackMuted = displayedListeningVolume === 0;
 
   const handleToggleAudio = () => {
     if (isAudioButtonDisabled) return;
@@ -43,6 +49,18 @@ export function VoiceControlGroup({
   const handleToggleListening = () => {
     if (isListeningButtonDisabled) return;
     void toggleLocalListening();
+  };
+
+  const handleTogglePlaybackMute = () => {
+    if (isListeningButtonDisabled) return;
+
+    if (!listeningEnabled) {
+      setListeningVolume(0.1);
+      void toggleLocalListening?.();
+      return;
+    }
+
+    setListeningVolume(listeningVolume === 0 ? 0.1 : 0);
   };
 
   return (
@@ -77,23 +95,54 @@ export function VoiceControlGroup({
           <span>{audioEnabled ? "방송 중" : "마이크 켜기"}</span>
         </Button>
       ) : (
-        <Button
-          type="button"
-          variant={listeningEnabled ? "default" : "outline"}
-          size="sm"
-          aria-label={listeningEnabled ? "청취 중지" : "청취 시작"}
-          aria-pressed={listeningEnabled}
-          disabled={isListeningButtonDisabled}
-          onClick={handleToggleListening}
-          className="flex h-10 min-w-30 cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm active:opacity-90 disabled:pointer-events-auto disabled:cursor-not-allowed has-[>svg]:px-4"
-        >
-          {listeningEnabled ? (
-            <Volume2 className="size-4" aria-hidden />
-          ) : (
-            <VolumeX className="size-4" aria-hidden />
-          )}
-          <span>{listeningEnabled ? "청취 중" : "청취 시작"}</span>
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant={listeningEnabled ? "default" : "outline"}
+            size="sm"
+            aria-label={listeningEnabled ? "청취 중지" : "청취 시작"}
+            aria-pressed={listeningEnabled}
+            disabled={isListeningButtonDisabled}
+            onClick={handleToggleListening}
+            className="flex h-10 min-w-30 cursor-pointer items-center gap-2 rounded-full px-4 shadow-sm active:opacity-90 disabled:pointer-events-auto disabled:cursor-not-allowed has-[>svg]:px-4"
+          >
+            {listeningEnabled ? (
+              <Headphones className="h-4 w-4" aria-hidden />
+            ) : (
+              <HeadphoneOff className="h-4 w-4" aria-hidden />
+            )}
+            <span>{listeningEnabled ? "청취 중" : "청취 시작"}</span>
+          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={isPlaybackMuted ? "방송 음량 켜기" : "방송 음량 끄기"}
+              aria-pressed={!isPlaybackMuted}
+              disabled={isListeningButtonDisabled}
+              onClick={handleTogglePlaybackMute}
+              className="rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
+            >
+              {isPlaybackMuted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+            </Button>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={Math.round(displayedListeningVolume * 100)}
+              aria-label="방송 음량"
+              disabled={isListeningButtonDisabled || !listeningEnabled}
+              onChange={(event) => setListeningVolume(Number(event.currentTarget.value) / 100)}
+              className="h-1 w-32 cursor-pointer accent-gray-900 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed"
+            />
+            <output className="min-w-9 text-right text-xs text-gray-500">
+              {Math.round(displayedListeningVolume * 100)}%
+            </output>
+          </div>
+        </div>
       )}
     </div>
   );

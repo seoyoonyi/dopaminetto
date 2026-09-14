@@ -42,12 +42,14 @@ const handleEnterTown = async ({ nickname, characterId }: EnterTownParams) => {
 };
 
 export function NicknameForm() {
-  const [nickname, setNickname] = useState("");
+  const { userNickname, setUserProfile } = useUserStore();
+  // 이 폼은 hydration 완료 후 마운트되므로 userNickname은 초기값으로만 사용하며,
+  // 이후 store 값과 별도로 동기화하지 않는다.
+  const [nickname, setNickname] = useState(userNickname);
   const [selectedCharacterId, setSelectedCharacterId] = useState<CharacterId>(DEFAULT_CHARACTER_ID);
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { setUserProfile } = useUserStore();
 
   const { mutate: enterTownMutation, isPending } = useMutation({
     mutationFn: handleEnterTown,
@@ -145,6 +147,7 @@ export function NicknameForm() {
           placeholder="닉네임을 입력하세요"
           value={nickname}
           onChange={handleNicknameChange}
+          onFocus={(e) => e.target.select()}
         />
       </div>
 

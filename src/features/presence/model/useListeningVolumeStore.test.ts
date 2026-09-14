@@ -38,6 +38,17 @@ describe("useListeningVolumeStore", () => {
     const useListeningVolumeStore = await importStore();
 
     expect(useListeningVolumeStore.getState().listeningVolume).toBe(0.8);
+    expect(useListeningVolumeStore.getState().lastAudibleListeningVolume).toBe(0.8);
+  });
+
+  it("음량을 0%로 낮춰도 마지막으로 들은 음량을 유지한다", async () => {
+    const useListeningVolumeStore = await importStore();
+
+    useListeningVolumeStore.getState().setListeningVolume(0.3);
+    useListeningVolumeStore.getState().setListeningVolume(0);
+
+    expect(useListeningVolumeStore.getState().listeningVolume).toBe(0);
+    expect(useListeningVolumeStore.getState().lastAudibleListeningVolume).toBe(0.3);
   });
 
   it("음량을 0부터 1 사이로 제한한다", async () => {

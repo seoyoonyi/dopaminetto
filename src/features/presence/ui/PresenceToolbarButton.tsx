@@ -25,10 +25,10 @@ export const PresenceToolbarButton = ({
   const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
   const isAudioToggling = useTownPresenceStore((state) => state.isAudioToggling);
 
-  const canToggleListening = useTownPresenceStore((state) => state.canToggleListening);
-  const toggleLocalListening = useTownPresenceStore((state) => state.toggleLocalListening);
-  const listeningEnabled = useTownPresenceStore((state) => state.listeningEnabled);
   const listeningVolume = useListeningVolumeStore((state) => state.listeningVolume);
+  const lastAudibleListeningVolume = useListeningVolumeStore(
+    (state) => state.lastAudibleListeningVolume,
+  );
   const setListeningVolume = useListeningVolumeStore((state) => state.setListeningVolume);
 
   return (
@@ -40,10 +40,8 @@ export const PresenceToolbarButton = ({
         toggleLocalAudio={toggleLocalAudio}
         audioEnabled={audioEnabled}
         isAudioToggling={isAudioToggling}
-        canToggleListening={canToggleListening}
-        toggleLocalListening={toggleLocalListening}
-        listeningEnabled={listeningEnabled}
         listeningVolume={listeningVolume}
+        lastAudibleListeningVolume={lastAudibleListeningVolume}
         setListeningVolume={setListeningVolume}
       />
       <UsersPanelToggleButton

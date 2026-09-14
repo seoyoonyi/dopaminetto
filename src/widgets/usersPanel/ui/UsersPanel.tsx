@@ -34,8 +34,8 @@ const renderVoiceIndicator = (participant: PresenceParticipant) => {
       className={`inline-flex items-center ${
         participant.voiceConnected ? "text-emerald-500" : "text-gray-300"
       }`}
-      aria-label={participant.voiceConnected ? "청취 중" : "청취 미연결"}
-      title={participant.voiceConnected ? "청취 중" : "청취 미연결"}
+      aria-label={participant.voiceConnected ? "음성 연결됨" : "음성 미연결"}
+      title={participant.voiceConnected ? "음성 연결됨" : "음성 미연결"}
     >
       <Headphones className="size-3.5" aria-hidden="true" />
     </span>
@@ -46,27 +46,21 @@ const renderVoiceIndicator = (participant: PresenceParticipant) => {
  * 현재 사용자 row는 presence 재동기화보다 로컬 음성 상태를 우선 사용해
  * 아이콘이 즉시 반응하도록 한다.
  *
- * 청취자의 경우 voiceConnected와 listeningEnabled가 모두 true일 때만
- * 연결된 것으로 간주해 헤드폰 아이콘을 초록색으로 표시한다.
+ * 청취자는 로컬 음량과 무관하게 음성 채널 연결 여부를 표시한다.
  */
 const getResolvedParticipant = (
   participant: PresenceParticipant,
   currentUserId: string | undefined,
   localVoiceConnected: boolean,
   localAudioEnabled: boolean,
-  localListeningEnabled: boolean,
 ) => {
   if (participant.userId !== currentUserId) {
     return participant;
   }
 
-  const resolvedVoiceConnected = participant.isSpeaker
-    ? localVoiceConnected
-    : localVoiceConnected && localListeningEnabled;
-
   return {
     ...participant,
-    voiceConnected: resolvedVoiceConnected,
+    voiceConnected: localVoiceConnected,
     audioEnabled: localAudioEnabled,
   };
 };
@@ -79,7 +73,6 @@ export function UsersPanel() {
     isConnected,
     localVoiceConnected,
     localAudioEnabled,
-    localListeningEnabled,
   } = useTownPresenceStore(
     useShallow((state) => ({
       groupedParticipants: state.groupedParticipants,
@@ -87,7 +80,6 @@ export function UsersPanel() {
       isConnected: state.isConnected,
       localVoiceConnected: state.voiceConnected,
       localAudioEnabled: state.audioEnabled,
-      localListeningEnabled: state.listeningEnabled,
     })),
   );
   const presenceStatus = isConnected ? "실시간으로 동기화 중" : "연결 대기 중";
@@ -103,7 +95,6 @@ export function UsersPanel() {
         currentUserId,
         localVoiceConnected,
         localAudioEnabled,
-        localListeningEnabled,
       );
       const voiceControl = renderVoiceIndicator(resolvedParticipant);
 

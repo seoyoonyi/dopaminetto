@@ -33,12 +33,6 @@ interface TownPresenceState {
    * true인 동안 버튼을 disabled 처리해 중복 클릭을 막는다.
    */
   isAudioToggling: boolean;
-  /** 현재 유저가 툴바 음성 제어 UI에서 청취 토글을 제어할 수 있는지 여부 */
-  canToggleListening: boolean;
-  /** 현재 유저의 실제 청취 on/off 상태 */
-  listeningEnabled: boolean;
-  /** 현재 유저의 청취 on/off를 수행하는 로컬 제어 함수 */
-  toggleLocalListening: (() => Promise<void>) | null;
 
   setParticipants: (participants: PresenceParticipant[], currentUserId: string) => void;
   setConnectionState: (isConnected: boolean) => void;
@@ -58,13 +52,6 @@ interface TownPresenceState {
   ) => void;
   /** 마이크 토글 SDK 호출 진행 상태를 업데이트한다. */
   setAudioToggling: (isAudioToggling: boolean) => void;
-  /** 툴바 음성 제어 UI에서 사용할 청취 토글 제어기를 등록한다. */
-  setListeningController: (
-    canToggleListening: boolean,
-    toggleLocalListening: (() => Promise<void>) | null,
-  ) => void;
-  /** 현재 유저의 청취 on/off 상태를 업데이트한다. */
-  setListeningEnabled: (listeningEnabled: boolean) => void;
   reset: () => void;
 }
 
@@ -124,9 +111,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
     canToggleAudio: false,
     toggleLocalAudio: null,
     isAudioToggling: false,
-    canToggleListening: false,
-    listeningEnabled: true,
-    toggleLocalListening: null,
 
     setParticipants: (participants, currentUserId) => {
       latestRawSnapshotUserIds = new Set(participants.map((p) => p.userId));
@@ -210,20 +194,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
     setAudioToggling: (isAudioToggling) => set({ isAudioToggling }),
 
-    /**
-     * 툴바 음성 제어 UI에서 사용할 청취 토글 제어기를 등록한다.
-     */
-    setListeningController: (canToggleListening, toggleLocalListening) =>
-      set({
-        canToggleListening,
-        toggleLocalListening,
-      }),
-
-    /**
-     * 현재 유저의 청취 on/off 상태를 업데이트한다.
-     */
-    setListeningEnabled: (listeningEnabled) => set({ listeningEnabled }),
-
     reset: () => {
       departureController.cancelAll();
 
@@ -239,9 +209,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
         canToggleAudio: false,
         toggleLocalAudio: null,
         isAudioToggling: false,
-        canToggleListening: false,
-        listeningEnabled: true,
-        toggleLocalListening: null,
       });
     },
   };

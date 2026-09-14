@@ -60,4 +60,19 @@ describe("useListeningVolumeStore", () => {
     useListeningVolumeStore.getState().setListeningVolume(2);
     expect(useListeningVolumeStore.getState().listeningVolume).toBe(1);
   });
+
+  it("현재 버전의 저장된 음량도 hydrate 시 유효 범위로 보정한다", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: { listeningVolume: 5, lastAudibleListeningVolume: 5 },
+        version: 1,
+      }),
+    );
+
+    const useListeningVolumeStore = await importStore();
+
+    expect(useListeningVolumeStore.getState().listeningVolume).toBe(1);
+    expect(useListeningVolumeStore.getState().lastAudibleListeningVolume).toBe(1);
+  });
 });

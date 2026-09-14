@@ -47,7 +47,11 @@ export function NicknameForm() {
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { setUserProfile } = useUserStore();
+  const { userNickname, setUserProfile } = useUserStore();
+
+  useEffect(() => {
+    setNickname(userNickname);
+  }, [userNickname]);
 
   const { mutate: enterTownMutation, isPending } = useMutation({
     mutationFn: handleEnterTown,

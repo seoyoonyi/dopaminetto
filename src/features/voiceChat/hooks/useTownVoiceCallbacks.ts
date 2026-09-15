@@ -18,13 +18,6 @@ export interface TownVoiceCallbacks {
     canToggleAudio: boolean,
     toggleAudio: (() => Promise<void>) | null,
   ) => void;
-  /** 툴바 음성 제어 UI에서 사용할 청취 토글 제어기가 준비될 때 호출된다. */
-  onListeningControllerChange?: (
-    canToggleListening: boolean,
-    toggleListening: (() => Promise<void>) | null,
-  ) => void;
-  /** 청취 on/off 상태가 변경될 때 호출된다. */
-  onListeningEnabledChange?: (enabled: boolean) => void;
   /**
    * 마이크 토글 SDK 호출의 진행 상태가 변경될 때 호출된다.
    * true이면 토글 중, false이면 완료 또는 에러 상태를 의미한다.
@@ -41,8 +34,6 @@ export function useTownVoiceCallbacks({
   onRoleChange,
   onAudioEnabledChange,
   onAudioControllerChange,
-  onListeningControllerChange,
-  onListeningEnabledChange,
   onAudioTogglingChange,
 }: TownVoiceCallbacks) {
   /**
@@ -54,8 +45,6 @@ export function useTownVoiceCallbacks({
     onRoleChange,
     onAudioEnabledChange,
     onAudioControllerChange,
-    onListeningControllerChange,
-    onListeningEnabledChange,
     onAudioTogglingChange,
   });
 
@@ -66,8 +55,6 @@ export function useTownVoiceCallbacks({
       onRoleChange,
       onAudioEnabledChange,
       onAudioControllerChange,
-      onListeningControllerChange,
-      onListeningEnabledChange,
       onAudioTogglingChange,
     };
   });
@@ -91,17 +78,6 @@ export function useTownVoiceCallbacks({
     [],
   );
 
-  const notifyListeningControllerChange = useCallback(
-    (canToggleListening: boolean, toggleListening: (() => Promise<void>) | null) => {
-      callbacksRef.current.onListeningControllerChange?.(canToggleListening, toggleListening);
-    },
-    [],
-  );
-
-  const notifyListeningEnabledChange = useCallback((enabled: boolean) => {
-    callbacksRef.current.onListeningEnabledChange?.(enabled);
-  }, []);
-
   const notifyAudioTogglingChange = useCallback((isToggling: boolean) => {
     callbacksRef.current.onAudioTogglingChange?.(isToggling);
   }, []);
@@ -111,8 +87,6 @@ export function useTownVoiceCallbacks({
     notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,
-    notifyListeningControllerChange,
-    notifyListeningEnabledChange,
     notifyAudioTogglingChange,
   };
 }

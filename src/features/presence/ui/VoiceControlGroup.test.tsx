@@ -42,6 +42,11 @@ describe("VoiceControlGroup", () => {
       );
     });
 
+    const statusGroup = container.querySelector("div.min-w-max");
+
+    expect(statusGroup?.className).toContain("min-w-max");
+    expect(statusGroup?.className).toContain("shrink-0");
+
     expect(container.querySelector('[aria-label="청취 중지"]')).toBeNull();
     expect(container.querySelector('[aria-label="청취 시작"]')).toBeNull();
     expect(container.querySelector('[aria-label="방송 음량 끄기"]')).not.toBeNull();

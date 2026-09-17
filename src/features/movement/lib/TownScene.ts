@@ -222,7 +222,7 @@ export class TownScene extends Phaser.Scene {
       (Object.keys(LOCAL_ACTION_KEY_BINDINGS) as LocalActionInputId[]).map((actionInputId) => [
         actionInputId,
         this.input.keyboard!.addKey(
-          Phaser.Input.Keyboard.KeyCodes[LOCAL_ACTION_KEY_BINDINGS[actionInputId]],
+          Phaser.Input.Keyboard.KeyCodes[LOCAL_ACTION_KEY_BINDINGS[actionInputId].code],
           false,
         ),
       ]),

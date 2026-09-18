@@ -2,10 +2,11 @@ import type { ActiveSyncedActionState, SyncedActionState } from "@/features/move
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import type { CharacterActionConfig, CharacterId } from "@/shared/types";
 
+/** Phaser 입력 코드와 조작 안내에 표시할 키·동작명을 함께 관리한다. */
 export const LOCAL_ACTION_KEY_BINDINGS = {
-  dance: "ZERO",
-  happy: "H",
-  sit: "X",
+  happy: { code: "H", label: "H", actionLabel: "점프" },
+  dance: { code: "ZERO", label: "0", actionLabel: "춤추기" },
+  sit: { code: "X", label: "X", actionLabel: "앉기" },
 } as const;
 
 const LOCAL_ACTION_ATLAS_COLUMNS = 5;

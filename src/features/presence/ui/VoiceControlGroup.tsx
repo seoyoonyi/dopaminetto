@@ -45,11 +45,13 @@ export function VoiceControlGroup({
 
   return (
     <div className="flex items-center gap-2 w-full">
-      <div className="flex items-center gap-2 bg-white px-3 py-2">
-        <span className="text-sm font-medium text-gray-900">현재 역할: {roleText}</span>
+      <div className="hidden shrink-0 min-w-max items-center gap-2 bg-white px-3 py-2 sm:flex">
+        <span className="whitespace-nowrap text-sm font-medium text-gray-900">
+          현재 역할: {roleText}
+        </span>
         <span className="h-3 w-px bg-gray-200" aria-hidden />
         <span
-          className="flex items-center gap-1 text-xs font-normal text-gray-500"
+          className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-normal text-gray-500"
           aria-live="polite"
         >
           <span>음성 연결 상태: {connectionIndicatorText}</span>

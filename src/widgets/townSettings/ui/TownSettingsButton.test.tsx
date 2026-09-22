@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { useAmbientSoundStore } from "@/features/ambientSound";
+import { usePresenceNotificationStore } from "@/features/presence";
 import { useSettingsDialogStore } from "@/shared/store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +8,10 @@ import { act } from "react";
 import { Root, createRoot } from "react-dom/client";
 
 import { TownSettingsButton } from "./TownSettingsButton";
+
+vi.mock("@/shared/config/supabase.client", () => ({
+  supabase: {},
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,6 +42,7 @@ beforeEach(() => {
   useSettingsDialogStore.setState({ isOpen: false });
   useAmbientSoundStore.setState({ volume: 1, isMuted: false });
   localStorage.clear();
+  usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
 });
 
 afterEach(() => {
@@ -46,6 +52,7 @@ afterEach(() => {
   container = null;
   useSettingsDialogStore.setState({ isOpen: false });
   useAmbientSoundStore.setState({ volume: 1, isMuted: false });
+  usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
   localStorage.clear();
   vi.clearAllMocks();
 });
@@ -92,6 +99,12 @@ async function firePageShow(persisted: boolean) {
 const muteButton = () => dialog()!.querySelector<HTMLButtonElement>("button[aria-pressed]")!;
 const rangeInput = () => dialog()!.querySelector<HTMLInputElement>('input[type="range"]')!;
 const text = () => dialog()!.textContent ?? "";
+const notificationCategoryButton = () =>
+  Array.from(dialog()!.querySelectorAll<HTMLButtonElement>("nav button")).find(
+    (button) => button.textContent === "알림",
+  ) ?? null;
+const presenceNotificationSwitch = () =>
+  dialog()!.querySelector<HTMLButtonElement>('[role="switch"][aria-label="입장·퇴장 알림"]');
 
 const nativeValueSetter = Object.getOwnPropertyDescriptor(
   HTMLInputElement.prototype,
@@ -282,5 +295,29 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expect(dialog()).toBeNull();
     // 재진입해도 환경음 설정은 유지된다.
     expect(useAmbientSoundStore.getState()).toMatchObject({ volume: 0.4, isMuted: true });
+  });
+
+  it("T7: 알림 카테고리에서 입장·퇴장 알림 상태를 확인하고 토글한다", async () => {
+    await render();
+    await clickTrigger();
+
+    const categoryButton = notificationCategoryButton();
+    expect(categoryButton).not.toBeNull();
+    if (!categoryButton) return;
+
+    await act(async () => categoryButton.click());
+
+    const toggle = presenceNotificationSwitch();
+    expect(toggle).not.toBeNull();
+    if (!toggle) return;
+
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(toggle.textContent).toContain("ON");
+
+    await act(async () => toggle.click());
+
+    expect(usePresenceNotificationStore.getState().isPresenceNotificationEnabled).toBe(false);
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle.textContent).toContain("OFF");
   });
 });

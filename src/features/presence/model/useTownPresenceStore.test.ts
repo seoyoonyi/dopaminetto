@@ -1,9 +1,16 @@
+// @vitest-environment jsdom
 import { DEPARTURE_GRACE_MS } from "@/shared/lib/realtime/departureGrace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PresenceParticipant } from "../types";
 
 let channelStatus: string = "SUBSCRIBED";
+
+const toastMock = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({
+  toast: toastMock,
+}));
 
 vi.mock("@/shared/lib/realtime/townChannelManager", () => ({
   getTownChannelStatus: () => channelStatus,
@@ -22,6 +29,73 @@ const REMOTE: PresenceParticipant = {
   presenceRef: "ref-remote",
   villageId: "lobby",
 };
+
+describe("useTownPresenceStore 입장·퇴장 알림 설정", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+    toastMock.mockClear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it("presence 상태를 초기화해도 사용자가 선택한 알림 설정은 유지한다", async () => {
+    const { usePresenceNotificationStore } = await import("./usePresenceNotificationStore");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    usePresenceNotificationStore.getState().togglePresenceNotification();
+
+    useTownPresenceStore.getState().reset();
+
+    expect(usePresenceNotificationStore.getState().isPresenceNotificationEnabled).toBe(false);
+  });
+
+  it("알림이 OFF여도 참여자를 추가하지만 입장 toast는 표시하지 않는다", async () => {
+    const { usePresenceNotificationStore } = await import("./usePresenceNotificationStore");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: false });
+
+    useTownPresenceStore.getState().setParticipants([ME], ME.userId);
+    useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
+
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(
+      useTownPresenceStore.getState().participants.map((participant) => participant.userId),
+    ).toEqual([ME.userId, REMOTE.userId]);
+  });
+
+  it("알림이 OFF여도 참여자를 제거하지만 퇴장 toast는 표시하지 않는다", async () => {
+    const { usePresenceNotificationStore } = await import("./usePresenceNotificationStore");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: false });
+    useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
+    toastMock.mockClear();
+
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(
+      useTownPresenceStore.getState().participants.map((participant) => participant.userId),
+    ).toEqual([ME.userId]);
+  });
+
+  it("알림이 ON이면 기존과 동일하게 입장·퇴장 toast를 표시한다", async () => {
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+
+    useTownPresenceStore.getState().setParticipants([ME], ME.userId);
+    useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+
+    expect(toastMock).toHaveBeenNthCalledWith(1, "나님이 입장했습니다.", { duration: 3000 });
+    expect(toastMock).toHaveBeenNthCalledWith(2, "원격 유저님이 입장했습니다.", {
+      duration: 3000,
+    });
+    expect(toastMock).toHaveBeenNthCalledWith(3, "원격 유저님이 퇴장했습니다.", {
+      duration: 3000,
+    });
+  });
+});
 
 describe("useTownPresenceStore departure grace 통합", () => {
   beforeEach(async () => {

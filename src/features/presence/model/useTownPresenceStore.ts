@@ -11,6 +11,7 @@ import { create } from "zustand";
 import { groupParticipantsByVillage } from "../lib/groupByVillage";
 import { PresenceParticipant } from "../types";
 import { resolvePresenceParticipants } from "./presenceParticipants";
+import { usePresenceNotificationStore } from "./usePresenceNotificationStore";
 
 interface TownPresenceState {
   participants: PresenceParticipant[];
@@ -81,7 +82,9 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
     const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
 
-    toast(`${departedParticipant.nickname}님이 퇴장했습니다.`, { duration: 3000 });
+    if (usePresenceNotificationStore.getState().isPresenceNotificationEnabled) {
+      toast(`${departedParticipant.nickname}님이 퇴장했습니다.`, { duration: 3000 });
+    }
 
     set({
       participants: nextParticipants,
@@ -136,12 +139,19 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
       const groupedParticipants = groupParticipantsByVillage(
         resolvedParticipants.displayParticipants,
       );
+      const initialJoinParticipant = resolvedParticipants.initialJoinParticipant;
+      const isPresenceNotificationEnabled =
+        usePresenceNotificationStore.getState().isPresenceNotificationEnabled;
+      const shouldShowInitialJoinNotification =
+        initialJoinParticipant !== undefined && isPresenceNotificationEnabled;
 
-      if (resolvedParticipants.initialJoinParticipant) {
-        toast(`${resolvedParticipants.initialJoinParticipant.nickname}님이 입장했습니다.`, {
+      if (shouldShowInitialJoinNotification) {
+        toast(`${initialJoinParticipant.nickname}님이 입장했습니다.`, {
           duration: 3000,
         });
+      }
 
+      if (initialJoinParticipant) {
         set({
           participants: resolvedParticipants.displayParticipants,
           groupedParticipants,
@@ -154,9 +164,11 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
         return;
       }
 
-      resolvedParticipants.joinToastParticipants.forEach((participant) => {
-        toast(`${participant.nickname}님이 입장했습니다.`, { duration: 3000 });
-      });
+      if (isPresenceNotificationEnabled) {
+        resolvedParticipants.joinToastParticipants.forEach((participant) => {
+          toast(`${participant.nickname}님이 입장했습니다.`, { duration: 3000 });
+        });
+      }
 
       set({
         participants: resolvedParticipants.displayParticipants,

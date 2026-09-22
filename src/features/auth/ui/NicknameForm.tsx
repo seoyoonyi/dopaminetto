@@ -42,11 +42,16 @@ const handleEnterTown = async ({ nickname, characterId }: EnterTownParams) => {
 };
 
 export function NicknameForm() {
-  const { userNickname, setUserProfile } = useUserStore();
-  // 이 폼은 hydration 완료 후 마운트되므로 userNickname은 초기값으로만 사용하며,
-  // 이후 store 값과 별도로 동기화하지 않는다.
+  const { userNickname, selectedCharacterId: savedCharacterId, setUserProfile } = useUserStore();
+  // hydration 이후 마운트되므로 store 값은 초기값으로만 사용한다.
   const [nickname, setNickname] = useState(userNickname);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<CharacterId>(DEFAULT_CHARACTER_ID);
+  const savedCharacterIndex = CHARACTER_OPTIONS.findIndex(
+    (character) => character.id === savedCharacterId,
+  );
+  const [startIndex] = useState(Math.max(0, savedCharacterIndex));
+  const [selectedCharacterId, setSelectedCharacterId] = useState<CharacterId>(
+    CHARACTER_OPTIONS[startIndex].id,
+  );
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -112,7 +117,7 @@ export function NicknameForm() {
 
         <Carousel
           setApi={setCarouselApi}
-          opts={{ align: "center", loop: true }}
+          opts={{ align: "center", loop: true, startIndex }}
           aria-label="캐릭터 미리보기 슬라이더"
         >
           <CarouselContent>

@@ -154,6 +154,7 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
     initMeetingMock.mockResolvedValue(createFakeMeeting(joinRoom));
 
     const onConnectionChange = vi.fn();
+    const onConnectionStatusChange = vi.fn();
 
     await act(async () => {
       root.render(
@@ -161,6 +162,7 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
           nickname="tester"
           voiceRole={null}
           onConnectionChange={onConnectionChange}
+          onConnectionStatusChange={onConnectionStatusChange}
         />,
       );
       await flushMicrotasks();
@@ -168,6 +170,8 @@ describe("TownVoiceClient — 최초 join 실패 후 제한적 자동 재시도"
 
     expect(joinRoom).toHaveBeenCalledTimes(1);
     expect(onConnectionChange).not.toHaveBeenCalledWith(true);
+    expect(onConnectionStatusChange).toHaveBeenCalledWith("connecting");
+    expect(onConnectionStatusChange).toHaveBeenLastCalledWith("error");
     expect(container.textContent).toContain("Invalid auth token");
 
     // 시간이 아무리 지나도 재시도가 걸리지 않는다 — 재시도 의미가 없는 오류이기 때문이다.

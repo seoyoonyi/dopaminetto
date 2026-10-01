@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
-import type { VoiceRole } from "../model/types";
+import type { VoiceConnectionStatus, VoiceRole } from "../model/types";
 
 /** TownVoiceClient가 외부 UI 상태와 제어 함수를 동기화하기 위해 호출하는 콜백 모음 */
 export interface TownVoiceCallbacks {
@@ -11,6 +11,8 @@ export interface TownVoiceCallbacks {
    * connected가 true이면 연결 완료, false이면 연결 실패 또는 언마운트를 의미한다.
    */
   onConnectionChange?: (connected: boolean) => void;
+  /** 툴바에 표시할 음성 연결 진행 상태가 변경될 때 호출된다. */
+  onConnectionStatusChange?: (status: VoiceConnectionStatus) => void;
   /** 발표자의 마이크 활성 상태가 변경될 때 호출된다. */
   onAudioEnabledChange?: (enabled: boolean) => void;
   /** 툴바 음성 제어 UI에서 사용할 마이크 토글 제어기가 준비될 때 호출된다. */
@@ -31,6 +33,7 @@ export interface TownVoiceCallbacks {
  */
 export function useTownVoiceCallbacks({
   onConnectionChange,
+  onConnectionStatusChange,
   onRoleChange,
   onAudioEnabledChange,
   onAudioControllerChange,
@@ -42,6 +45,7 @@ export function useTownVoiceCallbacks({
    */
   const callbacksRef = useRef({
     onConnectionChange,
+    onConnectionStatusChange,
     onRoleChange,
     onAudioEnabledChange,
     onAudioControllerChange,
@@ -52,6 +56,7 @@ export function useTownVoiceCallbacks({
   useEffect(() => {
     callbacksRef.current = {
       onConnectionChange,
+      onConnectionStatusChange,
       onRoleChange,
       onAudioEnabledChange,
       onAudioControllerChange,
@@ -61,6 +66,10 @@ export function useTownVoiceCallbacks({
 
   const notifyConnectionChange = useCallback((connected: boolean) => {
     callbacksRef.current.onConnectionChange?.(connected);
+  }, []);
+
+  const notifyConnectionStatusChange = useCallback((status: VoiceConnectionStatus) => {
+    callbacksRef.current.onConnectionStatusChange?.(status);
   }, []);
 
   const notifyRoleChange = useCallback((role: VoiceRole | null) => {
@@ -84,6 +93,7 @@ export function useTownVoiceCallbacks({
 
   return {
     notifyConnectionChange,
+    notifyConnectionStatusChange,
     notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,

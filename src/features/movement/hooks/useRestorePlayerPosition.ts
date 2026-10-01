@@ -27,6 +27,7 @@ export function useRestorePlayerPosition() {
     restoreStatus: "loading",
   });
   const { data: user, isLoading: isUserLoading } = useUserInfo();
+  const userId = user?.id;
   const initializePosition = useMovementStore((state) => state.initializePosition);
   const mapLoader = useMovementStore((state) => state.mapLoader);
 
@@ -52,8 +53,8 @@ export function useRestorePlayerPosition() {
       };
 
       try {
-        if (user) {
-          const saved = await fetchPlayerPosition(user.id);
+        if (userId) {
+          const saved = await fetchPlayerPosition(userId);
 
           if (isCancelled) return;
 
@@ -86,7 +87,7 @@ export function useRestorePlayerPosition() {
     return () => {
       isCancelled = true;
     };
-  }, [user, isUserLoading, initializePosition, mapLoader]);
+  }, [userId, isUserLoading, initializePosition, mapLoader]);
 
   return restoreState;
 }

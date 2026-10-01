@@ -4,7 +4,7 @@ import { VILLAGES, VillageId } from "@/entities/village";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
 import { PresenceParticipant } from "@/features/presence/types";
 import { useUserInfo } from "@/shared/hooks";
-import { formatJoinedTime } from "@/shared/lib";
+import { CONNECTION_STATUS_LABEL, type ConnectionStatus, formatJoinedTime } from "@/shared/lib";
 import { Headphones, Mic } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -65,25 +65,24 @@ const getResolvedParticipant = (
   };
 };
 
-export function UsersPanel() {
+interface UsersPanelProps {
+  townConnectionStatus: ConnectionStatus;
+}
+
+export function UsersPanel({ townConnectionStatus }: UsersPanelProps) {
   const { data: user } = useUserInfo();
-  const {
-    groupedParticipants,
-    participantCount,
-    isConnected,
-    localVoiceConnected,
-    localAudioEnabled,
-  } = useTownPresenceStore(
-    useShallow((state) => ({
-      groupedParticipants: state.groupedParticipants,
-      participantCount: state.participants.length,
-      isConnected: state.isConnected,
-      localVoiceConnected: state.voiceConnected,
-      localAudioEnabled: state.audioEnabled,
-    })),
-  );
-  const presenceStatus = isConnected ? "실시간으로 동기화 중" : "연결 대기 중";
-  const presenceIndicatorLabel = isConnected ? "Presence 연결됨" : "Presence 연결 대기";
+  const { groupedParticipants, participantCount, localVoiceConnected, localAudioEnabled } =
+    useTownPresenceStore(
+      useShallow((state) => ({
+        groupedParticipants: state.groupedParticipants,
+        participantCount: state.participants.length,
+        localVoiceConnected: state.voiceConnected,
+        localAudioEnabled: state.audioEnabled,
+      })),
+    );
+  const connectionLabel = CONNECTION_STATUS_LABEL[townConnectionStatus];
+  const presenceStatus =
+    townConnectionStatus === "connected" ? "실시간으로 동기화 중" : connectionLabel;
   const currentUserId = user?.id;
 
   const villageIds = Object.keys(VILLAGES) as VillageId[];
@@ -131,11 +130,13 @@ export function UsersPanel() {
         </div>
         <span
           className={`h-2.5 w-2.5 rounded-full ${
-            isConnected
+            townConnectionStatus === "connected"
               ? "bg-emerald-500 shadow-sm shadow-emerald-200"
-              : "bg-amber-400 animate-pulse"
+              : townConnectionStatus === "connecting"
+                ? "bg-amber-400"
+                : "bg-red-500"
           }`}
-          aria-label={presenceIndicatorLabel}
+          aria-label={`타운 ${connectionLabel}`}
         />
       </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { NicknameChangeButton } from "@/features/auth";
 import { MobileAccessBlockedNotice, useMobileDeviceAccess } from "@/features/deviceAccess";
 import { resolveCharacterId } from "@/features/movement/model/config";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
@@ -8,6 +9,7 @@ import { useTownPresence } from "@/features/presence";
 import { SingleTownTabBlockedNotice, useSingleTownTabEntry } from "@/features/singleTownTab";
 import type { VoiceRole } from "@/features/voiceChat";
 import { useUserInfo } from "@/shared/hooks";
+import type { ConnectionStatus } from "@/shared/lib";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
 import { TownSettingsButton } from "@/widgets/townSettings";
@@ -23,6 +25,12 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 
 const NETWORK_TOAST_ID = "town-network-status";
+
+const CHANNEL_CONNECTION_STATUS: Record<string, ConnectionStatus> = {
+  SUBSCRIBED: "connected",
+  SUBSCRIBING: "connecting",
+  INITIAL: "connecting",
+};
 
 const TownEngine = dynamic(
   () => import("@/features/movement/ui/TownEngine").then((mod) => mod.TownEngine),
@@ -76,7 +84,8 @@ function ActiveTownPage() {
   const { setUserProfile } = useUserStore();
   const activePanel = useTownPanelToggleStore((state) => state.activePanel);
   const resetMovement = useMovementStore((state) => state.reset);
-  useTownPresence(voiceRole === "speaker");
+  const { channelStatus } = useTownPresence(voiceRole === "speaker");
+  const townConnectionStatus = CHANNEL_CONNECTION_STATUS[channelStatus] ?? "disconnected";
 
   /** 페이지 이탈 시 타운 이동 상태를 초기화해 이전 씬 데이터를 남기지 않는다. */
   useEffect(() => {
@@ -131,7 +140,7 @@ function ActiveTownPage() {
 
   const panelContent =
     activePanel === "users" ? (
-      <UsersPanel />
+      <UsersPanel townConnectionStatus={townConnectionStatus} />
     ) : userNickname ? (
       <ChatPanel />
     ) : (
@@ -158,7 +167,13 @@ function ActiveTownPage() {
           onRoleChange={setVoiceRole}
         />
       ) : null}
-      <TownToolbar isSpeaker={voiceRole === "speaker"} trailingSlot={<TownSettingsButton />} />
+      <TownToolbar
+        isSpeaker={voiceRole === "speaker"}
+        leadingSlot={
+          userNickname ? <NicknameChangeButton townConnectionStatus={townConnectionStatus} /> : null
+        }
+        trailingSlot={<TownSettingsButton />}
+      />
     </div>
   );
 }

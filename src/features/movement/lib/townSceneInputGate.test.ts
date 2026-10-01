@@ -2,6 +2,7 @@
 import { useAmbientSoundStore } from "@/features/ambientSound";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useSettingsDialogStore } from "@/shared/store";
+import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TownScene } from "./TownScene";
@@ -91,6 +92,7 @@ beforeEach(() => {
   useMovementStore.setState({ villageId: "village-a", remotePlayers: {}, updatePosition });
   useAmbientSoundStore.setState({ volume: 0.6, isMuted: false });
   useSettingsDialogStore.setState({ isOpen: false });
+  useNicknameDialogStore.setState({ isOpen: false });
   scene = makeScene();
 });
 
@@ -100,6 +102,18 @@ afterEach(() => {
 });
 
 describe("TownScene.update() — 입력 차단과 환경음 갱신 분리", () => {
+  it("닉네임 변경창에서 이동을 차단하고 닫으면 복구한다", () => {
+    scene.wasd.A.isDown = true;
+    useNicknameDialogStore.setState({ isOpen: true });
+    scene.update(0, 16);
+    expect(updatePosition).not.toHaveBeenCalled();
+    expect(ambientUpdate).toHaveBeenCalledTimes(1);
+
+    useNicknameDialogStore.setState({ isOpen: false });
+    scene.update(0, 16);
+    expect(updatePosition).toHaveBeenCalledWith({ x: -4, y: 0 });
+  });
+
   it("이동키를 누른 채 설정 다이얼로그가 열리면 이동은 차단되지만 환경음 갱신은 계속된다", () => {
     scene.wasd.A.isDown = true; // 왼쪽 이동 시도
     useSettingsDialogStore.setState({ isOpen: true });

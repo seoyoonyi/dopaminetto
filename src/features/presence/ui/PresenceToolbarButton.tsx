@@ -17,13 +17,11 @@ export const PresenceToolbarButton = ({
   isUsersPanel = false,
 }: PresenceToolbarButtonProps) => {
   const participantCount = useTownPresenceStore((state) => state.participants.length);
-  const isConnected = useTownPresenceStore((state) => state.isConnected);
-  const voiceConnected = useTownPresenceStore((state) => state.voiceConnected);
-
   const canToggleAudio = useTownPresenceStore((state) => state.canToggleAudio);
   const toggleLocalAudio = useTownPresenceStore((state) => state.toggleLocalAudio);
   const audioEnabled = useTownPresenceStore((state) => state.audioEnabled);
   const isAudioToggling = useTownPresenceStore((state) => state.isAudioToggling);
+  const voiceConnectionStatus = useTownPresenceStore((state) => state.voiceConnectionStatus);
 
   const listeningVolume = useListeningVolumeStore((state) => state.listeningVolume);
   const lastAudibleListeningVolume = useListeningVolumeStore(
@@ -32,24 +30,39 @@ export const PresenceToolbarButton = ({
   const setListeningVolume = useListeningVolumeStore((state) => state.setListeningVolume);
 
   return (
-    <div className="flex items-center w-full justify-end gap-2">
-      <VoiceControlGroup
-        isSpeaker={isSpeaker}
-        voiceConnected={voiceConnected}
-        canToggleAudio={canToggleAudio}
-        toggleLocalAudio={toggleLocalAudio}
-        audioEnabled={audioEnabled}
-        isAudioToggling={isAudioToggling}
-        listeningVolume={listeningVolume}
-        lastAudibleListeningVolume={lastAudibleListeningVolume}
-        setListeningVolume={setListeningVolume}
-      />
-      <UsersPanelToggleButton
-        participantCount={participantCount}
-        isConnected={isConnected}
-        isUsersPanel={isUsersPanel}
-        onToggle={onToggle}
-      />
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      {voiceConnectionStatus === "connected" ? (
+        <VoiceControlGroup
+          isSpeaker={isSpeaker}
+          canToggleAudio={canToggleAudio}
+          toggleLocalAudio={toggleLocalAudio}
+          audioEnabled={audioEnabled}
+          isAudioToggling={isAudioToggling}
+          listeningVolume={listeningVolume}
+          lastAudibleListeningVolume={lastAudibleListeningVolume}
+          setListeningVolume={setListeningVolume}
+        />
+      ) : (
+        <span
+          role="status"
+          className={`shrink-0 whitespace-nowrap text-[13px] font-normal ${
+            voiceConnectionStatus === "error" ? "text-red-600" : "text-muted-foreground"
+          }`}
+        >
+          {voiceConnectionStatus === "connecting"
+            ? "음성 연결 중…"
+            : voiceConnectionStatus === "error"
+              ? "음성 연결 실패"
+              : "음성 연결 대기"}
+        </span>
+      )}
+      <div className="ml-auto shrink-0">
+        <UsersPanelToggleButton
+          participantCount={participantCount}
+          isUsersPanel={isUsersPanel}
+          onToggle={onToggle}
+        />
+      </div>
     </div>
   );
 };

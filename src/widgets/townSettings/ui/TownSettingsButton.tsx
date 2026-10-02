@@ -45,17 +45,17 @@ export function TownSettingsButton() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>
-      <span aria-hidden className="bg-border mx-1 h-5 w-px" />
       <DialogTrigger asChild>
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="sm"
-          className="h-10 cursor-pointer gap-2 rounded-full px-4 hover:bg-border active:opacity-90 has-[>svg]:px-4"
+          className="h-9 shrink-0 cursor-pointer gap-1.5 rounded-md px-3 text-sm font-normal whitespace-nowrap text-gray-700 hover:bg-gray-100 active:opacity-90 data-[state=open]:bg-gray-100 has-[>svg]:px-3"
           aria-label="설정"
+          title="설정"
         >
           <Settings className="size-4" aria-hidden />
-          설정
+          <span>설정</span>
         </Button>
       </DialogTrigger>
 

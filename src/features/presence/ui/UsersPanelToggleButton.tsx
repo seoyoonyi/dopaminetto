@@ -1,56 +1,37 @@
 "use client";
 
 import { Button } from "@/shared/ui/button";
-import { Users } from "lucide-react";
+import { MessageCircle, Users } from "lucide-react";
 
 interface UsersPanelToggleButtonProps {
   participantCount: number;
-  isConnected: boolean;
   isUsersPanel?: boolean;
   onToggle?: () => void;
 }
 
 export function UsersPanelToggleButton({
   participantCount,
-  isConnected,
   isUsersPanel = false,
   onToggle,
 }: UsersPanelToggleButtonProps) {
-  /** 기존 사용자 패널 토글 버튼과 텍스트 채널 연결 상태 표시는 별도 책임으로 유지한다. */
   const toggleLabel = isUsersPanel ? "채팅 패널로 보기" : "사용자 패널로 보기";
-  const toggleText = isUsersPanel ? "채팅" : "사용자";
 
   return (
     <Button
       type="button"
-      variant={isUsersPanel ? "default" : "outline"}
+      variant="ghost"
       size="sm"
-      aria-pressed={isUsersPanel}
-      aria-label={toggleLabel}
+      aria-label={`${toggleLabel}, ${participantCount}명`}
+      title={`${toggleLabel} · ${participantCount}명`}
       onClick={onToggle}
-      className={`flex h-10 min-w-36 cursor-pointer items-center justify-between gap-2 rounded-full px-4 text-sm font-medium transition-colors shadow-sm active:opacity-90 ${
-        isUsersPanel
-          ? "border border-gray-900 bg-gray-900 text-white"
-          : "border bg-white text-gray-700"
-      }`}
+      className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-3 text-sm font-normal whitespace-nowrap text-gray-700 hover:bg-gray-100 active:opacity-90 has-[>svg]:px-3"
     >
-      <div className="flex items-center gap-2">
+      {isUsersPanel ? (
+        <MessageCircle className="size-4" aria-hidden />
+      ) : (
         <Users className="size-4" aria-hidden />
-        <span>{participantCount}</span>
-        <span className="hidden sm:inline">{toggleText}</span>
-      </div>
-      <span
-        className={`flex items-center gap-1 text-[11px] font-normal ${
-          isUsersPanel ? "text-gray-300" : "text-gray-500"
-        }`}
-        aria-live="polite"
-      >
-        <span
-          className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-500" : "bg-red-500"}`}
-          aria-hidden
-        />
-        <span>{isConnected ? "연결됨" : "연결 끊김"}</span>
-      </span>
+      )}
+      <span>{isUsersPanel ? "채팅" : `${participantCount} 사용자`}</span>
     </Button>
   );
 }

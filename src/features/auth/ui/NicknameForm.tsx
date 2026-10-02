@@ -23,6 +23,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { ensureAnonymousSession } from "../api/ensureAnonymousSession";
+import { NICKNAME_MAX_LENGTH, isValidNickname } from "../model/nickname";
 
 interface EnterTownParams {
   nickname: string;
@@ -69,10 +70,10 @@ export function NicknameForm() {
     },
   });
 
-  const isEnterButtonDisabled = nickname.trim().length === 0 || isPending;
+  const isEnterButtonDisabled = !isValidNickname(nickname) || isPending;
 
   const handleNicknameChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setNickname(e.target.value.slice(0, 12));
+    setNickname(e.target.value.slice(0, NICKNAME_MAX_LENGTH));
   };
 
   useEffect(() => {
@@ -96,7 +97,7 @@ export function NicknameForm() {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (nickname.trim()) {
+    if (isValidNickname(nickname)) {
       enterTownMutation({ nickname, characterId: selectedCharacterId });
     }
   };

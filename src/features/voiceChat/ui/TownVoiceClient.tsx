@@ -478,6 +478,7 @@ export function TownVoiceClient({
 
       meetingRef.current = null;
       notifyConnectionChange(false);
+      notifyConnectionStatusChange("idle");
       notifyRoleChange(null);
       notifyAudioEnabledChange(false);
       notifyAudioTogglingChange(false);

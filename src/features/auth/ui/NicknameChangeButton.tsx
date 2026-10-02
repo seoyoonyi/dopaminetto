@@ -59,7 +59,7 @@ export function NicknameChangeButton({ townConnectionStatus }: NicknameChangeBut
             width={character.previewImageWidth}
             height={character.previewImageHeight}
             className={cn(
-              "absolute -top-2 left-1/2 h-auto max-w-none -translate-x-1/2 [image-rendering:pixelated]",
+              "absolute -top-2 left-1/2 h-auto max-w-none -translate-x-1/2 p-[10%] [image-rendering:pixelated]",
               character.id === "p-girl" ? "ml-1.5 w-14" : "w-11",
             )}
             unoptimized

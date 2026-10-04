@@ -211,28 +211,42 @@ describe("Chat Message Utils - Helpers", () => {
   describe("isSameUserContinuous", () => {
     const user1 = "user1";
     const user2 = "user2";
+    const nickname = "기존이름";
     const time = "2024-01-01T10:00:00";
     const timeSameMinute = "2024-01-01T10:00:59";
     const timeDiffMinute = "2024-01-01T10:01:00";
+    const timeSameMinuteNextDay = "2024-01-02T10:00:59";
 
     it("이전 메시지가 없거나 다른 유저면 false", () => {
-      const current = { user_id: user1, created_at: time } as Message;
+      const current = { user_id: user1, nickname, created_at: time } as Message;
       expect(isSameUserContinuous(current, undefined)).toBe(false);
-      expect(isSameUserContinuous(current, { user_id: user2, created_at: time } as Message)).toBe(
-        false,
-      );
+      expect(
+        isSameUserContinuous(current, { user_id: user2, nickname, created_at: time } as Message),
+      ).toBe(false);
     });
 
     it("같은 유저여도 분(minute)이 다르면 false", () => {
-      const current = { user_id: user1, created_at: timeDiffMinute } as Message;
-      const prev = { user_id: user1, created_at: time } as Message;
+      const current = { user_id: user1, nickname, created_at: timeDiffMinute } as Message;
+      const prev = { user_id: user1, nickname, created_at: time } as Message;
       expect(isSameUserContinuous(current, prev)).toBe(false);
     });
 
     it("같은 유저이고 분(minute)이 같으면 true", () => {
-      const current = { user_id: user1, created_at: timeSameMinute } as Message;
-      const prev = { user_id: user1, created_at: time } as Message;
+      const current = { user_id: user1, nickname, created_at: timeSameMinute } as Message;
+      const prev = { user_id: user1, nickname, created_at: time } as Message;
       expect(isSameUserContinuous(current, prev)).toBe(true);
+    });
+
+    it("닉네임이 바뀌면 같은 분에도 새 그룹으로 판정한다", () => {
+      const current = { user_id: user1, nickname: "새이름", created_at: timeSameMinute } as Message;
+      const prev = { user_id: user1, nickname, created_at: time } as Message;
+      expect(isSameUserContinuous(current, prev)).toBe(false);
+    });
+
+    it("날짜가 바뀌면 같은 시각(시·분)에도 새 그룹으로 판정한다", () => {
+      const current = { user_id: user1, nickname, created_at: timeSameMinuteNextDay } as Message;
+      const prev = { user_id: user1, nickname, created_at: time } as Message;
+      expect(isSameUserContinuous(current, prev)).toBe(false);
     });
   });
 

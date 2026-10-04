@@ -12,6 +12,7 @@ interface TownVoiceSectionProps {
 
 export function TownVoiceSection({ userNickname, voiceRole, onRoleChange }: TownVoiceSectionProps) {
   const setVoiceConnected = useTownPresenceStore((state) => state.setVoiceConnected);
+  const setVoiceConnectionStatus = useTownPresenceStore((state) => state.setVoiceConnectionStatus);
   const setAudioEnabled = useTownPresenceStore((state) => state.setAudioEnabled);
   const setAudioController = useTownPresenceStore((state) => state.setAudioController);
   const listeningVolume = useListeningVolumeStore((state) => state.listeningVolume);
@@ -24,6 +25,7 @@ export function TownVoiceSection({ userNickname, voiceRole, onRoleChange }: Town
       listeningVolume={listeningVolume}
       onRoleChange={onRoleChange}
       onConnectionChange={setVoiceConnected}
+      onConnectionStatusChange={setVoiceConnectionStatus}
       onAudioEnabledChange={setAudioEnabled}
       onAudioControllerChange={setAudioController}
       onAudioTogglingChange={setAudioToggling}

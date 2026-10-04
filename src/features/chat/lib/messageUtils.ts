@@ -12,7 +12,15 @@ export const hasMultipleDates = (messages: Message[]) => {
 };
 
 export const isSameUserContinuous = (currentMsg: Message, prevMsg?: Message) => {
-  if (!prevMsg || prevMsg.user_id !== currentMsg.user_id) return false;
+  // 닉네임이나 날짜가 바뀌면 같은 사용자·분의 메시지도 새 그룹으로 표시한다.
+  if (
+    !prevMsg ||
+    prevMsg.user_id !== currentMsg.user_id ||
+    prevMsg.nickname !== currentMsg.nickname ||
+    !isSameDay(currentMsg.created_at, prevMsg.created_at)
+  ) {
+    return false;
+  }
 
   const current = toDate(currentMsg.created_at);
   const prev = toDate(prevMsg.created_at);

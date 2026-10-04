@@ -1,6 +1,9 @@
 /** 음성 채널 참여자 역할 */
 export type VoiceRole = "speaker" | "listener";
 
+/** 사용자에게 표시할 음성 채널 연결 상태 */
+export type VoiceConnectionStatus = "idle" | "connecting" | "connected" | "error";
+
 /** 음성 토큰 발급 응답 */
 export type RequestVoiceTokenResponse = {
   token: string;

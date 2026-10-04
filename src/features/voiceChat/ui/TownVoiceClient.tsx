@@ -98,6 +98,7 @@ export function TownVoiceClient({
   voiceRole,
   listeningVolume = 1,
   onConnectionChange,
+  onConnectionStatusChange,
   onRoleChange,
   onAudioEnabledChange,
   onAudioControllerChange,
@@ -113,12 +114,14 @@ export function TownVoiceClient({
   const isAudioTogglingRef = useRef(false);
   const {
     notifyConnectionChange,
+    notifyConnectionStatusChange,
     notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,
     notifyAudioTogglingChange,
   } = useTownVoiceCallbacks({
     onConnectionChange,
+    onConnectionStatusChange,
     onRoleChange,
     onAudioEnabledChange,
     onAudioControllerChange,
@@ -215,6 +218,7 @@ export function TownVoiceClient({
       connectInFlight = true;
 
       try {
+        notifyConnectionStatusChange("connecting");
         setStatus("requesting-token");
         setErrorMessage(null);
         notifyRoleChange(null);
@@ -335,17 +339,24 @@ export function TownVoiceClient({
         const handleRoomLeft = ({ state }: { state: LeaveRoomState }) => {
           if (!isMounted) return;
           if (!isUnintentionalRoomLeave(state)) return;
+
+          joinedRoom = false;
+          notifyConnectionChange(false);
+
           if (
             !canAutoReconnectAfterRoomLeft(
               roomLeftRecoveryAttempts,
               MAX_ROOM_LEFT_RECOVERY_ATTEMPTS,
             )
-          )
+          ) {
+            setStatus("error");
+            setErrorMessage("음성 연결이 끊겼습니다.");
+            notifyConnectionStatusChange("error");
             return;
+          }
 
           roomLeftRecoveryAttempts += 1;
-          joinedRoom = false;
-          notifyConnectionChange(false);
+          notifyConnectionStatusChange("connecting");
           activeMeetingCleanup?.();
           activeMeetingCleanup = undefined;
           meetingRef.current = null;
@@ -397,12 +408,19 @@ export function TownVoiceClient({
         roomLeftRecoveryAttempts = 0;
         setStatus("connected");
         notifyConnectionChange(true);
+        notifyConnectionStatusChange("connected");
       } catch (error) {
         if (!isMounted) return;
 
-        setStatus("error");
+        const shouldRetry =
+          !joinedRoom &&
+          isRetryableVoiceConnectError(error) &&
+          canAutoReconnectAfterRoomLeft(roomLeftRecoveryAttempts, MAX_ROOM_LEFT_RECOVERY_ATTEMPTS);
+
+        setStatus(shouldRetry ? "requesting-token" : "error");
         notifyRoleChange(null);
         notifyConnectionChange(false);
+        notifyConnectionStatusChange(shouldRetry ? "connecting" : "error");
         notifyAudioEnabledChange(false);
         notifyAudioTogglingChange(false);
         notifyAudioControllerChange(false, null);
@@ -417,11 +435,7 @@ export function TownVoiceClient({
          * 재사용해, 네트워크성/일시적 오류로 판단되고 예산이 남아있을 때만 backoff 후 재시도한다.
          * 인증/권한/설정 오류처럼 재시도해도 의미가 없는 실패는 여기서 재시도하지 않고 error로 남긴다.
          */
-        if (
-          !joinedRoom &&
-          isRetryableVoiceConnectError(error) &&
-          canAutoReconnectAfterRoomLeft(roomLeftRecoveryAttempts, MAX_ROOM_LEFT_RECOVERY_ATTEMPTS)
-        ) {
+        if (shouldRetry) {
           activeMeetingCleanup?.();
           activeMeetingCleanup = undefined;
           meetingRef.current = null;
@@ -464,6 +478,7 @@ export function TownVoiceClient({
 
       meetingRef.current = null;
       notifyConnectionChange(false);
+      notifyConnectionStatusChange("idle");
       notifyRoleChange(null);
       notifyAudioEnabledChange(false);
       notifyAudioTogglingChange(false);
@@ -474,6 +489,7 @@ export function TownVoiceClient({
     hasNickname,
     nickname,
     notifyConnectionChange,
+    notifyConnectionStatusChange,
     notifyRoleChange,
     notifyAudioEnabledChange,
     notifyAudioControllerChange,

@@ -43,6 +43,7 @@ import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireV
 import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import { useSettingsDialogStore } from "@/shared/store";
+import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import * as Phaser from "phaser";
 
 const BACKGROUND_RESUME_DELTA_MS = 250;
@@ -506,7 +507,8 @@ export class TownScene extends Phaser.Scene {
     // update() 전체를 early return 하지 않는다.
     const isInputFocused = isEditableElementFocused();
     const isSettingsOpen = useSettingsDialogStore.getState().isOpen;
-    const isInputBlocked = isInputFocused || isSettingsOpen;
+    const isNicknameOpen = useNicknameDialogStore.getState().isOpen;
+    const isInputBlocked = isInputFocused || isSettingsOpen || isNicknameOpen;
 
     // 차단 상태가 실제로 바뀐 프레임에만 캡처를 토글 (매 프레임 addCapture/removeCapture 호출 방지)
     if (this.input.keyboard && isInputBlocked !== this.wasInputBlocked) {

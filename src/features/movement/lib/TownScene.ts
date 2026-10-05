@@ -1,6 +1,6 @@
 /**
  * 마을 화면의 Phaser Scene으로 맵과 프레임별 갱신 흐름을 조율한다.
- * 로컬 입력·캐릭터 조작은 전용 컨트롤러에 위임하고, 원격 캐릭터·이름표·환경음 갱신을 연결한다.
+ * 로컬 입력·캐릭터 조작과 원격 캐릭터 표시는 전용 컨트롤러에 위임하고 환경음 갱신을 연결한다.
  * 캐릭터 스프라이트는 각 설정의 originY를 기준으로 정렬한다.
  */
 import type { MapImageLayer } from "@/entities/village";
@@ -22,7 +22,6 @@ import {
   getCharacterActionConfig,
   getCharacterConfig,
   getLocalActionAnimationKey,
-  resolveRemoteActionState,
   useMovementStore,
 } from "@/features/movement";
 import {
@@ -36,23 +35,24 @@ import {
 } from "@/features/movement/lib/CampfireEffectsController";
 import { TownInputController } from "@/features/movement/lib/TownInputController";
 import { TownLocalPlayerController } from "@/features/movement/lib/TownLocalPlayerController";
-import { applyCharacterConfig, getAnimationKey } from "@/features/movement/lib/characterSprite";
+import { TownRemotePlayersController } from "@/features/movement/lib/TownRemotePlayersController";
+import {
+  applyCharacterConfig,
+  getAnimationKey,
+  syncCharacterDepth,
+} from "@/features/movement/lib/characterSprite";
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
 import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
-import { RemotePlayer } from "@/features/movement/model/types";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import { useSettingsDialogStore } from "@/shared/store";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import * as Phaser from "phaser";
-
-const BACKGROUND_RESUME_DELTA_MS = 250;
 
 const MAP_BACKGROUND_KEY = "town-map-background";
 const MAP_FRONT_KEY = "town-map-front";
 const BACKGROUND_DEPTH = 0;
 const CHARACTER_DEPTH_BASE = 1000;
 const FRONT_DEPTH = 8000;
-const NAME_LABEL_DEPTH_BASE = 9000;
 const GALMURI_FONT_FAMILY = "galmuri9";
 
 export class TownScene extends Phaser.Scene {
@@ -60,12 +60,7 @@ export class TownScene extends Phaser.Scene {
   private inputController?: TownInputController;
   private localPlayerController?: TownLocalPlayerController;
   private unsubscribeStore?: () => void;
-  private remotePlayerSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
-  private remotePlayerNames: Map<string, Phaser.GameObjects.Text> = new Map();
-  private remotePlayerTargets: Map<string, { x: number; y: number; villageId: string }> = new Map();
-  private remotePlayerRenderedVillages: Map<string, string> = new Map();
-  private remotePlayerActionSequences: Map<string, number> = new Map();
-  private activeRemoteActions: Map<string, LocalActionId> = new Map();
+  private remotePlayersController?: TownRemotePlayersController;
   private playerNameLabel!: Phaser.GameObjects.Text;
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
@@ -205,7 +200,7 @@ export class TownScene extends Phaser.Scene {
       },
     );
     this.playerNameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
-    this.syncCharacterDepth(this.player, this.playerNameLabel);
+    syncCharacterDepth(this.player, this.playerNameLabel);
 
     this.inputController = new TownInputController(this.input.keyboard!);
     this.localPlayerController = new TownLocalPlayerController(this.player, {
@@ -233,7 +228,8 @@ export class TownScene extends Phaser.Scene {
       new CampfireEffectsController(this, resolveCampfireVisuals(mapLoader), CHARACTER_DEPTH_BASE);
     }
 
-    this.updateRemotePlayers(store.remotePlayers);
+    this.remotePlayersController = new TownRemotePlayersController(this);
+    this.remotePlayersController.sync(store.remotePlayers, this.localUserId);
 
     // Zustand 스토어 구독: 필요한 필드만 선택하여 불필요한 리렌더링 방지
     this.unsubscribeStore = useMovementStore.subscribe(
@@ -250,7 +246,7 @@ export class TownScene extends Phaser.Scene {
         // 유저 ID가 뒤늦게 설정된 경우를 대비해 업데이트
         if (!this.localUserId && next.userId) {
           this.localUserId = next.userId;
-          this.updateRemotePlayers(next.remotePlayers);
+          this.remotePlayersController?.sync(next.remotePlayers, this.localUserId);
         }
 
         // 로컬 플레이어 위치 업데이트 (변경된 경우만)
@@ -273,7 +269,7 @@ export class TownScene extends Phaser.Scene {
 
         // 타 플레이어 위치 업데이트 (참조가 변경된 경우에만)
         if (next.remotePlayers !== prev.remotePlayers) {
-          this.updateRemotePlayers(next.remotePlayers);
+          this.remotePlayersController?.sync(next.remotePlayers, this.localUserId);
         }
       },
       {
@@ -295,97 +291,9 @@ export class TownScene extends Phaser.Scene {
       this.inputController?.destroy();
       this.localPlayerController?.destroy();
       this.scale.off(Phaser.Scale.Events.RESIZE);
-      this.remotePlayerSprites.clear();
-      this.remotePlayerNames.clear();
-      this.remotePlayerTargets.clear();
-      this.remotePlayerRenderedVillages.clear();
+      this.remotePlayersController?.destroy();
+      this.remotePlayersController = undefined;
       this.campfireAmbientController?.destroy();
-    });
-  };
-
-  /**
-   * 타 플레이어 위치, 닉네임 정보를 화면에 반영
-   * 신규 플레이어 생성, 퇴장 플레이어 제거, 기존 플레이어 목표 위치 갱신 수행
-   */
-  updateRemotePlayers = (remotePlayers: Record<string, RemotePlayer>) => {
-    // 로컬 유저 ID가 아직 설정되지 않은 경우, 본인 식별이 불가능하므로 렌더링 보류
-    if (!this.localUserId) return;
-
-    const activeUserIds = new Set(Object.keys(remotePlayers));
-
-    // 1. 사라진 플레이어 또는 본인(중복 방지) 정리
-    this.remotePlayerSprites.forEach((sprite, userId) => {
-      if (!activeUserIds.has(userId) || userId === this.localUserId) {
-        sprite.destroy();
-        this.remotePlayerNames.get(userId)?.destroy();
-        this.remotePlayerSprites.delete(userId);
-        this.remotePlayerNames.delete(userId);
-        this.remotePlayerTargets.delete(userId);
-        this.remotePlayerRenderedVillages.delete(userId);
-        this.remotePlayerActionSequences.delete(userId);
-        this.activeRemoteActions.delete(userId);
-      }
-    });
-
-    // 2. 신규/기존 플레이어 위치 업데이트
-    Object.entries(remotePlayers).forEach(([userId, data]) => {
-      // 본인은 원격 플레이어로 그리지 않음
-      if (userId === this.localUserId) return;
-
-      let sprite = this.remotePlayerSprites.get(userId);
-      let nameLabel = this.remotePlayerNames.get(userId);
-      const characterConfig = getCharacterConfig(data.characterId);
-
-      if (!sprite) {
-        if (!data.position) {
-          console.warn(`[TownScene] Skipped rendering ${userId} due to missing position`, data);
-          return;
-        }
-
-        // 새 플레이어 생성
-        sprite = this.add.sprite(data.position.x, data.position.y, characterConfig.assetKey, 1);
-        applyCharacterConfig(sprite, characterConfig);
-        this.remotePlayerSprites.set(userId, sprite);
-
-        nameLabel = this.add.text(
-          data.position.x,
-          data.position.y - characterConfig.labelOffsetY,
-          data.nickname,
-          {
-            fontFamily: GALMURI_FONT_FAMILY,
-            fontSize: "12px",
-            color: "#ffffff",
-            backgroundColor: "#00000088",
-            padding: { x: 4, y: 2 },
-          },
-        );
-        nameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
-        this.remotePlayerNames.set(userId, nameLabel);
-        this.syncCharacterDepth(sprite, nameLabel);
-      } else {
-        if (
-          sprite.texture.key !== characterConfig.assetKey &&
-          !this.activeRemoteActions.has(userId)
-        ) {
-          applyCharacterConfig(sprite, characterConfig);
-        }
-
-        // 기존 플레이어 닉네임 업데이트
-        if (nameLabel && nameLabel.text !== data.nickname) {
-          nameLabel.setText(data.nickname);
-        }
-      }
-
-      // 목표 위치 업데이트 (LERP용)
-      if (data.position) {
-        this.remotePlayerTargets.set(userId, {
-          x: data.position.x,
-          y: data.position.y,
-          villageId: data.villageId,
-        });
-      }
-
-      this.applyRemoteActionState(userId, sprite, data);
     });
   };
 
@@ -400,81 +308,7 @@ export class TownScene extends Phaser.Scene {
      * 1. 타 플레이어 위치 보간 및 애니메이션 처리
      * 네트워크 지연 고려하여 목표 위치까지 부드럽게 이동(LERP) 및 방향에 맞는 애니메이션 재생
      */
-    this.remotePlayerSprites.forEach((sprite, userId) => {
-      const target = this.remotePlayerTargets.get(userId);
-      if (target) {
-        // 이동 거리 계산을 위해 이전 위치 저장
-        const prevX = sprite.x;
-        const prevY = sprite.y;
-        const previousVillageId = this.remotePlayerRenderedVillages.get(userId);
-        const shouldSnap =
-          (previousVillageId !== undefined && previousVillageId !== target.villageId) ||
-          delta > BACKGROUND_RESUME_DELTA_MS;
-
-        if (shouldSnap) {
-          sprite.setPosition(target.x, target.y);
-        } else {
-          const smoothingSpeed = 12;
-          const alpha = 1 - Math.exp((-smoothingSpeed * delta) / 1000);
-          sprite.x = Phaser.Math.Linear(sprite.x, target.x, alpha);
-          sprite.y = Phaser.Math.Linear(sprite.y, target.y, alpha);
-        }
-        this.remotePlayerRenderedVillages.set(userId, target.villageId);
-
-        // 리모트 플레이어 애니메이션 처리
-        const diffX = sprite.x - prevX;
-        const diffY = sprite.y - prevY;
-        const activeRemoteAction = this.activeRemoteActions.get(userId);
-
-        // 약간의 움직임은 무시 (보간으로 인한 미세 진동)
-        const isRemoteMoving = Math.abs(diffX) > 0.5 || Math.abs(diffY) > 0.5;
-
-        if (
-          activeRemoteAction &&
-          LOCAL_ACTION_ANIMATIONS[activeRemoteAction].repeat === 0 &&
-          !sprite.anims.isPlaying
-        ) {
-          this.stopRemoteAction(userId, sprite);
-        } else if (activeRemoteAction && isRemoteMoving) {
-          this.stopRemoteAction(userId, sprite);
-        }
-
-        if (this.activeRemoteActions.has(userId)) {
-          // 액션 재생 중에는 기존 걷기/정지 애니메이션이 action atlas를 덮어쓰지 않게 유지한다.
-        } else if (isRemoteMoving) {
-          if (Math.abs(diffX) > Math.abs(diffY)) {
-            if (diffX < 0) {
-              sprite.setFlipX(false);
-              sprite.anims.play(this.getAnimationKeyById(userId, "walk-left"), true);
-            } else {
-              sprite.setFlipX(false);
-              sprite.anims.play(this.getAnimationKeyById(userId, "walk-right"), true);
-            }
-          } else {
-            if (diffY < 0) {
-              sprite.anims.play(this.getAnimationKeyById(userId, "walk-up"), true);
-            } else {
-              sprite.anims.play(this.getAnimationKeyById(userId, "walk-down"), true);
-            }
-          }
-        } else {
-          sprite.anims.stop();
-          const currentAnim = sprite.anims.currentAnim?.key;
-          if (currentAnim?.endsWith("walk-left")) sprite.setFrame(3);
-          else if (currentAnim?.endsWith("walk-right")) sprite.setFrame(6);
-          else if (currentAnim?.endsWith("walk-up")) sprite.setFrame(9);
-          else sprite.setFrame(0);
-        }
-
-        const nameLabel = this.remotePlayerNames.get(userId);
-        if (nameLabel) {
-          const remotePlayer = store.remotePlayers[userId];
-          const characterConfig = getCharacterConfig(remotePlayer?.characterId);
-          nameLabel.setPosition(sprite.x, sprite.y - characterConfig.labelOffsetY);
-          this.syncCharacterDepth(sprite, nameLabel);
-        }
-      }
-    });
+    this.remotePlayersController?.update(store.remotePlayers, delta, this.localCharacterId);
 
     // 2. 로컬 플레이어 입력 처리
     // 입력 차단은 로컬 입력에만 적용해 원격 표시와 환경음 갱신은 계속한다.
@@ -498,7 +332,7 @@ export class TownScene extends Phaser.Scene {
         this.player.x,
         this.player.y - getCharacterConfig(this.localCharacterId).labelOffsetY,
       );
-      this.syncCharacterDepth(this.player, this.playerNameLabel);
+      syncCharacterDepth(this.player, this.playerNameLabel);
     }
 
     // 4. 모닥불 환경음 거리 기반 볼륨 갱신
@@ -511,69 +345,6 @@ export class TownScene extends Phaser.Scene {
       ambientSettings.isMuted ? 0 : ambientSettings.volume,
     );
   };
-
-  private getAnimationKeyById(userId: string, animationKey: string) {
-    const remotePlayer = this.remotePlayerSprites.has(userId)
-      ? useMovementStore.getState().remotePlayers[userId]
-      : null;
-    const characterConfig = getCharacterConfig(remotePlayer?.characterId ?? this.localCharacterId);
-
-    return getAnimationKey(characterConfig, animationKey);
-  }
-
-  private applyRemoteActionState(
-    userId: string,
-    sprite: Phaser.GameObjects.Sprite,
-    remotePlayer: RemotePlayer,
-  ) {
-    const actionResult = resolveRemoteActionState(
-      this.remotePlayerActionSequences.get(userId) ?? null,
-      remotePlayer.actionState,
-    );
-
-    if (actionResult.type === "none") return;
-
-    if (actionResult.type === "stop") {
-      this.stopRemoteAction(userId, sprite);
-      return;
-    }
-
-    const characterConfig = getCharacterConfig(remotePlayer.characterId);
-    const actionConfig = getCharacterActionConfig(remotePlayer.characterId);
-    const action = LOCAL_ACTION_ANIMATIONS[actionResult.actionId];
-    const actionScale = characterConfig.frameHeight / actionConfig.visibleHeight;
-    const animationKey = getLocalActionAnimationKey(
-      remotePlayer.characterId,
-      actionResult.actionId,
-    );
-
-    if (!this.anims.exists(animationKey)) {
-      this.stopRemoteAction(userId, sprite);
-      return;
-    }
-
-    sprite.anims.stop();
-    sprite.setTexture(actionConfig.assetKey, getActionFrameNumbers(actionResult.actionId)[0]);
-    sprite.setScale(actionScale);
-    sprite.setOrigin(0.5, actionConfig.originY + action.originYOffset);
-    sprite.setFlipX(false);
-    sprite.anims.play(animationKey);
-
-    this.remotePlayerActionSequences.set(userId, actionResult.sequence);
-    this.activeRemoteActions.set(userId, actionResult.actionId);
-  }
-
-  private stopRemoteAction(userId: string, sprite: Phaser.GameObjects.Sprite) {
-    if (!this.activeRemoteActions.has(userId)) return;
-
-    const remotePlayer = useMovementStore.getState().remotePlayers[userId];
-    const characterConfig = getCharacterConfig(remotePlayer?.characterId);
-
-    this.activeRemoteActions.delete(userId);
-    applyCharacterConfig(sprite, characterConfig);
-    sprite.anims.stop();
-    sprite.setFrame(0);
-  }
 
   private renderImageLayer(imageLayer: MapImageLayer, assetKey: string, depth: number) {
     this.add
@@ -600,18 +371,5 @@ export class TownScene extends Phaser.Scene {
       width: Math.max(mapBounds.width, camWidth),
       height: Math.max(mapBounds.height, camHeight),
     };
-  }
-
-  /**
-   * 캐릭터의 발밑 y좌표를 기준으로 렌더링 순서를 맞춘다.
-   * 같은 공간에 여러 캐릭터가 있을 때 아래쪽 캐릭터가 위에 그려져 공중에 가려져 보이지 않게 한다.
-   */
-  private syncCharacterDepth(
-    sprite: Phaser.GameObjects.Sprite,
-    nameLabel?: Phaser.GameObjects.Text,
-  ) {
-    const spriteDepth = CHARACTER_DEPTH_BASE + sprite.y;
-    sprite.setDepth(spriteDepth);
-    nameLabel?.setDepth(NAME_LABEL_DEPTH_BASE + sprite.y);
   }
 }

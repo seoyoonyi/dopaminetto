@@ -1,7 +1,7 @@
 /**
- * 마을 시나리오를 관리하는 메인 Phaser Scene 클래스
- * 캐릭터 스프라이트 렌더링, 이동 애니메이션, 이름표 시스템 및 타 플레이어 동기화 로직을 포함
- * 모든 캐릭터 오브젝트는 발밑(Origin 1.0)을 기준으로 정렬됨
+ * 마을 화면의 Phaser Scene으로 맵과 프레임별 갱신 흐름을 조율한다.
+ * 로컬 입력·캐릭터 조작은 전용 컨트롤러에 위임하고, 원격 캐릭터·이름표·환경음 갱신을 연결한다.
+ * 캐릭터 스프라이트는 각 설정의 originY를 기준으로 정렬한다.
  */
 import type { MapImageLayer } from "@/entities/village";
 import { useAmbientSoundStore } from "@/features/ambientSound";
@@ -14,18 +14,14 @@ import {
 } from "@/features/ambientSound/phaser";
 import {
   CHARACTER_OPTIONS,
-  CharacterConfig,
   CharacterId,
   GAME_CONFIG,
   LOCAL_ACTION_ANIMATIONS,
-  LOCAL_ACTION_KEY_BINDINGS,
   LocalActionId,
-  LocalActionInputId,
   getActionFrameNumbers,
   getCharacterActionConfig,
   getCharacterConfig,
   getLocalActionAnimationKey,
-  resolveLocalActionInput,
   resolveRemoteActionState,
   useMovementStore,
 } from "@/features/movement";
@@ -38,6 +34,9 @@ import {
   CAMPFIRE_FLAME_FRAME_WIDTH,
   CampfireEffectsController,
 } from "@/features/movement/lib/CampfireEffectsController";
+import { TownInputController } from "@/features/movement/lib/TownInputController";
+import { TownLocalPlayerController } from "@/features/movement/lib/TownLocalPlayerController";
+import { applyCharacterConfig, getAnimationKey } from "@/features/movement/lib/characterSprite";
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
 import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
 import { RemotePlayer } from "@/features/movement/model/types";
@@ -48,7 +47,6 @@ import * as Phaser from "phaser";
 
 const BACKGROUND_RESUME_DELTA_MS = 250;
 
-const CAPTURED_KEYS = "W,A,S,D,H,X,ZERO,UP,DOWN,LEFT,RIGHT,SPACE";
 const MAP_BACKGROUND_KEY = "town-map-background";
 const MAP_FRONT_KEY = "town-map-front";
 const BACKGROUND_DEPTH = 0;
@@ -59,15 +57,8 @@ const GALMURI_FONT_FAMILY = "galmuri9";
 
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private localActionKeys!: Record<LocalActionInputId, Phaser.Input.Keyboard.Key>;
-  private spaceKey!: Phaser.Input.Keyboard.Key;
-  private wasd!: {
-    W: Phaser.Input.Keyboard.Key;
-    A: Phaser.Input.Keyboard.Key;
-    S: Phaser.Input.Keyboard.Key;
-    D: Phaser.Input.Keyboard.Key;
-  };
+  private inputController?: TownInputController;
+  private localPlayerController?: TownLocalPlayerController;
   private unsubscribeStore?: () => void;
   private remotePlayerSprites: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private remotePlayerNames: Map<string, Phaser.GameObjects.Text> = new Map();
@@ -78,8 +69,6 @@ export class TownScene extends Phaser.Scene {
   private playerNameLabel!: Phaser.GameObjects.Text;
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
-  private activeLocalActionId: LocalActionId | null = null;
-  private wasInputBlocked = false;
   private campfireAmbientController?: AmbientSoundController;
 
   constructor() {
@@ -171,7 +160,7 @@ export class TownScene extends Phaser.Scene {
     CHARACTER_OPTIONS.forEach((character) => {
       animConfig.forEach((anim) => {
         this.anims.create({
-          key: this.getAnimationKey(character, anim.key),
+          key: getAnimationKey(character, anim.key),
           frames: this.anims.generateFrameNumbers(character.assetKey, { frames: anim.frames }),
           frameRate: 6,
           repeat: -1,
@@ -201,7 +190,7 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.player = this.add.sprite(initialPos.x, initialPos.y, localCharacterConfig.assetKey, 0); // 기본 정지 프레임(정면, 양발)
-    this.applyCharacterConfig(this.player, localCharacterConfig);
+    applyCharacterConfig(this.player, localCharacterConfig);
 
     this.playerNameLabel = this.add.text(
       initialPos.x,
@@ -218,27 +207,12 @@ export class TownScene extends Phaser.Scene {
     this.playerNameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
     this.syncCharacterDepth(this.player, this.playerNameLabel);
 
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    this.localActionKeys = Object.fromEntries(
-      (Object.keys(LOCAL_ACTION_KEY_BINDINGS) as LocalActionInputId[]).map((actionInputId) => [
-        actionInputId,
-        this.input.keyboard!.addKey(
-          Phaser.Input.Keyboard.KeyCodes[LOCAL_ACTION_KEY_BINDINGS[actionInputId].code],
-          false,
-        ),
-      ]),
-    ) as Record<LocalActionInputId, Phaser.Input.Keyboard.Key>;
-    this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
-    this.wasd = this.input.keyboard!.addKeys("W,A,S,D") as {
-      W: Phaser.Input.Keyboard.Key;
-      A: Phaser.Input.Keyboard.Key;
-      S: Phaser.Input.Keyboard.Key;
-      D: Phaser.Input.Keyboard.Key;
-    };
-
-    // Phaser가 WASD 및 방향키를 캡처하도록 설정
-    // 채팅창 포커스 시 update 루프에서 동적으로 제어
-    this.input.keyboard!.addCapture(CAPTURED_KEYS);
+    this.inputController = new TownInputController(this.input.keyboard!);
+    this.localPlayerController = new TownLocalPlayerController(this.player, {
+      updatePosition: (delta) => useMovementStore.getState().updatePosition(delta),
+      startLocalAction: (actionId) => useMovementStore.getState().startLocalAction(actionId),
+      stopLocalAction: () => useMovementStore.getState().stopLocalAction(),
+    });
 
     const frontImage = mapLoader?.getFrontImage();
     if (frontImage?.visible) {
@@ -292,9 +266,8 @@ export class TownScene extends Phaser.Scene {
 
         if (next.characterId !== prev.characterId) {
           this.localCharacterId = next.characterId;
-          if (!this.activeLocalActionId) {
-            const characterConfig = getCharacterConfig(next.characterId);
-            this.applyCharacterConfig(this.player, characterConfig);
+          if (!this.localPlayerController?.isActionActive()) {
+            applyCharacterConfig(this.player, getCharacterConfig(next.characterId));
           }
         }
 
@@ -319,6 +292,8 @@ export class TownScene extends Phaser.Scene {
     // Scene 종료 시 구독 해제 설정
     this.events.once("shutdown", () => {
       if (this.unsubscribeStore) this.unsubscribeStore();
+      this.inputController?.destroy();
+      this.localPlayerController?.destroy();
       this.scale.off(Phaser.Scale.Events.RESIZE);
       this.remotePlayerSprites.clear();
       this.remotePlayerNames.clear();
@@ -369,7 +344,7 @@ export class TownScene extends Phaser.Scene {
 
         // 새 플레이어 생성
         sprite = this.add.sprite(data.position.x, data.position.y, characterConfig.assetKey, 1);
-        this.applyCharacterConfig(sprite, characterConfig);
+        applyCharacterConfig(sprite, characterConfig);
         this.remotePlayerSprites.set(userId, sprite);
 
         nameLabel = this.add.text(
@@ -392,7 +367,7 @@ export class TownScene extends Phaser.Scene {
           sprite.texture.key !== characterConfig.assetKey &&
           !this.activeRemoteActions.has(userId)
         ) {
-          this.applyCharacterConfig(sprite, characterConfig);
+          applyCharacterConfig(sprite, characterConfig);
         }
 
         // 기존 플레이어 닉네임 업데이트
@@ -502,96 +477,15 @@ export class TownScene extends Phaser.Scene {
     });
 
     // 2. 로컬 플레이어 입력 처리
-    // editable 요소 포커스(채팅 입력 등) 또는 설정 다이얼로그가 열려 있으면 게임 이동/액션 입력만
-    // 차단한다. Scene의 나머지 update와 아래 4번 환경음 갱신은 계속 실행되어야 하므로
-    // update() 전체를 early return 하지 않는다.
+    // 입력 차단은 로컬 입력에만 적용해 원격 표시와 환경음 갱신은 계속한다.
     const isInputFocused = isEditableElementFocused();
     const isSettingsOpen = useSettingsDialogStore.getState().isOpen;
     const isNicknameOpen = useNicknameDialogStore.getState().isOpen;
     const isInputBlocked = isInputFocused || isSettingsOpen || isNicknameOpen;
 
-    // 차단 상태가 실제로 바뀐 프레임에만 캡처를 토글 (매 프레임 addCapture/removeCapture 호출 방지)
-    if (this.input.keyboard && isInputBlocked !== this.wasInputBlocked) {
-      if (isInputBlocked) {
-        this.input.keyboard.removeCapture(CAPTURED_KEYS);
-      } else {
-        this.input.keyboard.addCapture(CAPTURED_KEYS);
-      }
-      this.wasInputBlocked = isInputBlocked;
-    }
-
-    if (!isInputBlocked) {
-      const speed = 4;
-
-      let dx = 0;
-      let dy = 0;
-
-      if (this.cursors.left.isDown || this.wasd.A.isDown) dx = -speed;
-      else if (this.cursors.right.isDown || this.wasd.D.isDown) dx = speed;
-
-      if (this.cursors.up.isDown || this.wasd.W.isDown) dy = -speed;
-      else if (this.cursors.down.isDown || this.wasd.S.isDown) dy = speed;
-
-      const isMoving = dx !== 0 || dy !== 0;
-      const isSpacePressed = Phaser.Input.Keyboard.JustDown(this.spaceKey);
-      const triggeredActionInputId = this.getTriggeredLocalActionInputId();
-      const triggeredActionId = this.resolveTriggeredLocalActionId(triggeredActionInputId);
-      const actionInput = resolveLocalActionInput(this.activeLocalActionId, triggeredActionId);
-
-      if (this.activeLocalActionId && (isMoving || isSpacePressed)) {
-        this.stopLocalAction();
-      } else if (actionInput.type === "stop") {
-        this.stopLocalAction();
-      } else if (!isMoving && actionInput.type === "play") {
-        this.playLocalAction(actionInput.actionId);
-      }
-
-      if (
-        this.activeLocalActionId &&
-        LOCAL_ACTION_ANIMATIONS[this.activeLocalActionId].repeat === 0 &&
-        !this.player.anims.isPlaying
-      ) {
-        this.stopLocalAction();
-      }
-
-      /**
-       * 액션 재생 중에는 걷기 애니메이션이 texture를 덮어쓰지 않도록 한다.
-       */
-      if (!this.activeLocalActionId) {
-        if (isMoving) {
-          // 좌우 이동과 상하 이동 중 어느 쪽이 우선인지 판단 (여기선 dx와 dy의 절대값이 같으면 좌우 우선)
-          if (Math.abs(dx) >= Math.abs(dy)) {
-            if (dx < 0) {
-              this.player.setFlipX(false);
-              this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-left"), true);
-            } else {
-              this.player.setFlipX(false);
-              this.player.anims.play(
-                this.getAnimationKeyById(this.localUserId, "walk-right"),
-                true,
-              );
-            }
-          } else {
-            if (dy < 0) {
-              this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-up"), true);
-            } else {
-              this.player.anims.play(this.getAnimationKeyById(this.localUserId, "walk-down"), true);
-            }
-          }
-        } else {
-          this.player.anims.stop();
-          const currentAnim = this.player.anims.currentAnim?.key;
-          if (currentAnim?.endsWith("walk-left")) this.player.setFrame(3);
-          else if (currentAnim?.endsWith("walk-right")) this.player.setFrame(6);
-          else if (currentAnim?.endsWith("walk-up")) this.player.setFrame(9);
-          else this.player.setFrame(0);
-        }
-      }
-
-      if (isMoving) {
-        // 위치 업데이트 요청 (검증 로직은 스토어 내부에서 실행됨)
-        useMovementStore.getState().updatePosition({ x: dx, y: dy });
-      }
+    const localInput = this.inputController?.read(isInputBlocked);
+    if (localInput) {
+      this.localPlayerController?.update(localInput, this.localCharacterId);
     }
 
     /**
@@ -618,77 +512,13 @@ export class TownScene extends Phaser.Scene {
     );
   };
 
-  private getAnimationKey(character: CharacterConfig, animationKey: string) {
-    return `${character.assetKey}-${animationKey}`;
-  }
-
   private getAnimationKeyById(userId: string, animationKey: string) {
     const remotePlayer = this.remotePlayerSprites.has(userId)
       ? useMovementStore.getState().remotePlayers[userId]
       : null;
     const characterConfig = getCharacterConfig(remotePlayer?.characterId ?? this.localCharacterId);
 
-    return this.getAnimationKey(characterConfig, animationKey);
-  }
-
-  private applyCharacterConfig(
-    sprite: Phaser.GameObjects.Sprite,
-    characterConfig: CharacterConfig,
-  ) {
-    sprite.setTexture(characterConfig.assetKey, sprite.frame.name);
-    sprite.setScale(characterConfig.scale);
-    sprite.setOrigin(0.5, characterConfig.originY); // 모든 캐릭터는 발밑 기준으로 정렬
-  }
-
-  private getTriggeredLocalActionInputId(): LocalActionInputId | null {
-    const actionInputIds = Object.keys(this.localActionKeys) as LocalActionInputId[];
-
-    return (
-      actionInputIds.find((actionInputId) =>
-        Phaser.Input.Keyboard.JustDown(this.localActionKeys[actionInputId]),
-      ) ?? null
-    );
-  }
-
-  private resolveTriggeredLocalActionId(
-    actionInputId: LocalActionInputId | null,
-  ): LocalActionId | null {
-    if (!actionInputId) return null;
-
-    return actionInputId;
-  }
-
-  private playLocalAction(actionId: LocalActionId) {
-    if (!this.player || !this.player.active) return;
-
-    const actionConfig = getCharacterActionConfig(this.localCharacterId);
-    const characterConfig = getCharacterConfig(this.localCharacterId);
-    const action = LOCAL_ACTION_ANIMATIONS[actionId];
-    const actionScale = characterConfig.frameHeight / actionConfig.visibleHeight;
-    const animationKey = getLocalActionAnimationKey(this.localCharacterId, actionId);
-
-    /**
-     * 같은 액션 재입력 시에도 처음부터 재생되도록 현재 animation을 먼저 멈춘다.
-     */
-    this.player.anims.stop();
-    this.activeLocalActionId = actionId;
-    this.player.setTexture(actionConfig.assetKey, getActionFrameNumbers(actionId)[0]);
-    this.player.setScale(actionScale);
-    this.player.setOrigin(0.5, actionConfig.originY + action.originYOffset);
-    this.player.setFlipX(false);
-    useMovementStore.getState().startLocalAction(actionId);
-    this.player.anims.play(animationKey);
-  }
-
-  private stopLocalAction() {
-    if (!this.player || !this.player.active || !this.activeLocalActionId) return;
-
-    this.activeLocalActionId = null;
-    useMovementStore.getState().stopLocalAction();
-    const nextCharacterConfig = getCharacterConfig(this.localCharacterId);
-    this.applyCharacterConfig(this.player, nextCharacterConfig);
-    this.player.anims.stop();
-    this.player.setFrame(0);
+    return getAnimationKey(characterConfig, animationKey);
   }
 
   private applyRemoteActionState(
@@ -740,7 +570,7 @@ export class TownScene extends Phaser.Scene {
     const characterConfig = getCharacterConfig(remotePlayer?.characterId);
 
     this.activeRemoteActions.delete(userId);
-    this.applyCharacterConfig(sprite, characterConfig);
+    applyCharacterConfig(sprite, characterConfig);
     sprite.anims.stop();
     sprite.setFrame(0);
   }

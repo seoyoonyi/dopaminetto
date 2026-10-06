@@ -34,6 +34,11 @@ describe("UsersPanelToggleButton", () => {
 
     const button = container.querySelector("button")!;
     expect(button.textContent).toContain("3 사용자");
+    expect(button.querySelector("span span")?.className).toContain("hidden sm:inline");
+    expect(button.className).toContain("w-12");
+    expect(button.className).toContain("sm:w-auto");
+    expect(button.className).toContain("justify-start");
+    expect(button.getAttribute("aria-label")).toContain("3명");
     expect(button.querySelector("svg.lucide-users")).not.toBeNull();
     act(() => button.click());
     expect(onToggle).toHaveBeenCalledTimes(1);
@@ -44,6 +49,7 @@ describe("UsersPanelToggleButton", () => {
 
     expect(button.textContent).toContain("채팅");
     expect(button.textContent).not.toContain("3 사용자");
+    expect(button.className).toContain("w-16");
     expect(button.querySelector("svg.lucide-message-circle")).not.toBeNull();
     expect(button.hasAttribute("aria-pressed")).toBe(false);
     act(() => button.click());

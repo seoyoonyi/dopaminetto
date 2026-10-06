@@ -62,6 +62,29 @@ export class TownScene extends Phaser.Scene {
   private localCharacterId: CharacterId = "p-boy";
   private campfireAmbientController?: AmbientSoundController;
 
+  /**
+   * shutdown 또는 destroy 중 먼저 발생한 시점에 Scene 자원을 정리하고,
+   * 나머지 종료 콜백을 해제해 중복 정리를 방지한다.
+   */
+  private cleanupSceneResources = () => {
+    this.events.off("shutdown", this.cleanupSceneResources);
+    this.events.off("destroy", this.cleanupSceneResources);
+
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = undefined;
+
+    this.inputController?.destroy();
+    this.inputController = undefined;
+    this.localPlayerController?.destroy();
+    this.localPlayerController = undefined;
+    this.mapCameraController?.destroy();
+    this.mapCameraController = undefined;
+    this.remotePlayersController?.destroy();
+    this.remotePlayersController = undefined;
+    this.campfireAmbientController?.destroy();
+    this.campfireAmbientController = undefined;
+  };
+
   constructor() {
     super("TownScene");
   }
@@ -95,6 +118,9 @@ export class TownScene extends Phaser.Scene {
   };
 
   create = () => {
+    this.events.once("shutdown", this.cleanupSceneResources);
+    this.events.once("destroy", this.cleanupSceneResources);
+
     const store = useMovementStore.getState();
     const mapLoader = store.mapLoader;
     const initialPos = store.position;
@@ -243,18 +269,6 @@ export class TownScene extends Phaser.Scene {
 
     // 카메라가 플레이어를 화면 중앙에 오도록 고정
     this.mapCameraController.follow(this.player);
-
-    // Scene 종료 시 store 구독과 각 컨트롤러가 등록한 자원을 정리한다.
-    this.events.once("shutdown", () => {
-      if (this.unsubscribeStore) this.unsubscribeStore();
-      this.inputController?.destroy();
-      this.localPlayerController?.destroy();
-      this.mapCameraController?.destroy();
-      this.mapCameraController = undefined;
-      this.remotePlayersController?.destroy();
-      this.remotePlayersController = undefined;
-      this.campfireAmbientController?.destroy();
-    });
   };
 
   /**

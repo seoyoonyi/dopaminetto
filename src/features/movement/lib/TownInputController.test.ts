@@ -26,6 +26,7 @@ type KeyboardHarness = {
   keys: Record<string, TestKey>;
   addCapture: ReturnType<typeof vi.fn>;
   removeCapture: ReturnType<typeof vi.fn>;
+  destroyManager: () => void;
 };
 
 function createKeyboardHarness(): KeyboardHarness {
@@ -43,23 +44,34 @@ function createKeyboardHarness(): KeyboardHarness {
     shift: getKey("SHIFT"),
   };
   const addCapture = vi.fn();
-  const removeCapture = vi.fn();
+  const manager = { removeCapture: vi.fn() };
   const plugin = {
+    manager,
     createCursorKeys: vi.fn(() => cursorKeys),
     addKey: vi.fn((code: number) => getKey(String(code))),
     addKeys: vi.fn((keyNames: string) =>
       Object.fromEntries(keyNames.split(",").map((key) => [key, getKey(key)])),
     ),
     addCapture,
-    removeCapture,
   } as unknown as Phaser.Input.Keyboard.KeyboardPlugin;
+  const removeCapture = vi.fn((keycode: string | number) => {
+    if (!plugin.manager) throw new Error("Keyboard manager is destroyed");
+    plugin.manager.removeCapture(keycode);
+  });
+  Object.assign(plugin, { removeCapture });
 
   keys.H = getKey("1");
   keys.ZERO = getKey("2");
   keys.X = getKey("3");
   keys.SPACE = cursorKeys.space;
 
-  return { plugin, keys, addCapture, removeCapture };
+  return {
+    plugin,
+    keys,
+    addCapture,
+    removeCapture,
+    destroyManager: () => Object.assign(plugin, { manager: null }),
+  };
 }
 
 function press(key: TestKey) {
@@ -181,5 +193,14 @@ describe("TownInputController — 키보드 입력 처리", () => {
     );
     expect(keyboard.removeCapture).toHaveBeenCalledWith(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     expect(keyboard.removeCapture).toHaveBeenCalledTimes(2);
+  });
+
+  it("키보드 플러그인이 먼저 파괴된 뒤 종료해도 오류 없이 참조를 정리한다", () => {
+    const keyboard = createKeyboardHarness();
+    const controller = new TownInputController(keyboard.plugin);
+    keyboard.destroyManager();
+
+    expect(() => controller.destroy()).not.toThrow();
+    expect(keyboard.removeCapture).not.toHaveBeenCalled();
   });
 });

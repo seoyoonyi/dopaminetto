@@ -82,8 +82,10 @@ export class TownInputController {
   destroy(): void {
     if (!this.keyboard) return;
 
-    this.keyboard.removeCapture(CAPTURED_KEYS);
-    this.keyboard.removeCapture(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    if (this.keyboard.manager) {
+      this.keyboard.removeCapture(CAPTURED_KEYS);
+      this.keyboard.removeCapture(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    }
     this.keyboard = null;
   }
 }

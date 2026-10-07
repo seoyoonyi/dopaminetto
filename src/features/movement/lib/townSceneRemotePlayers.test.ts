@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
+import type { MapLoader } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useSettingsDialogStore } from "@/shared/store";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
+import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RemotePlayer } from "../model/types";
 import { TownScene } from "./TownScene";
+
+const mockAmbientDestroy = vi.hoisted(() => vi.fn());
 
 vi.mock("phaser", () => ({
   __esModule: true,
@@ -42,7 +46,7 @@ vi.mock("@/features/ambientSound/phaser", () => ({
   AMBIENT_AUDIO_URLS: { CAMPFIRE: "" },
   CAMPFIRE_SOUND_CONFIG: {},
   AmbientSoundController: class AmbientSoundController {
-    destroy = vi.fn();
+    destroy = mockAmbientDestroy;
     update = vi.fn();
   },
   resolveCampfireSources: () => [],
@@ -76,7 +80,7 @@ type DisplayObject = {
 type SceneHarness = {
   create: () => void;
   update: (time: number, delta: number) => void;
-  events: { once: (event: string, handler: () => void) => void };
+  events: EventEmitter;
   add: {
     sprite: ReturnType<typeof vi.fn>;
     text: ReturnType<typeof vi.fn>;
@@ -85,6 +89,10 @@ type SceneHarness = {
     create: ReturnType<typeof vi.fn>;
     exists: ReturnType<typeof vi.fn>;
     generateFrameNumbers: ReturnType<typeof vi.fn>;
+  };
+  scale: {
+    on: ReturnType<typeof vi.fn>;
+    off: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -131,14 +139,15 @@ function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
 
 function makeScene(): {
   scene: SceneHarness;
+  events: EventEmitter;
   sprites: DisplayObject[];
   labels: DisplayObject[];
-  getShutdown: () => (() => void) | undefined;
 } {
   const createdSprites: DisplayObject[] = [];
   const createdLabels: DisplayObject[] = [];
-  let shutdownHandler: (() => void) | undefined;
+  const events = new EventEmitter();
   const keyboard = {
+    manager: { removeCapture: vi.fn() },
     createCursorKeys: () => ({
       left: { isDown: false },
       right: { isDown: false },
@@ -156,7 +165,10 @@ function makeScene(): {
     addCapture: vi.fn(),
     removeCapture: vi.fn(),
   };
+  // Phaser destroys the input and keyboard plugins before later Scene destroy handlers run.
+  events.once("destroy", () => Object.assign(keyboard, { manager: null }));
   const instance = new TownScene() as unknown as Record<string, unknown> & SceneHarness;
+  shutdownScenes.push(() => events.emit("shutdown"));
 
   Object.assign(instance, {
     load: { audio: vi.fn(), image: vi.fn(), spritesheet: vi.fn() },
@@ -189,19 +201,15 @@ function makeScene(): {
       },
     },
     input: { keyboard },
-    events: {
-      once: vi.fn((_event: string, handler: () => void) => {
-        shutdownHandler = handler;
-      }),
-    },
+    events,
     scale: { on: vi.fn(), off: vi.fn() },
   });
 
   return {
     scene: instance,
+    events,
     sprites: createdSprites,
     labels: createdLabels,
-    getShutdown: () => shutdownHandler,
   };
 }
 
@@ -218,11 +226,12 @@ function makeRemotePlayer(overrides: Partial<RemotePlayer> = {}): RemotePlayer {
   };
 }
 
-let shutdownScene: (() => void) | undefined;
+const shutdownScenes: Array<() => void> = [];
 
 describe("TownScene 원격 캐릭터 재시작", () => {
   beforeEach(() => {
     useMovementStore.setState({
+      mapLoader: null,
       position: { x: 100, y: 200 },
       nickname: "로컬 사용자",
       characterId: "p-boy",
@@ -233,24 +242,24 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     });
     useSettingsDialogStore.setState({ isOpen: false });
     useNicknameDialogStore.setState({ isOpen: false });
+    mockAmbientDestroy.mockClear();
   });
 
   afterEach(() => {
-    shutdownScene?.();
-    shutdownScene = undefined;
+    shutdownScenes.splice(0).forEach((shutdown) => shutdown());
     useMovementStore.setState({ remotePlayers: {}, userId: "" });
     vi.restoreAllMocks();
   });
 
   it("Scene 재시작 후 같은 사용자의 새 액션 sequence를 다시 표시한다", () => {
-    const { scene, sprites, getShutdown } = makeScene();
+    const { scene, sprites, events } = makeScene();
+    shutdownScenes.push(() => events.emit("shutdown"));
 
     scene.create();
-    shutdownScene = getShutdown();
     const firstRemoteSprite = sprites[1];
     expect(firstRemoteSprite.anims?.play).toHaveBeenCalled();
 
-    getShutdown()?.();
+    events.emit("shutdown");
     useMovementStore.setState({
       remotePlayers: {
         "remote-user": {
@@ -261,7 +270,6 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     });
 
     scene.create();
-    shutdownScene = getShutdown();
     const restartedRemoteSprite = sprites[3];
 
     expect(restartedRemoteSprite.anims?.play).toHaveBeenCalled();
@@ -279,8 +287,8 @@ describe("TownScene 원격 캐릭터 재시작", () => {
         "remote-user": missingPosition,
       },
     });
-    const { scene, sprites, labels, getShutdown } = makeScene();
-    shutdownScene = getShutdown();
+    const { scene, sprites, labels, events } = makeScene();
+    shutdownScenes.push(() => events.emit("shutdown"));
 
     scene.create();
 
@@ -300,8 +308,8 @@ describe("TownScene 원격 캐릭터 재시작", () => {
 
   it("원격 사용자 이탈 시 표시를 제거하고 재입장 때 새 표시를 만든다", () => {
     useMovementStore.setState({ remotePlayers: { "remote-user": makeRemotePlayer() } });
-    const { scene, sprites, labels, getShutdown } = makeScene();
-    shutdownScene = getShutdown();
+    const { scene, sprites, labels, events } = makeScene();
+    shutdownScenes.push(() => events.emit("shutdown"));
 
     scene.create();
     const departedSprite = sprites[1];
@@ -319,8 +327,8 @@ describe("TownScene 원격 캐릭터 재시작", () => {
 
   it("같은 빌리지에서는 보간하고 빌리지 변경이나 긴 프레임에서는 목표 위치에 맞춘다", () => {
     useMovementStore.setState({ remotePlayers: { "remote-user": makeRemotePlayer() } });
-    const { scene, sprites, getShutdown } = makeScene();
-    shutdownScene = getShutdown();
+    const { scene, sprites, events } = makeScene();
+    shutdownScenes.push(() => events.emit("shutdown"));
     scene.create();
     const remoteSprite = sprites[1];
 
@@ -361,8 +369,8 @@ describe("TownScene 원격 캐릭터 재시작", () => {
 
   it("액션 중 이름표를 갱신하고 종료 시 최신 캐릭터로 복원한다", () => {
     useMovementStore.setState({ remotePlayers: { "remote-user": makeRemotePlayer() } });
-    const { scene, sprites, labels, getShutdown } = makeScene();
-    shutdownScene = getShutdown();
+    const { scene, sprites, labels, events } = makeScene();
+    shutdownScenes.push(() => events.emit("shutdown"));
     scene.create();
     const remoteSprite = sprites[1];
     const remoteLabel = labels[1];
@@ -395,5 +403,63 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     });
 
     expect(remoteSprite.texture?.key).not.toBe(actionTexture);
+  });
+
+  it("Game destroy 경로에서 Scene 자원을 정리하고 이후 store 변경을 받지 않는다", () => {
+    const { scene, events, sprites } = makeScene();
+    const otherShutdownListener = vi.fn();
+    const otherDestroyListener = vi.fn();
+    events.on("shutdown", otherShutdownListener);
+    events.on("destroy", otherDestroyListener);
+    scene.create();
+    const localSprite = sprites[0];
+
+    events.emit("destroy");
+    useMovementStore.setState({ position: { x: 150, y: 250 } });
+
+    expect(mockAmbientDestroy).toHaveBeenCalledOnce();
+    expect(localSprite.x).toBe(100);
+    expect(events.listenerCount("shutdown")).toBe(1);
+    expect(events.listenerCount("destroy")).toBe(1);
+
+    events.emit("shutdown");
+    expect(otherShutdownListener).toHaveBeenCalledOnce();
+    expect(otherDestroyListener).toHaveBeenCalledOnce();
+  });
+
+  it("shutdown 후 재시작하고 destroy해도 각 실행의 자원을 한 번씩 정리한다", () => {
+    const { scene, events } = makeScene();
+    scene.create();
+    events.emit("shutdown");
+
+    expect(mockAmbientDestroy).toHaveBeenCalledTimes(1);
+    expect(events.listenerCount("destroy")).toBe(1);
+
+    scene.create();
+    events.emit("destroy");
+
+    expect(mockAmbientDestroy).toHaveBeenCalledTimes(2);
+    expect(events.listenerCount("shutdown")).toBe(0);
+    expect(events.listenerCount("destroy")).toBe(0);
+  });
+
+  it("초기화 도중 실패한 뒤 destroy해도 먼저 생성된 카메라 자원을 정리한다", () => {
+    const { scene, events } = makeScene();
+    const mapLoader = {
+      getBackgroundImage: () => ({ visible: false }),
+      getFrontImage: () => ({ visible: false }),
+      getMapBounds: () => ({ x: 0, y: 0, width: 800, height: 600 }),
+    } as unknown as MapLoader;
+    useMovementStore.setState({ mapLoader });
+    vi.spyOn(scene.add, "text").mockImplementation(() => {
+      throw new Error("이름표 생성 실패");
+    });
+
+    expect(() => scene.create()).toThrow("이름표 생성 실패");
+    events.emit("destroy");
+
+    expect(scene.scale.on).toHaveBeenCalledOnce();
+    expect(scene.scale.off).toHaveBeenCalledOnce();
+    expect(mockAmbientDestroy).not.toHaveBeenCalled();
   });
 });

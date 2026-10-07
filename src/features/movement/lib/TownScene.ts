@@ -1,9 +1,8 @@
 /**
- * 마을 화면의 Phaser Scene으로 맵과 프레임별 갱신 흐름을 조율한다.
- * 로컬 입력·캐릭터 조작과 원격 캐릭터 표시는 전용 컨트롤러에 위임하고 환경음 갱신을 연결한다.
+ * 마을 화면의 Phaser Scene으로 맵·카메라 초기화와 프레임별 갱신 흐름을 조율한다.
+ * 맵·카메라, 로컬 입력·캐릭터 조작, 원격 캐릭터 표시는 전용 컨트롤러에 위임하고 환경음 갱신을 연결한다.
  * 캐릭터 스프라이트는 각 설정의 originY를 기준으로 정렬한다.
  */
-import type { MapImageLayer } from "@/entities/village";
 import { useAmbientSoundStore } from "@/features/ambientSound";
 import {
   AMBIENT_AUDIO_KEYS,
@@ -15,7 +14,6 @@ import {
 import {
   CHARACTER_OPTIONS,
   CharacterId,
-  GAME_CONFIG,
   LOCAL_ACTION_ANIMATIONS,
   LocalActionId,
   getActionFrameNumbers,
@@ -35,6 +33,7 @@ import {
 } from "@/features/movement/lib/CampfireEffectsController";
 import { TownInputController } from "@/features/movement/lib/TownInputController";
 import { TownLocalPlayerController } from "@/features/movement/lib/TownLocalPlayerController";
+import { TownMapCameraController } from "@/features/movement/lib/TownMapCameraController";
 import { TownRemotePlayersController } from "@/features/movement/lib/TownRemotePlayersController";
 import {
   applyCharacterConfig,
@@ -48,17 +47,14 @@ import { useSettingsDialogStore } from "@/shared/store";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import * as Phaser from "phaser";
 
-const MAP_BACKGROUND_KEY = "town-map-background";
-const MAP_FRONT_KEY = "town-map-front";
-const BACKGROUND_DEPTH = 0;
 const CHARACTER_DEPTH_BASE = 1000;
-const FRONT_DEPTH = 8000;
 const GALMURI_FONT_FAMILY = "galmuri9";
 
 export class TownScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
   private inputController?: TownInputController;
   private localPlayerController?: TownLocalPlayerController;
+  private mapCameraController?: TownMapCameraController;
   private unsubscribeStore?: () => void;
   private remotePlayersController?: TownRemotePlayersController;
   private playerNameLabel!: Phaser.GameObjects.Text;
@@ -66,22 +62,36 @@ export class TownScene extends Phaser.Scene {
   private localCharacterId: CharacterId = "p-boy";
   private campfireAmbientController?: AmbientSoundController;
 
+  /**
+   * shutdown 또는 destroy 중 먼저 발생한 시점에 Scene 자원을 정리하고,
+   * 나머지 종료 콜백을 해제해 중복 정리를 방지한다.
+   */
+  private cleanupSceneResources = () => {
+    this.events.off("shutdown", this.cleanupSceneResources);
+    this.events.off("destroy", this.cleanupSceneResources);
+
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = undefined;
+
+    this.inputController?.destroy();
+    this.inputController = undefined;
+    this.localPlayerController?.destroy();
+    this.localPlayerController = undefined;
+    this.mapCameraController?.destroy();
+    this.mapCameraController = undefined;
+    this.remotePlayersController?.destroy();
+    this.remotePlayersController = undefined;
+    this.campfireAmbientController?.destroy();
+    this.campfireAmbientController = undefined;
+  };
+
   constructor() {
     super("TownScene");
   }
 
   preload = () => {
     const mapLoader = useMovementStore.getState().mapLoader;
-    const backgroundImage = mapLoader?.getBackgroundImage();
-    const frontImage = mapLoader?.getFrontImage();
-
-    if (backgroundImage?.visible) {
-      this.load.image(MAP_BACKGROUND_KEY, backgroundImage.url);
-    }
-
-    if (frontImage?.visible) {
-      this.load.image(MAP_FRONT_KEY, frontImage.url);
-    }
+    TownMapCameraController.preload(this, mapLoader);
 
     // 플레이어 캐릭터 스프라이트 시트 로드
     CHARACTER_OPTIONS.forEach((character) => {
@@ -108,6 +118,9 @@ export class TownScene extends Phaser.Scene {
   };
 
   create = () => {
+    this.events.once("shutdown", this.cleanupSceneResources);
+    this.events.once("destroy", this.cleanupSceneResources);
+
     const store = useMovementStore.getState();
     const mapLoader = store.mapLoader;
     const initialPos = store.position;
@@ -116,32 +129,7 @@ export class TownScene extends Phaser.Scene {
     this.localCharacterId = store.characterId;
     const localCharacterConfig = getCharacterConfig(store.characterId);
 
-    if (mapLoader) {
-      const backgroundImage = mapLoader.getBackgroundImage();
-      if (backgroundImage?.visible) {
-        this.renderImageLayer(backgroundImage, MAP_BACKGROUND_KEY, BACKGROUND_DEPTH);
-      }
-
-      const bounds = mapLoader.getMapBounds();
-      const cb = this.computeCameraBounds(
-        bounds,
-        this.cameras.main.width,
-        this.cameras.main.height,
-      );
-      this.cameras.main.setBounds(cb.x, cb.y, cb.width, cb.height);
-      this.cameras.main.setZoom(GAME_CONFIG.CAMERA_ZOOM);
-
-      /** 화면 크기 변경 시 카메라 bounds를 재계산한다 */
-      const handleResize = () => {
-        const updated = this.computeCameraBounds(
-          bounds,
-          this.cameras.main.width,
-          this.cameras.main.height,
-        );
-        this.cameras.main.setBounds(updated.x, updated.y, updated.width, updated.height);
-      };
-      this.scale.on(Phaser.Scale.Events.RESIZE, handleResize);
-    }
+    this.mapCameraController = new TownMapCameraController(this, mapLoader);
 
     // 방향별 걷기 애니메이션 등록 (가로 3열, 세로 4행 기준)
     // 프레임 순서: 왼발 → 양발 → 오른발 → 양발 (걷는 발부터 시작하여 짧은 입력에도 발 움직임이 보임)
@@ -209,10 +197,7 @@ export class TownScene extends Phaser.Scene {
       stopLocalAction: () => useMovementStore.getState().stopLocalAction(),
     });
 
-    const frontImage = mapLoader?.getFrontImage();
-    if (frontImage?.visible) {
-      this.renderImageLayer(frontImage, MAP_FRONT_KEY, FRONT_DEPTH);
-    }
+    this.mapCameraController.renderFrontLayer();
 
     // 배경색 설정 (맵 이미지 로드 실패/바깥 영역용)
     this.cameras.main.setBackgroundColor("#c8aa78");
@@ -283,18 +268,7 @@ export class TownScene extends Phaser.Scene {
     );
 
     // 카메라가 플레이어를 화면 중앙에 오도록 고정
-    this.cameras.main.startFollow(this.player, true, 1, 1);
-
-    // Scene 종료 시 구독 해제 설정
-    this.events.once("shutdown", () => {
-      if (this.unsubscribeStore) this.unsubscribeStore();
-      this.inputController?.destroy();
-      this.localPlayerController?.destroy();
-      this.scale.off(Phaser.Scale.Events.RESIZE);
-      this.remotePlayersController?.destroy();
-      this.remotePlayersController = undefined;
-      this.campfireAmbientController?.destroy();
-    });
+    this.mapCameraController.follow(this.player);
   };
 
   /**
@@ -345,31 +319,4 @@ export class TownScene extends Phaser.Scene {
       ambientSettings.isMuted ? 0 : ambientSettings.volume,
     );
   };
-
-  private renderImageLayer(imageLayer: MapImageLayer, assetKey: string, depth: number) {
-    this.add
-      .image(imageLayer.x, imageLayer.y, assetKey)
-      .setOrigin(0, 0)
-      .setDepth(depth)
-      .setVisible(imageLayer.visible);
-  }
-
-  /**
-   * 맵이 캔버스보다 작을 때 중앙 정렬되도록 카메라 bounds를 계산한다.
-   * 맵이 캔버스보다 크거나 같으면 맵 bounds를 그대로 반환한다.
-   */
-  private computeCameraBounds(
-    mapBounds: { x: number; y: number; width: number; height: number },
-    camWidth: number,
-    camHeight: number,
-  ) {
-    const offsetX = Math.max(0, Math.floor((camWidth - mapBounds.width) / 2));
-    const offsetY = Math.max(0, Math.floor((camHeight - mapBounds.height) / 2));
-    return {
-      x: mapBounds.x - offsetX,
-      y: mapBounds.y - offsetY,
-      width: Math.max(mapBounds.width, camWidth),
-      height: Math.max(mapBounds.height, camHeight),
-    };
-  }
 }

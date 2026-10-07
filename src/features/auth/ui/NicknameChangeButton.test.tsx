@@ -77,6 +77,28 @@ afterEach(async () => {
 });
 
 describe("타운 닉네임 변경", () => {
+  it("긴 한글 닉네임은 좁은 화면 프로필 너비 안에서 말줄임한다", async () => {
+    const longNickname = "QA_ㅇㅇ머지확인";
+    await act(async () => useUserStore.setState({ userNickname: longNickname }));
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <NicknameChangeButton townConnectionStatus="connected" />
+        </QueryClientProvider>,
+      ),
+    );
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${longNickname}, 닉네임 변경"]`,
+    );
+    const profile = trigger?.parentElement?.parentElement;
+
+    expect(trigger?.querySelector("span")?.classList.contains("truncate")).toBe(true);
+    expect(trigger?.getAttribute("aria-label")).toBe(`${longNickname}, 닉네임 변경`);
+    expect(profile?.className).toContain("max-w-40");
+    expect(profile?.className).toContain("sm:max-w-64");
+  });
+
   it("이름 아래에 타운 연결 상태를 세 색과 문구로 표시한다", async () => {
     const status = () => container.querySelector<HTMLElement>('[role="status"]')!;
 

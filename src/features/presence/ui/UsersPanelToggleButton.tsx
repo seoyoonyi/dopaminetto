@@ -24,14 +24,14 @@ export function UsersPanelToggleButton({
       aria-label={`${toggleLabel}, ${participantCount}명`}
       title={`${toggleLabel} · ${participantCount}명`}
       onClick={onToggle}
-      className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-3 text-sm font-normal whitespace-nowrap text-gray-700 hover:bg-gray-100 active:opacity-90 has-[>svg]:px-3"
+      className={`flex h-9 ${isUsersPanel ? "w-16" : "w-12"} shrink-0 cursor-pointer items-center justify-start gap-1 rounded-md px-2 text-sm font-normal whitespace-nowrap text-gray-700 hover:bg-gray-100 active:opacity-90 has-[>svg]:px-2 sm:w-auto`}
     >
       {isUsersPanel ? (
         <MessageCircle className="size-4" aria-hidden />
       ) : (
         <Users className="size-4" aria-hidden />
       )}
-      <span>{isUsersPanel ? "채팅" : `${participantCount} 사용자`}</span>
+      {isUsersPanel ? <span>채팅</span> : <span>{participantCount}</span>}
     </Button>
   );
 }

@@ -51,7 +51,7 @@ export function NicknameChangeButton({ townConnectionStatus }: NicknameChangeBut
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>
-      <div className="flex h-12 min-w-0 max-w-full items-center gap-2 px-2 sm:max-w-64">
+      <div className="flex h-12 min-w-0 max-w-40 items-center gap-2 px-2 sm:max-w-64">
         <span className="relative size-9 shrink-0 overflow-hidden rounded-full border border-gray-200">
           <Image
             src={`/assets/images/characters/previews/${character.id}-still.png`}

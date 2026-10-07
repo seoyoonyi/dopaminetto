@@ -31,14 +31,7 @@ export function UsersPanelToggleButton({
       ) : (
         <Users className="size-4" aria-hidden />
       )}
-      {isUsersPanel ? (
-        <span>채팅</span>
-      ) : (
-        <span>
-          {participantCount}
-          <span className="hidden sm:inline"> 사용자</span>
-        </span>
-      )}
+      {isUsersPanel ? <span>채팅</span> : <span>{participantCount}</span>}
     </Button>
   );
 }

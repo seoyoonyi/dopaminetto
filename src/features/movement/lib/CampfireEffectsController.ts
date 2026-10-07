@@ -31,9 +31,9 @@ const FLAME_OFFSET_Y = 0;
  * 둘 다 위치가 고정되어 있어 depth를 생성 시 1회만 계산하고, 캐릭터처럼 매 프레임
  * 재정렬하지 않는다. Physics Body는 붙이지 않는다.
  *
- * AmbientSoundController(환경음)와 동일하게, TownScene은 이 클래스를 생성만 하고
- * 별도의 참조/정리(destroy) 없이 위임한다 — 생성된 Image/Sprite는 Scene 종료 시
- * Phaser가 표시 목록을 통해 자동으로 정리한다.
+ * 생성된 Image/Sprite의 소유권은 Phaser Scene 표시 목록에 있으므로 별도 destroy 없이
+ * Scene 종료 시 자동 정리된다. Web Audio 노드와 브라우저 이벤트를 소유하는
+ * AmbientSoundController와는 정리 책임이 다르다.
  */
 export class CampfireEffectsController {
   constructor(scene: Phaser.Scene, visuals: CampfireVisual[], characterDepthBase: number) {

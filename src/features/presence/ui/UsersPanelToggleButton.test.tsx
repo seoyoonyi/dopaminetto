@@ -23,7 +23,7 @@ describe("UsersPanelToggleButton", () => {
     container.remove();
   });
 
-  it("현재 채팅이면 사용자 이동을, 현재 사용자면 채팅 이동을 아이콘과 문구로 표시한다", () => {
+  it("현재 패널에 따라 전환 버튼의 아이콘과 표시 내용을 바꾼다", () => {
     const onToggle = vi.fn();
 
     act(() =>
@@ -33,7 +33,13 @@ describe("UsersPanelToggleButton", () => {
     );
 
     const button = container.querySelector("button")!;
-    expect(button.textContent).toContain("3 사용자");
+    expect(button.textContent).toBe("3");
+    expect(button.textContent).not.toContain("사용자");
+    expect(button.className).toContain("w-12");
+    expect(button.className).toContain("sm:w-auto");
+    expect(button.className).toContain("justify-start");
+    expect(button.getAttribute("aria-label")).toBe("사용자 패널로 보기, 3명");
+    expect(button.title).toBe("사용자 패널로 보기 · 3명");
     expect(button.querySelector("svg.lucide-users")).not.toBeNull();
     act(() => button.click());
     expect(onToggle).toHaveBeenCalledTimes(1);
@@ -42,8 +48,10 @@ describe("UsersPanelToggleButton", () => {
       root.render(<UsersPanelToggleButton participantCount={3} isUsersPanel onToggle={onToggle} />),
     );
 
-    expect(button.textContent).toContain("채팅");
-    expect(button.textContent).not.toContain("3 사용자");
+    expect(button.textContent).toBe("채팅");
+    expect(button.getAttribute("aria-label")).toBe("채팅 패널로 보기, 3명");
+    expect(button.title).toBe("채팅 패널로 보기 · 3명");
+    expect(button.className).toContain("w-16");
     expect(button.querySelector("svg.lucide-message-circle")).not.toBeNull();
     expect(button.hasAttribute("aria-pressed")).toBe(false);
     act(() => button.click());
@@ -54,7 +62,8 @@ describe("UsersPanelToggleButton", () => {
     act(() => root.render(<UsersPanelToggleButton participantCount={3} isUsersPanel={false} />));
 
     const button = container.querySelector("button")!;
-    expect(button.textContent).toBe("3 사용자");
+    expect(button.textContent).toBe("3");
+    expect(button.textContent).not.toContain("사용자");
     expect(button.querySelector('[role="status"]')).toBeNull();
   });
 });

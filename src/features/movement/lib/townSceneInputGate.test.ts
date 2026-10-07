@@ -5,6 +5,8 @@ import { useSettingsDialogStore } from "@/shared/store";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TownInputController } from "./TownInputController";
+import { TownLocalPlayerController } from "./TownLocalPlayerController";
 import { TownScene } from "./TownScene";
 
 /**
@@ -30,7 +32,16 @@ vi.mock("phaser", () => {
         Between: (x1: number, y1: number, x2: number, y2: number) => Math.hypot(x2 - x1, y2 - y1),
       },
     },
-    Input: { Keyboard: { JustDown: () => false } },
+    Input: {
+      Keyboard: {
+        KeyCodes: { H: 72, ZERO: 48, X: 88, SPACE: 32 },
+        JustDown: (key: { _justDown: boolean }) => {
+          if (!key._justDown) return false;
+          key._justDown = false;
+          return true;
+        },
+      },
+    },
   };
 });
 
@@ -47,49 +58,78 @@ vi.mock("@/features/movement", async () => {
 
 type SceneHarness = {
   update: (time: number, delta: number) => void;
-  wasd: { A: { isDown: boolean } };
+  wasd: { A: { isDown: boolean; _justDown: boolean } };
+  scene: Record<string, unknown>;
 };
+
+type TestKey = { isDown: boolean; _justDown: boolean };
 
 const updatePosition = vi.fn();
 const ambientUpdate = vi.fn();
 let scene: SceneHarness;
 
 function makeScene(): SceneHarness {
+  const keys: Record<string, TestKey> = {};
+  const getKey = (name: string) => (keys[name] ??= { isDown: false, _justDown: false });
+  const cursors = {
+    left: getKey("LEFT"),
+    right: getKey("RIGHT"),
+    up: getKey("UP"),
+    down: getKey("DOWN"),
+    space: getKey("SPACE"),
+    shift: getKey("SHIFT"),
+  };
+  const keyNameByCode: Record<number, string> = { 72: "H", 48: "ZERO", 88: "X", 32: "SPACE" };
+  const keyboard = {
+    createCursorKeys: () => cursors,
+    addKey: (code: number) => getKey(keyNameByCode[code]),
+    addKeys: (names: string) =>
+      Object.fromEntries(names.split(",").map((name) => [name, getKey(name)])),
+    addCapture: vi.fn(),
+    removeCapture: vi.fn(),
+  };
   const instance = new TownScene() as unknown as Record<string, unknown> & SceneHarness;
+  const player = {
+    x: 100,
+    y: 200,
+    active: true,
+    frame: { name: 0 },
+    anims: { isPlaying: false, currentAnim: null, play: vi.fn(), stop: vi.fn() },
+    setPosition: vi.fn(),
+    setTexture: vi.fn(),
+    setScale: vi.fn(),
+    setOrigin: vi.fn(),
+    setFlipX: vi.fn(),
+    setFrame: vi.fn(),
+  };
   Object.assign(instance, {
-    player: {
-      x: 100,
-      y: 200,
-      active: true,
-      anims: { isPlaying: false, currentAnim: null, play: vi.fn(), stop: vi.fn() },
-      setFlipX: vi.fn(),
-      setFrame: vi.fn(),
-    },
+    player,
     campfireAmbientController: { update: ambientUpdate },
-    input: { keyboard: { addCapture: vi.fn(), removeCapture: vi.fn() } },
-    cursors: {
-      left: { isDown: false },
-      right: { isDown: false },
-      up: { isDown: false },
-      down: { isDown: false },
-    },
-    wasd: {
-      W: { isDown: false },
-      A: { isDown: false },
-      S: { isDown: false },
-      D: { isDown: false },
-    },
-    spaceKey: {},
-    localActionKeys: {},
+    input: { keyboard },
+    inputController: new TownInputController(keyboard as never),
+    localPlayerController: new TownLocalPlayerController(player as never, {
+      updatePosition: (delta) => useMovementStore.getState().updatePosition(delta),
+      startLocalAction: (actionId) => useMovementStore.getState().startLocalAction(actionId),
+      stopLocalAction: () => useMovementStore.getState().stopLocalAction(),
+    }),
     localUserId: "local",
   });
-  return instance;
+  return {
+    update: (time, delta) => instance.update(time, delta),
+    wasd: { A: getKey("A") },
+    scene: instance,
+  };
 }
 
 beforeEach(() => {
-  updatePosition.mockClear();
+  updatePosition.mockReset();
   ambientUpdate.mockClear();
-  useMovementStore.setState({ villageId: "village-a", remotePlayers: {}, updatePosition });
+  useMovementStore.setState({
+    villageId: "village-a",
+    remotePlayers: {},
+    localActionState: null,
+    updatePosition,
+  });
   useAmbientSoundStore.setState({ volume: 0.6, isMuted: false });
   useSettingsDialogStore.setState({ isOpen: false });
   useNicknameDialogStore.setState({ isOpen: false });
@@ -162,5 +202,33 @@ describe("TownScene.update() — 입력 차단과 환경음 갱신 분리", () =
 
     expect(updatePosition).toHaveBeenCalledWith({ x: -4, y: 0 });
     expect(ambientUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("채팅 포커스와 설정창이 함께 있으면 둘 다 해제된 뒤 이동을 복구한다", () => {
+    const chatInput = document.createElement("input");
+    document.body.appendChild(chatInput);
+    chatInput.focus();
+    scene.wasd.A.isDown = true;
+    useSettingsDialogStore.setState({ isOpen: true });
+
+    scene.update(0, 16);
+    useSettingsDialogStore.setState({ isOpen: false });
+    scene.update(0, 16);
+    expect(updatePosition).not.toHaveBeenCalled();
+
+    chatInput.blur();
+    scene.update(0, 16);
+    expect(updatePosition).toHaveBeenCalledWith({ x: -4, y: 0 });
+  });
+
+  it("이동 중 빌리지가 바뀌면 같은 프레임의 환경음에 새 빌리지를 전달한다", () => {
+    updatePosition.mockImplementation(() => {
+      useMovementStore.setState({ villageId: "village-b" });
+    });
+    scene.wasd.A.isDown = true;
+
+    scene.update(0, 16);
+
+    expect(ambientUpdate).toHaveBeenLastCalledWith(expect.anything(), "village-b", 0.6);
   });
 });

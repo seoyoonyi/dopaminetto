@@ -56,7 +56,7 @@ export const PresenceToolbarButton = ({
               : "음성 연결 대기"}
         </span>
       )}
-      <div className="ml-auto shrink-0">
+      <div className="ml-auto w-16 shrink-0 sm:w-auto">
         <UsersPanelToggleButton
           participantCount={participantCount}
           isUsersPanel={isUsersPanel}

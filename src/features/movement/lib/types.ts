@@ -27,6 +27,8 @@ export interface MovementSyncState {
   departureController: DepartureGraceController;
   handlers: MovementSyncHandlers;
   joinedAt: string;
+  sessionId: string;
+  departedVisits: Map<string, Set<string | undefined>>;
   lastPresenceSignature: string;
   trackRequestId: number;
   trackRetryTimeout: ReturnType<typeof setTimeout> | null;

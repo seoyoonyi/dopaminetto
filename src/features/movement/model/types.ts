@@ -28,6 +28,9 @@ export interface MovementState {
 
 export interface RemotePlayer {
   userId: string;
+  /** 같은 사용자의 이전 방문과 재입장을 구분한다. */
+  joinedAt?: string;
+  sessionId?: string;
   nickname: string;
   characterId: CharacterId;
   position: Position;
@@ -48,6 +51,7 @@ export type SyncedActionState = ActiveSyncedActionState | null;
  */
 export interface PresenceMetadata {
   userId: string;
+  sessionId?: string;
   nickname: string;
   characterId: CharacterId;
   position: Position;
@@ -61,6 +65,8 @@ export interface PresenceMetadata {
  */
 export interface SyncPositionPayload {
   userId: string;
+  joinedAt?: string;
+  sessionId?: string;
   nickname: string;
   characterId: CharacterId;
   position: Position;
@@ -70,6 +76,8 @@ export interface SyncPositionPayload {
 
 export interface SyncLeavePayload {
   userId: string;
+  joinedAt?: string;
+  sessionId?: string;
 }
 
 /**

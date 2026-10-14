@@ -2,7 +2,10 @@ import { VillageId } from "@/entities/village";
 
 /** 타운 presence 채널에서 동기화되는 참여자 정보 */
 export interface PresenceParticipant {
+  /** Supabase 인증 사용자 ID. 접속자 식별과 정상 퇴장 신호에 사용한다. */
   userId: string;
+  /** 브라우저에서 생성한 캐릭터 ID. movement의 userId와 대응한다. */
+  playerId?: string;
   nickname: string;
   joinedAt?: string;
   presenceRef: string;
@@ -19,6 +22,7 @@ export interface PresenceParticipant {
  */
 export interface PresenceTrackPayload {
   userId: string;
+  playerId: string;
   nickname: string;
   villageId: VillageId;
   joinedAt: string;

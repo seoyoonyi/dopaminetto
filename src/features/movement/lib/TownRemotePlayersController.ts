@@ -30,6 +30,10 @@ export class TownRemotePlayersController {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
+  getRenderedUserIds(): string[] {
+    return [...this.sprites.keys()];
+  }
+
   /** 로컬 UID 확인 후 본인·퇴장 사용자를 정리하고 위치가 확인된 원격 표시와 액션 상태를 동기화한다. */
   sync(remotePlayers: RemotePlayers, localUserId: string): void {
     if (!localUserId) return;

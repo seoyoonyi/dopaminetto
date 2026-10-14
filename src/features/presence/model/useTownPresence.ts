@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlayerRenderStore } from "@/entities/player";
 import { LOBBY_VILLAGE_ID, VILLAGES, VillageId } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useTownPresenceStore } from "@/features/presence/model/useTownPresenceStore";
@@ -16,6 +17,7 @@ import {
   getTownChannelStatus,
   observeTownChannelBroadcast,
 } from "@/shared/lib/realtime/townChannelManager";
+import { useUserStore } from "@/shared/store/useUserStore";
 import { RealtimePresenceState } from "@supabase/supabase-js";
 import { useShallow } from "zustand/react/shallow";
 
@@ -23,6 +25,7 @@ import { useEffect } from "react";
 
 import type { PresenceStateItem, PresenceTrackPayload } from "../types";
 import { PresenceParticipant } from "../types";
+import { usePresenceNotificationStore } from "./usePresenceNotificationStore";
 
 // Supabase Presence payload의 villageId를 런타임에서 검증해 내부 VillageId 타입으로 좁힌다.
 const isVillageId = (value: unknown): value is VillageId =>
@@ -47,6 +50,7 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
 
         return {
           userId,
+          playerId: typeof raw.playerId === "string" && raw.playerId ? raw.playerId : undefined,
           nickname,
           joinedAt,
           villageId,
@@ -85,6 +89,7 @@ export const useTownPresenceView = () => {
 export const useTownPresence = (isSpeaker = false) => {
   const { data: user } = useUserInfo();
   const userId = user?.id;
+  const playerId = useUserStore((state) => state.userId);
   const userNickname = user?.user_metadata?.nickname as string | undefined;
 
   const villageId = useMovementStore((state) => state.villageId);
@@ -112,6 +117,27 @@ export const useTownPresence = (isSpeaker = false) => {
   const presenceView = useTownPresenceView();
 
   useEffect(() => {
+    const { flushPendingNotifications, clearPendingNotifications } =
+      useTownPresenceStore.getState();
+    const unsubscribeRender = usePlayerRenderStore.subscribe((next, previous) => {
+      if (!next.isSceneReady && previous.isSceneReady) {
+        clearPendingNotifications();
+        return;
+      }
+      flushPendingNotifications();
+    });
+    const unsubscribeSettings = usePresenceNotificationStore.subscribe(flushPendingNotifications);
+    flushPendingNotifications();
+
+    return () => {
+      unsubscribeRender();
+      unsubscribeSettings();
+      // 페이지 이탈 뒤 grace 콜백이 다음 방문의 알림을 만들지 않도록 함께 정리한다.
+      useTownPresenceStore.getState().reset();
+    };
+  }, []);
+
+  useEffect(() => {
     setConnectionState(isConnected);
   }, [isConnected, setConnectionState]);
 
@@ -125,10 +151,11 @@ export const useTownPresence = (isSpeaker = false) => {
 
     const trackPresence = async (retryCount = 0) => {
       // effect가 cleanup된 이후에는 실행하지 않는다.
-      if (isCancelled || channelStatus !== "SUBSCRIBED" || !channel || !userId) return;
+      if (isCancelled || channelStatus !== "SUBSCRIBED" || !channel || !userId || !playerId) return;
 
       const payload: PresenceTrackPayload = {
         userId,
+        playerId,
         nickname: userNickname || "익명",
         joinedAt: localJoinedAt,
         villageId: debouncedVillageId,
@@ -172,15 +199,17 @@ export const useTownPresence = (isSpeaker = false) => {
 
     if (channelStatus !== "SUBSCRIBED") return;
 
-    const timer = setTimeout(() => void trackPresence(), 300);
+    // 최초 입장은 음성 상태 변경으로 지연되지 않도록 준비 즉시 전송한다.
+    // 빌리지 이동의 전송 간격은 debouncedVillageId에서 이미 조절한다.
+    void trackPresence();
     return () => {
       isCancelled = true;
-      clearTimeout(timer);
     };
   }, [
     channelStatus,
     channel,
     userId,
+    playerId,
     userNickname,
     debouncedVillageId,
     reconnect,
@@ -238,11 +267,15 @@ export const useTownPresence = (isSpeaker = false) => {
       // 언마운트 시점의 최신 채널을 조회해 낡은 참조로 보내지 않는다.
       if (getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED") return;
 
-      void getTownChannel(TOWN_MAIN_CHANNEL)?.send({
+      const liveChannel = getTownChannel(TOWN_MAIN_CHANNEL);
+      if (!liveChannel) return;
+      void liveChannel.send({
         type: "broadcast",
         event: "sync-leave",
         payload: { userId },
       });
+      // 채널은 재사용을 위해 지연 정리되므로 접속 등록은 퇴장 시점에 별도로 해제한다.
+      void liveChannel.untrack();
     };
   }, [userId, markParticipantDeparted]);
 

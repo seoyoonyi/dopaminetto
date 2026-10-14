@@ -1,4 +1,5 @@
 // Player Entity
+export { usePlayerRenderStore } from "./model/usePlayerRenderStore";
 // 플레이어 엔티티 관련 컴포넌트와 로직을 export
 
 // 비즈니스 로직 레이어

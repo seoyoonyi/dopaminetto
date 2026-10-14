@@ -146,6 +146,12 @@ export function TownVoiceClient({
     /** connect() 시도가 진행 중인지(중복 트리거 방지). 성공/실패와 무관하게 시도가 끝나면 false. */
     let connectInFlight = false;
 
+    const leaveMeeting = (meeting: NonNullable<typeof client>) => {
+      void meeting.leaveRoom("left").catch((error: unknown) => {
+        console.warn("[TownVoiceClient] leaveRoom failed", error);
+      });
+    };
+
     /**
      * 새로고침/탭 종료/앱 강제 종료 시 React effect cleanup(leaveRoom)이 실행되지 않을 수 있어,
      * pagehide에서 best-effort로 한 번 더 시도한다. 같은 userId로 즉시 재입장하면
@@ -153,8 +159,8 @@ export function TownVoiceClient({
      */
     const handlePageHide = () => {
       const activeMeeting = meetingRef.current;
-      if (joinedRoom && activeMeeting?.self.roomJoined) {
-        void activeMeeting.leaveRoom("left");
+      if (activeMeeting) {
+        leaveMeeting(activeMeeting);
       }
     };
     window.addEventListener("pagehide", handlePageHide);
@@ -246,6 +252,8 @@ export function TownVoiceClient({
           video: false,
         });
 
+        if (!isMounted) return;
+
         const initializedMeeting = await initMeeting({
           authToken: tokenResponse.token,
           defaults: {
@@ -262,6 +270,11 @@ export function TownVoiceClient({
 
         if (!initializedMeeting) {
           throw new Error("음성 연결 클라이언트 초기화에 실패했습니다.");
+        }
+
+        if (!isMounted) {
+          leaveMeeting(initializedMeeting);
+          return;
         }
 
         meetingRef.current = initializedMeeting;
@@ -370,13 +383,15 @@ export function TownVoiceClient({
           initializedMeeting.self.removeListener("roomLeft", handleRoomLeft);
         };
 
-        if (!isMounted) return;
-
         setStatus("joining");
         await initializedMeeting.joinRoom();
-        joinedRoom = true;
 
-        if (!isMounted) return;
+        // cleanup 이후 join이 완료돼도 이전 방문의 연결을 남기지 않는다.
+        if (!isMounted) {
+          leaveMeeting(initializedMeeting);
+          return;
+        }
+        joinedRoom = true;
 
         if (!nextPermissions.canUseMic && initializedMeeting.self.audioEnabled) {
           await initializedMeeting.self.disableAudio();
@@ -472,8 +487,8 @@ export function TownVoiceClient({
       const activeMeeting = meetingRef.current;
       activeMeetingCleanup?.();
 
-      if (joinedRoom && activeMeeting?.self.roomJoined) {
-        void activeMeeting.leaveRoom("left");
+      if (activeMeeting) {
+        leaveMeeting(activeMeeting);
       }
 
       meetingRef.current = null;

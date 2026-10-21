@@ -95,9 +95,8 @@ export function useMovementSync(enabled = true) {
     const isDepartedVisit = (player: PresenceMetadata | SyncPositionPayload) => {
       const departed = syncState.departedVisits.get(player.userId);
       if (!departed) return false;
-      const current = useMovementStore.getState().remotePlayers[player.userId];
-      // 구버전 위치 메시지는 살아 있는 방문에만 적용하고, 퇴장한 캐릭터를 되살리지 않는다.
-      const visit = player.sessionId ?? player.joinedAt ?? current?.sessionId ?? current?.joinedAt;
+      // 방문 식별자가 없는 메시지는 현재 캐릭터의 방문을 추정하지 않는다.
+      const visit = player.sessionId ?? player.joinedAt;
       return !visit || departed.has(visit);
     };
 
@@ -360,13 +359,14 @@ export function useMovementSync(enabled = true) {
 
         const current = useMovementStore.getState().remotePlayers[remoteUserId];
         const currentVisit = current?.sessionId ?? current?.joinedAt;
-        const visit = leavePayload.sessionId ?? leavePayload.joinedAt ?? currentVisit;
+        const visit = leavePayload.sessionId ?? leavePayload.joinedAt;
+        if (!visit) return;
         const departed =
           syncState.departedVisits.get(remoteUserId) ?? new Set<string | undefined>();
         departed.add(visit);
         syncState.departedVisits.set(remoteUserId, departed);
         // 이전 방문의 늦은 퇴장 신호로 새로 입장한 캐릭터를 제거하지 않는다.
-        if (currentVisit && visit && currentVisit !== visit) return;
+        if (currentVisit !== visit) return;
 
         clearPendingRemoval(remoteUserId);
         removeRemotePlayer(remoteUserId);

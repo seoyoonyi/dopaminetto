@@ -45,11 +45,13 @@ const isPresentInAnyBoundChannel = (
 
     return Object.values(channel.presenceState<PresenceMetadata>())
       .flat()
-      .some(
-        (presence) =>
-          presence.userId === remoteUserId &&
-          !departedVisits.get(remoteUserId)?.has(presence.sessionId ?? presence.joinedAt),
-      );
+      .some((presence) => {
+        if (presence.userId !== remoteUserId) return false;
+        const departed = departedVisits.get(remoteUserId);
+        if (!departed) return true;
+        const visit = presence.sessionId ?? presence.joinedAt;
+        return Boolean(visit && !departed.has(visit));
+      });
   });
 
 export const createMovementSyncState = (): MovementSyncState => {

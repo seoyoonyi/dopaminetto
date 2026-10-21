@@ -12,6 +12,7 @@ import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useTownChannel } from "@/shared/hooks/useTownChannel";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { TOWN_MAIN_CHANNEL } from "@/shared/lib/realtime";
+import { sendKeepaliveBroadcast } from "@/shared/lib/realtime/sendKeepaliveBroadcast";
 import {
   getTownChannel,
   getTownChannelStatus,
@@ -265,8 +266,27 @@ export const useTownPresence = (isSpeaker = false) => {
       markParticipantDeparted(leavingUserId, leave.sessionId);
     });
 
+    const handlePageHide = () => {
+      sendKeepaliveBroadcast({
+        topic: TOWN_MAIN_CHANNEL,
+        event: "sync-leave",
+        payload: { userId, sessionId },
+      });
+    };
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("pagehide", handlePageHide);
+      window.addEventListener("pageshow", handlePageShow);
+    }
+
     return () => {
       unsubscribe();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pagehide", handlePageHide);
+        window.removeEventListener("pageshow", handlePageShow);
+      }
 
       // 언마운트 시점의 최신 채널을 조회해 낡은 참조로 보내지 않는다.
       if (getTownChannelStatus(TOWN_MAIN_CHANNEL) !== "SUBSCRIBED") return;

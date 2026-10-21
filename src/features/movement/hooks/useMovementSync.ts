@@ -18,6 +18,7 @@ import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { getVillageChannelName } from "@/shared/lib/realtime";
+import { sendKeepaliveBroadcast } from "@/shared/lib/realtime/sendKeepaliveBroadcast";
 import {
   acquireTownChannel,
   getTownChannel,
@@ -582,4 +583,22 @@ export function useMovementSync(enabled = true) {
       syncState.handlers.cleanupAllChannels();
     };
   }, []);
+
+  useEffect(() => {
+    if (!enabled || !playerId || typeof window === "undefined") return;
+
+    const handlePageHide = () => {
+      const { trackedVillageId, joinedAt, sessionId } = syncStateRef.current;
+      if (!trackedVillageId || !sessionId) return;
+
+      sendKeepaliveBroadcast({
+        topic: getVillageChannelName(trackedVillageId),
+        event: "sync-leave",
+        payload: { userId: playerId, joinedAt, sessionId },
+      });
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [enabled, playerId]);
 }

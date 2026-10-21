@@ -7,6 +7,7 @@ import {
 } from "@/shared/lib/realtime/departureGrace";
 import { getTownChannelStatus } from "@/shared/lib/realtime/townChannelManager";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 
 import { groupParticipantsByVillage } from "../lib/groupByVillage";
@@ -20,6 +21,7 @@ interface TownPresenceState {
   isConnected: boolean;
   lastSyncedAt?: string;
   localJoinedAt: string;
+  localSessionId: string;
   previousUserIds: Set<string>;
   isAwaitingInitialJoin: boolean;
   /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
@@ -46,7 +48,7 @@ interface TownPresenceState {
    * 정상 퇴장(뒤로가기/페이지 이탈) 신호를 받으면 grace 없이 즉시 참여자를 제거한다.
    * 신호가 없는 비정상 종료는 기존 presence leave + grace가 fallback으로 처리한다.
    */
-  markParticipantDeparted: (userId: string) => void;
+  markParticipantDeparted: (userId: string, sessionId: string) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
   /** 툴바에 표시할 음성 연결 진행 상태를 업데이트한다. */
@@ -139,6 +141,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
     isConnected: false,
     lastSyncedAt: undefined,
     localJoinedAt: new Date().toISOString(),
+    localSessionId: uuidv4(),
     previousUserIds: new Set(),
     isAwaitingInitialJoin: true,
     voiceConnected: false,
@@ -240,13 +243,13 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
     setConnectionState: (isConnected) => set({ isConnected }),
 
-    markParticipantDeparted: (userId) => {
+    markParticipantDeparted: (userId, sessionId) => {
+      if (!sessionId) return;
       const participant = get().participants.find((p) => p.userId === userId);
-      if (participant) {
-        const presenceRefs = departedPresenceRefs.get(userId) ?? new Set<string | undefined>();
-        presenceRefs.add(participant.presenceRef);
-        departedPresenceRefs.set(userId, presenceRefs);
-      }
+      if (!participant || participant.sessionId !== sessionId) return;
+      const presenceRefs = departedPresenceRefs.get(userId) ?? new Set<string | undefined>();
+      presenceRefs.add(participant.presenceRef);
+      departedPresenceRefs.set(userId, presenceRefs);
       latestRawSnapshotUserIds.delete(userId);
       departureController.cancel(userId);
       confirmDeparture(userId);
@@ -283,6 +286,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
         groupedParticipants: {},
         isConnected: false,
         lastSyncedAt: undefined,
+        localSessionId: uuidv4(),
         previousUserIds: new Set(),
         isAwaitingInitialJoin: true,
         voiceConnected: false,

@@ -6,6 +6,8 @@ export interface PresenceParticipant {
   userId: string;
   /** 브라우저에서 생성한 캐릭터 ID. movement의 userId와 대응한다. */
   playerId?: string;
+  /** 같은 사용자의 이전 방문과 재입장을 구분한다. */
+  sessionId?: string;
   nickname: string;
   joinedAt?: string;
   presenceRef: string;
@@ -23,6 +25,7 @@ export interface PresenceParticipant {
 export interface PresenceTrackPayload {
   userId: string;
   playerId: string;
+  sessionId: string;
   nickname: string;
   villageId: VillageId;
   joinedAt: string;

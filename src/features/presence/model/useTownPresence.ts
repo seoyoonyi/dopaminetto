@@ -51,6 +51,7 @@ const mapPresenceState = (state: RealtimePresenceState): PresenceParticipant[] =
         return {
           userId,
           playerId: typeof raw.playerId === "string" && raw.playerId ? raw.playerId : undefined,
+          sessionId: typeof raw.sessionId === "string" && raw.sessionId ? raw.sessionId : undefined,
           nickname,
           joinedAt,
           villageId,
@@ -156,6 +157,7 @@ export const useTownPresence = (isSpeaker = false) => {
       const payload: PresenceTrackPayload = {
         userId,
         playerId,
+        sessionId: useTownPresenceStore.getState().localSessionId,
         nickname: userNickname || "익명",
         joinedAt: localJoinedAt,
         villageId: debouncedVillageId,
@@ -245,6 +247,7 @@ export const useTownPresence = (isSpeaker = false) => {
 
   useEffect(() => {
     if (!userId) return;
+    const sessionId = useTownPresenceStore.getState().localSessionId;
 
     /**
      * 정상 퇴장(뒤로가기/페이지 이탈)은 sync-leave 브로드캐스트로 즉시 목록에 반영한다.
@@ -255,10 +258,11 @@ export const useTownPresence = (isSpeaker = false) => {
     const unsubscribe = observeTownChannelBroadcast(TOWN_MAIN_CHANNEL, (event, payload) => {
       if (event !== "sync-leave" || !payload) return;
 
-      const leavingUserId = (payload as { userId?: string }).userId;
-      if (!leavingUserId || leavingUserId === userId) return;
+      const leave = payload as { userId?: string; sessionId?: string };
+      const leavingUserId = leave.userId;
+      if (!leavingUserId || leavingUserId === userId || !leave.sessionId) return;
 
-      markParticipantDeparted(leavingUserId);
+      markParticipantDeparted(leavingUserId, leave.sessionId);
     });
 
     return () => {
@@ -272,7 +276,7 @@ export const useTownPresence = (isSpeaker = false) => {
       void liveChannel.send({
         type: "broadcast",
         event: "sync-leave",
-        payload: { userId },
+        payload: { userId, sessionId },
       });
       // 채널은 재사용을 위해 지연 정리되므로 접속 등록은 퇴장 시점에 별도로 해제한다.
       void liveChannel.untrack();

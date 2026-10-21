@@ -17,6 +17,7 @@ const updateRemotePlayerMock = vi.fn();
 const removeRemotePlayersOutsideVillagesMock = vi.fn();
 
 let presenceHandler: ((event: string, payload?: unknown) => void) | undefined;
+let broadcastHandler: ((event: string, payload?: unknown) => void) | undefined;
 
 const channel = {
   presenceState: presenceStateMock,
@@ -31,7 +32,10 @@ const movementState = {
   characterId: "p-boy",
   lastSyncedPosition: { x: 120, y: 240 },
   localActionState: null,
-  remotePlayers: {},
+  remotePlayers: {} as Record<
+    string,
+    { userId: string; joinedAt?: string; sessionId?: string; position?: { x: number; y: number } }
+  >,
   setNickname: vi.fn(),
   setCharacterId: vi.fn(),
   setUserId: vi.fn(),
@@ -94,7 +98,13 @@ vi.mock("@/shared/lib/realtime/townChannelManager", () => ({
   acquireTownChannel: () => vi.fn(),
   getTownChannel: () => channel,
   getTownChannelStatus: () => "SUBSCRIBED",
-  observeTownChannelBroadcast: () => vi.fn(),
+  observeTownChannelBroadcast: (
+    _channelName: string,
+    handler: (event: string, payload?: unknown) => void,
+  ) => {
+    broadcastHandler = handler;
+    return vi.fn();
+  },
   observeTownChannelPresence: (
     _channelName: string,
     handler: (event: string, payload?: unknown) => void,
@@ -136,7 +146,15 @@ describe("REMOTE_PLAYER_REMOVAL_GRACE_MS vs 원격 유저 재연결 소요 시�
     vi.clearAllMocks();
     vi.useFakeTimers();
     presenceHandler = undefined;
+    broadcastHandler = undefined;
     presenceStateMock.mockReturnValue({});
+    movementState.remotePlayers = {};
+    updateRemotePlayerMock.mockImplementation((player) => {
+      movementState.remotePlayers[player.userId] = player;
+    });
+    removeRemotePlayerMock.mockImplementation((userId: string) => {
+      delete movementState.remotePlayers[userId];
+    });
   });
 
   afterEach(() => {
@@ -217,5 +235,122 @@ describe("REMOTE_PLAYER_REMOVAL_GRACE_MS vs 원격 유저 재연결 소요 시�
     }
 
     expect(removeRemotePlayerMock).not.toHaveBeenCalledWith(REMOTE_USER_ID);
+  });
+
+  it("정상 퇴장 뒤 이전 presence와 위치가 늦게 와도 캐릭터를 다시 만들지 않는다", async () => {
+    const { useMovementSync } = await import("./useMovementSync");
+    useMovementSync();
+    const oldPlayer = {
+      userId: REMOTE_USER_ID,
+      joinedAt: "2026-10-14T12:00:00.000Z",
+      villageId: "lobby",
+      position: { x: 5, y: 5 },
+    };
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("sync-leave", oldPlayer);
+    updateRemotePlayerMock.mockClear();
+
+    presenceStateMock.mockReturnValue({ [REMOTE_USER_ID]: [oldPlayer] });
+    presenceHandler?.("sync");
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("player_move", oldPlayer);
+
+    expect(updateRemotePlayerMock).not.toHaveBeenCalled();
+    expect(movementState.remotePlayers[REMOTE_USER_ID]).toBeUndefined();
+  });
+
+  it("재입장은 허용하고 이전 방문의 늦은 퇴장·위치 신호는 새 캐릭터에 적용하지 않는다", async () => {
+    const { useMovementSync } = await import("./useMovementSync");
+    useMovementSync();
+    const oldPlayer = {
+      userId: REMOTE_USER_ID,
+      joinedAt: "2026-10-14T12:00:00.000Z",
+      sessionId: "old-visit",
+      villageId: "lobby",
+      position: { x: 5, y: 5 },
+    };
+    const newPlayer = { ...oldPlayer, sessionId: "new-visit" };
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("sync-leave", oldPlayer);
+    broadcastHandler?.("player_move", newPlayer);
+    expect(movementState.remotePlayers[REMOTE_USER_ID]?.sessionId).toBe(newPlayer.sessionId);
+
+    broadcastHandler?.("sync-leave", oldPlayer);
+    broadcastHandler?.("player_move", oldPlayer);
+    expect(movementState.remotePlayers[REMOTE_USER_ID]?.sessionId).toBe(newPlayer.sessionId);
+
+    broadcastHandler?.("sync-leave", newPlayer);
+    presenceStateMock.mockReturnValue({ [REMOTE_USER_ID]: [oldPlayer, newPlayer] });
+    presenceHandler?.("sync");
+    expect(movementState.remotePlayers[REMOTE_USER_ID]).toBeUndefined();
+  });
+
+  it("퇴장 이력 뒤 식별자 없는 지연 위치가 새 방문의 좌표를 덮어쓰지 않는다", async () => {
+    const { useMovementSync } = await import("./useMovementSync");
+    useMovementSync();
+    const oldPlayer = {
+      userId: REMOTE_USER_ID,
+      sessionId: "old-visit",
+      villageId: "lobby",
+      position: { x: 1, y: 1 },
+    };
+    const newPlayer = { ...oldPlayer, sessionId: "new-visit", position: { x: 8, y: 8 } };
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("sync-leave", oldPlayer);
+    broadcastHandler?.("player_move", newPlayer);
+
+    broadcastHandler?.("player_move", {
+      userId: REMOTE_USER_ID,
+      villageId: "lobby",
+      position: { x: 1, y: 1 },
+    });
+
+    expect(movementState.remotePlayers[REMOTE_USER_ID]).toEqual(
+      expect.objectContaining({ sessionId: "new-visit", position: { x: 8, y: 8 } }),
+    );
+  });
+
+  it("식별자 없는 지연 퇴장은 새 방문의 캐릭터를 제거하지 않는다", async () => {
+    const { useMovementSync } = await import("./useMovementSync");
+    useMovementSync();
+    const oldPlayer = { userId: REMOTE_USER_ID, sessionId: "old-visit", villageId: "lobby" };
+    const newPlayer = { ...oldPlayer, sessionId: "new-visit" };
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("sync-leave", oldPlayer);
+    presenceHandler?.("join", { newPresences: [newPlayer] });
+
+    broadcastHandler?.("sync-leave", { userId: REMOTE_USER_ID });
+
+    expect(movementState.remotePlayers[REMOTE_USER_ID]?.sessionId).toBe("new-visit");
+  });
+
+  it("새 방문이 끊겼을 때 이전 방문의 stale snapshot이 grace 확정을 막지 않는다", async () => {
+    const { useMovementSync } = await import("./useMovementSync");
+    useMovementSync();
+    const oldPlayer = { userId: REMOTE_USER_ID, joinedAt: "old", villageId: "lobby" };
+    const newPlayer = { ...oldPlayer, joinedAt: "new" };
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("sync-leave", oldPlayer);
+    presenceHandler?.("join", { newPresences: [newPlayer] });
+    presenceStateMock.mockReturnValue({ [REMOTE_USER_ID]: [oldPlayer] });
+    presenceHandler?.("leave", { leftPresences: [newPlayer] });
+    vi.advanceTimersByTime(GRACE_MS);
+    expect(movementState.remotePlayers[REMOTE_USER_ID]).toBeUndefined();
+  });
+
+  it("방문 식별자 없는 오래된 snapshot은 새 방문의 grace 확정을 막지 않는다", async () => {
+    const { useMovementSync } = await import("./useMovementSync");
+    useMovementSync();
+    const oldPlayer = { userId: REMOTE_USER_ID, sessionId: "old-visit", villageId: "lobby" };
+    const newPlayer = { ...oldPlayer, sessionId: "new-visit" };
+    presenceHandler?.("join", { newPresences: [oldPlayer] });
+    broadcastHandler?.("sync-leave", oldPlayer);
+    presenceHandler?.("join", { newPresences: [newPlayer] });
+    presenceStateMock.mockReturnValue({ [REMOTE_USER_ID]: [{ userId: REMOTE_USER_ID }] });
+    presenceHandler?.("leave", { leftPresences: [newPlayer] });
+
+    vi.advanceTimersByTime(GRACE_MS);
+
+    expect(movementState.remotePlayers[REMOTE_USER_ID]).toBeUndefined();
   });
 });

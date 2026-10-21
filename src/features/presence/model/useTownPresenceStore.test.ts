@@ -16,19 +16,23 @@ vi.mock("@/shared/lib/realtime/townChannelManager", () => ({
   getTownChannelStatus: () => channelStatus,
 }));
 
-const ME: PresenceParticipant = {
+const ME = {
   userId: "me",
+  playerId: "player-me",
+  sessionId: "visit-me",
   nickname: "나",
   presenceRef: "ref-me",
   villageId: "lobby",
-};
+} satisfies PresenceParticipant;
 
-const REMOTE: PresenceParticipant = {
+const REMOTE = {
   userId: "remote-a",
+  playerId: "player-remote-a",
+  sessionId: "visit-remote-a",
   nickname: "원격 유저",
   presenceRef: "ref-remote",
   villageId: "lobby",
-};
+} satisfies PresenceParticipant;
 
 describe("useTownPresenceStore 입장·퇴장 알림 설정", () => {
   beforeEach(() => {
@@ -72,7 +76,7 @@ describe("useTownPresenceStore 입장·퇴장 알림 설정", () => {
     useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
     toastMock.mockClear();
 
-    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
 
     expect(toastMock).not.toHaveBeenCalled();
     expect(
@@ -80,20 +84,193 @@ describe("useTownPresenceStore 입장·퇴장 알림 설정", () => {
     ).toEqual([ME.userId]);
   });
 
-  it("알림이 ON이면 기존과 동일하게 입장·퇴장 toast를 표시한다", async () => {
+  it("알림이 ON이면 다른 사용자의 입장·퇴장 toast만 표시한다", async () => {
     const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    const { usePlayerRenderStore } = await import("@/entities/player");
 
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
     useTownPresenceStore.getState().setParticipants([ME], ME.userId);
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
     useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
-    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
 
-    expect(toastMock).toHaveBeenNthCalledWith(1, "나님이 입장했습니다.", { duration: 3000 });
-    expect(toastMock).toHaveBeenNthCalledWith(2, "원격 유저님이 입장했습니다.", {
+    expect(toastMock).toHaveBeenCalledTimes(2);
+    expect(toastMock).toHaveBeenNthCalledWith(1, "원격 유저님이 입장했습니다.", {
       duration: 3000,
     });
-    expect(toastMock).toHaveBeenNthCalledWith(3, "원격 유저님이 퇴장했습니다.", {
+    expect(toastMock).toHaveBeenNthCalledWith(2, "원격 유저님이 퇴장했습니다.", {
       duration: 3000,
     });
+  });
+});
+
+describe("입퇴장 알림과 실제 렌더 상태 동기화", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+    toastMock.mockClear();
+    channelStatus = "SUBSCRIBED";
+  });
+
+  const setup = async () => {
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    const presence = useTownPresenceStore.getState();
+    const render = usePlayerRenderStore.getState();
+    render.publishRenderedPlayers([ME.playerId]);
+    presence.setParticipants([ME], ME.userId);
+    toastMock.mockClear();
+    return { presence, render };
+  };
+
+  it("최초 본인 presence만 도착했을 때 캐릭터보다 먼저 알리지 않는다", async () => {
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    useTownPresenceStore.getState().setParticipants([ME], ME.userId);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("본인은 첫 렌더와 반복 presence 수신 이후에도 입장 알림을 표시하지 않는다", async () => {
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    const presence = useTownPresenceStore.getState();
+    presence.setParticipants([ME], ME.userId);
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
+    presence.flushPendingNotifications();
+    presence.setParticipants([ME], ME.userId);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("다른 사용자의 playerId가 늦게 보강되면 알림 대기를 해제한다", async () => {
+    const { presence, render } = await setup();
+    presence.setParticipants([ME, { ...REMOTE, playerId: undefined }], ME.userId);
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    expect(toastMock).toHaveBeenCalledExactlyOnceWith("원격 유저님이 입장했습니다.", {
+      duration: 3000,
+    });
+  });
+
+  it("playerId 없는 구버전 참여자의 목록은 갱신하되 제거 완료를 추측해 알리지 않는다", async () => {
+    const { presence, render } = await setup();
+    presence.setParticipants([ME, { ...REMOTE, playerId: undefined }], ME.userId);
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    expect(toastMock).not.toHaveBeenCalled();
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toEqual([ME.userId]);
+  });
+
+  it("입장 presence가 먼저 도착하면 실제 렌더 후 한 번 알린다", async () => {
+    const { presence, render } = await setup();
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    expect(toastMock).not.toHaveBeenCalled();
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    presence.flushPendingNotifications();
+    expect(toastMock).toHaveBeenCalledExactlyOnceWith("원격 유저님이 입장했습니다.", {
+      duration: 3000,
+    });
+  });
+
+  it("입장 렌더가 먼저 완료돼도 presence에서 신규 입장일 때만 알린다", async () => {
+    const { presence, render } = await setup();
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([true, false])(
+    "퇴장 렌더 우선=%s에서도 두 조건이 충족돼야 알린다",
+    async (renderFirst) => {
+      const { presence, render } = await setup();
+      render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+      presence.setParticipants([ME, REMOTE], ME.userId);
+      toastMock.mockClear();
+      if (renderFirst) {
+        render.publishRenderedPlayers([ME.playerId]);
+        presence.flushPendingNotifications();
+      } else {
+        presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+      }
+      expect(toastMock).not.toHaveBeenCalled();
+      if (renderFirst) presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+      else render.publishRenderedPlayers([ME.playerId]);
+      presence.flushPendingNotifications();
+      presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+      expect(toastMock).toHaveBeenCalledExactlyOnceWith("원격 유저님이 퇴장했습니다.", {
+        duration: 3000,
+      });
+    },
+  );
+
+  it("표시되지 않은 입장 후보가 곧바로 퇴장하면 과거 알림을 재생하지 않는다", async () => {
+    const { presence, render } = await setup();
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    render.publishRenderedPlayers([ME.playerId]);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("퇴장 알림 대기 중 재입장하면 오래된 퇴장과 중복 입장을 취소한다", async () => {
+    const { presence, render } = await setup();
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    toastMock.mockClear();
+    presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    presence.setParticipants([ME, { ...REMOTE, presenceRef: "ref-rejoined" }], ME.userId);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("빌리지 이동과 렌더 재생성만으로 입퇴장 알림을 만들지 않는다", async () => {
+    const { presence, render } = await setup();
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    toastMock.mockClear();
+    render.publishRenderedPlayers([ME.playerId]);
+    presence.flushPendingNotifications();
+    presence.setParticipants([ME, { ...REMOTE, villageId: "village-a" }], ME.userId);
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("대기 중 알림 OFF를 처리한 뒤 ON으로 바꿔도 과거 알림을 표시하지 않는다", async () => {
+    const { presence, render } = await setup();
+    const { usePresenceNotificationStore } = await import("./usePresenceNotificationStore");
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: false });
+    presence.flushPendingNotifications();
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("Scene 준비 전 빈 상태를 퇴장 렌더 완료로 해석하지 않는다", async () => {
+    const { presence, render } = await setup();
+    render.publishRenderedPlayers([ME.playerId, REMOTE.playerId]);
+    presence.setParticipants([ME, REMOTE], ME.userId);
+    toastMock.mockClear();
+    render.reset();
+    presence.markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
+    presence.reset();
+    render.publishRenderedPlayers([ME.playerId]);
+    presence.flushPendingNotifications();
+    expect(toastMock).not.toHaveBeenCalled();
   });
 });
 
@@ -229,7 +406,7 @@ describe("useTownPresenceStore: 정상 퇴장 신호 즉시 반영", () => {
     const useTownPresenceStore = await importStore();
 
     useTownPresenceStore.getState().setParticipants([ME, REMOTE], ME.userId);
-    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
 
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
       REMOTE.userId,
@@ -246,7 +423,7 @@ describe("useTownPresenceStore: 정상 퇴장 신호 즉시 반영", () => {
       REMOTE.userId,
     );
 
-    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId);
+    useTownPresenceStore.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
       REMOTE.userId,
     );
@@ -255,14 +432,69 @@ describe("useTownPresenceStore: 정상 퇴장 신호 즉시 반영", () => {
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toEqual([ME.userId]);
   });
 
+  it("정상 퇴장 뒤 이전 presence 스냅샷이 다시 와도 목록과 인원이 되살아나지 않는다", async () => {
+    const store = await importStore();
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+    store.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+
+    expect(store.getState().participants).toEqual([ME]);
+    expect(store.getState().groupedParticipants.lobby).toEqual([ME]);
+  });
+
+  it("퇴장 직후 새 presenceRef로 재입장하면 누락 없이 반영한다", async () => {
+    const store = await importStore();
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+    store.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    const rejoined = { ...REMOTE, sessionId: "visit-rejoined", presenceRef: "ref-rejoined" };
+    store.getState().setParticipants([ME, REMOTE, rejoined], ME.userId);
+
+    expect(store.getState().participants).toEqual([ME, rejoined]);
+  });
+
+  it("이전 방문의 퇴장 신호는 새 방문의 참여자를 제거하지 않는다", async () => {
+    const store = await importStore();
+    const oldVisit = { ...REMOTE, sessionId: "old-visit" };
+    const newVisit = { ...REMOTE, sessionId: "new-visit", presenceRef: "new-ref" };
+    store.getState().setParticipants([ME, oldVisit], ME.userId);
+    store.getState().setParticipants([ME, newVisit], ME.userId);
+
+    store.getState().markParticipantDeparted(REMOTE.userId, "old-visit");
+
+    expect(store.getState().participants).toContainEqual(newVisit);
+  });
+
   it("이미 목록에 없는 userId에는 아무 동작도 하지 않는다", async () => {
     const useTownPresenceStore = await importStore();
 
     useTownPresenceStore.getState().setParticipants([ME], ME.userId);
     const before = useTownPresenceStore.getState().participants;
 
-    useTownPresenceStore.getState().markParticipantDeparted("ghost");
+    useTownPresenceStore.getState().markParticipantDeparted("ghost", "ghost-visit");
 
     expect(useTownPresenceStore.getState().participants).toBe(before);
+  });
+
+  it("정상 퇴장 기록도 reset 시 정리해 다음 방문의 초기 목록을 막지 않는다", async () => {
+    const store = await importStore();
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+    store.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    store.getState().reset();
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+
+    expect(store.getState().participants).toEqual([ME, REMOTE]);
+  });
+
+  it("빠르게 두 번 입퇴장해 이전 등록들이 함께 남아도 모두 제외한다", async () => {
+    const store = await importStore();
+    store.getState().setParticipants([ME, REMOTE], ME.userId);
+    store.getState().markParticipantDeparted(REMOTE.userId, REMOTE.sessionId);
+    const rejoined = { ...REMOTE, sessionId: "visit-rejoined", presenceRef: "ref-rejoined" };
+    store.getState().setParticipants([ME, REMOTE, rejoined], ME.userId);
+    store.getState().markParticipantDeparted(REMOTE.userId, rejoined.sessionId);
+    store.getState().setParticipants([ME, REMOTE, rejoined], ME.userId);
+
+    expect(store.getState().participants).toEqual([ME]);
   });
 });

@@ -3,6 +3,7 @@
  * 맵·카메라, 로컬 입력·캐릭터 조작, 원격 캐릭터 표시는 전용 컨트롤러에 위임하고 환경음 갱신을 연결한다.
  * 캐릭터 스프라이트는 각 설정의 originY를 기준으로 정렬한다.
  */
+import { usePlayerRenderStore } from "@/entities/player";
 import { useAmbientSoundStore } from "@/features/ambientSound";
 import {
   AMBIENT_AUDIO_KEYS,
@@ -62,6 +63,18 @@ export class TownScene extends Phaser.Scene {
   private localCharacterId: CharacterId = "p-boy";
   private campfireAmbientController?: AmbientSoundController;
 
+  /** 스프라이트 변경이 캔버스에 반영된 프레임에서 표시 상태를 공개한다. */
+  private publishRenderedPlayers = () => {
+    if (!this.localUserId || !this.player?.active) return;
+
+    usePlayerRenderStore
+      .getState()
+      .publishRenderedPlayers([
+        this.localUserId,
+        ...(this.remotePlayersController?.getRenderedUserIds() ?? []),
+      ]);
+  };
+
   /**
    * shutdown 또는 destroy 중 먼저 발생한 시점에 Scene 자원을 정리하고,
    * 나머지 종료 콜백을 해제해 중복 정리를 방지한다.
@@ -69,6 +82,8 @@ export class TownScene extends Phaser.Scene {
   private cleanupSceneResources = () => {
     this.events.off("shutdown", this.cleanupSceneResources);
     this.events.off("destroy", this.cleanupSceneResources);
+    this.events.off("render", this.publishRenderedPlayers);
+    usePlayerRenderStore.getState().reset();
 
     this.unsubscribeStore?.();
     this.unsubscribeStore = undefined;
@@ -118,6 +133,7 @@ export class TownScene extends Phaser.Scene {
   };
 
   create = () => {
+    usePlayerRenderStore.getState().reset();
     this.events.once("shutdown", this.cleanupSceneResources);
     this.events.once("destroy", this.cleanupSceneResources);
 
@@ -269,6 +285,7 @@ export class TownScene extends Phaser.Scene {
 
     // 카메라가 플레이어를 화면 중앙에 오도록 고정
     this.mapCameraController.follow(this.player);
+    this.events.on("render", this.publishRenderedPlayers);
   };
 
   /**

@@ -37,6 +37,7 @@ const isAnyBoundChannelReconnecting = (channelBindings: Map<string, ChannelBindi
 const isPresentInAnyBoundChannel = (
   channelBindings: Map<string, ChannelBinding>,
   remoteUserId: string,
+  departedVisits: MovementSyncState["departedVisits"],
 ) =>
   Array.from(channelBindings.keys()).some((channelName) => {
     const channel = getTownChannel(channelName);
@@ -44,7 +45,13 @@ const isPresentInAnyBoundChannel = (
 
     return Object.values(channel.presenceState<PresenceMetadata>())
       .flat()
-      .some((presence) => presence.userId === remoteUserId);
+      .some((presence) => {
+        if (presence.userId !== remoteUserId) return false;
+        const departed = departedVisits.get(remoteUserId);
+        if (!departed) return true;
+        const visit = presence.sessionId ?? presence.joinedAt;
+        return Boolean(visit && !departed.has(visit));
+      });
   });
 
 export const createMovementSyncState = (): MovementSyncState => {
@@ -53,6 +60,8 @@ export const createMovementSyncState = (): MovementSyncState => {
     channelBindings: new Map<string, ChannelBinding>(),
     handlers: createInitialHandlers(),
     joinedAt: new Date().toISOString(),
+    sessionId: "",
+    departedVisits: new Map<string, Set<string | undefined>>(),
     lastPresenceSignature: "",
     trackRequestId: 0,
     trackRetryTimeout: null,
@@ -65,7 +74,7 @@ export const createMovementSyncState = (): MovementSyncState => {
     graceMs: REMOTE_PLAYER_REMOVAL_GRACE_MS,
     isChannelReconnecting: () => isAnyBoundChannelReconnecting(state.channelBindings),
     isPresentInSnapshot: (remoteUserId) =>
-      isPresentInAnyBoundChannel(state.channelBindings, remoteUserId),
+      isPresentInAnyBoundChannel(state.channelBindings, remoteUserId, state.departedVisits),
     onConfirmed: (remoteUserId) => state.handlers.removeConfirmedRemotePlayer(remoteUserId),
   });
 

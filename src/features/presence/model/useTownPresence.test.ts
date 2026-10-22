@@ -2,6 +2,9 @@ import { PRESENCE_RECONCILE_INTERVAL_MS } from "@/shared/constants";
 import { DEPARTURE_GRACE_MS } from "@/shared/lib/realtime/departureGrace";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: toastMock }));
+
 /**
  * 회귀 테스트: town:main channel 객체가 재연결로 새로 만들어질 때(아직 서버 sync를
  * 받기 전) useTownPresence.ts가 presenceState()를 즉시 읽어 setParticipants()를
@@ -14,7 +17,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let channelStatus = "SUBSCRIBED";
 
-type FakeChannel = { presenceState: () => Record<string, unknown[]> };
+type FakeChannel = {
+  presenceState: () => Record<string, unknown[]>;
+  track?: (payload: unknown) => Promise<string>;
+  untrack?: () => Promise<string>;
+};
 
 let currentChannel: (FakeChannel & { send?: (message: unknown) => Promise<string> }) | null = null;
 let presenceHandler: ((event: string, payload?: unknown) => void) | undefined;
@@ -36,6 +43,8 @@ const effectCleanups: Array<() => void> = [];
 const runEffectCleanups = () => {
   effectCleanups.splice(0).forEach((cleanup) => cleanup());
 };
+
+afterEach(() => runEffectCleanups());
 
 vi.mock("react", () => ({
   useEffect: (effect: () => void | (() => void)) => {
@@ -67,23 +76,36 @@ vi.mock("@/shared/hooks/useDebouncedValue", () => ({
   useDebouncedValue: <T>(value: T) => value,
 }));
 
+vi.mock("@/shared/store/useUserStore", () => ({
+  useUserStore: (selector: (state: { userId: string }) => unknown) =>
+    selector({ userId: "player-me" }),
+}));
+
 vi.mock("@/shared/hooks/useUserInfo", () => ({
   useUserInfo: () => ({ data: { id: "me", user_metadata: { nickname: "나" } } }),
 }));
 
 vi.mock("@/shared/hooks/useTownChannel", () => ({
-  useTownChannel: () => ({
-    channel: currentChannel,
-    status: channelStatus,
-    isConnected: channelStatus === "SUBSCRIBED",
-    reconnect: vi.fn(),
-    subscribeToPresence: subscribeToPresenceMock,
-  }),
+  useTownChannel: () => {
+    if (currentChannel && !currentChannel.track) {
+      currentChannel.track = vi.fn().mockResolvedValue("ok");
+    }
+    return {
+      channel: currentChannel,
+      status: channelStatus,
+      isConnected: channelStatus === "SUBSCRIBED",
+      reconnect: vi.fn(),
+      subscribeToPresence: subscribeToPresenceMock,
+    };
+  },
 }));
 
 vi.mock("@/shared/lib/realtime/townChannelManager", () => ({
   getTownChannelStatus: () => channelStatus,
-  getTownChannel: () => currentChannel,
+  getTownChannel: () =>
+    currentChannel
+      ? { send: async () => "ok", untrack: async () => "ok", ...currentChannel }
+      : null,
   observeTownChannelBroadcast: observeTownChannelBroadcastMock,
 }));
 
@@ -99,24 +121,155 @@ vi.mock("@/features/presence/model/useTownPresenceStore", async () => {
   return { useTownPresenceStore: Object.assign(hook, realStore) };
 });
 
-const presenceStateOf = (participants: { userId: string; nickname: string }[]) =>
+const presenceStateOf = (
+  participants: {
+    userId: string;
+    nickname: string;
+    playerId?: string;
+    sessionId?: string;
+    presenceRef?: string;
+  }[],
+) =>
   Object.fromEntries(
     participants.map((p) => [
       p.userId,
       [
         {
           userId: p.userId,
+          playerId: p.playerId,
+          sessionId: p.sessionId,
           nickname: p.nickname,
-          presence_ref: `ref-${p.userId}`,
+          presence_ref: p.presenceRef ?? `ref-${p.userId}`,
           villageId: "lobby",
         },
       ],
     ]),
   );
 
-const ME = { userId: "me", nickname: "나" };
-const REMOTE_A = { userId: "remote-a", nickname: "A" };
-const REMOTE_B = { userId: "remote-b", nickname: "B" };
+const ME = { userId: "me", playerId: "player-me", sessionId: "visit-me", nickname: "나" };
+const REMOTE_A = {
+  userId: "remote-a",
+  playerId: "player-remote-a",
+  sessionId: "visit-remote-a",
+  nickname: "A",
+};
+const REMOTE_B = {
+  userId: "remote-b",
+  playerId: "player-remote-b",
+  sessionId: "visit-remote-b",
+  nickname: "B",
+};
+
+describe("useTownPresence 렌더 알림 구독", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    currentChannel = null;
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    const { usePresenceNotificationStore } = await import("./usePresenceNotificationStore");
+    useTownPresenceStore.getState().reset();
+    usePlayerRenderStore.getState().reset();
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("인증 사용자 ID와 별개인 캐릭터 playerId를 presence에 전송한다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const track = vi.fn().mockResolvedValue("ok");
+    currentChannel = { presenceState: () => presenceStateOf([ME]), track };
+    useTownPresence();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(track).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "me", playerId: "player-me" }),
+    );
+  });
+
+  it("본인은 알리지 않고 렌더 구독과 OFF 전환이 다른 사용자 알림을 처리한다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    const { usePresenceNotificationStore } = await import("./usePresenceNotificationStore");
+    currentChannel = { presenceState: () => presenceStateOf([ME]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    expect(toastMock).not.toHaveBeenCalled();
+
+    // 본인의 최초 입장은 Scene 초기화와 렌더 이후에도 알리지 않는다.
+    usePlayerRenderStore.getState().reset();
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
+    expect(toastMock).not.toHaveBeenCalled();
+    currentChannel.presenceState = () => presenceStateOf([ME, REMOTE_A]);
+    presenceHandler?.("sync");
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId, REMOTE_A.playerId]);
+    expect(toastMock).toHaveBeenCalledExactlyOnceWith("A님이 입장했습니다.", { duration: 3000 });
+    toastMock.mockClear();
+
+    currentChannel.presenceState = () => presenceStateOf([ME, REMOTE_A, REMOTE_B]);
+    presenceHandler?.("sync");
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: false });
+    usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
+    usePlayerRenderStore
+      .getState()
+      .publishRenderedPlayers([ME.playerId, REMOTE_A.playerId, REMOTE_B.playerId]);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("Scene 종료로 대기 퇴장을 알리지 않고 재시작 시에도 재생하지 않는다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId, REMOTE_A.playerId]);
+    toastMock.mockClear();
+    broadcastHandler?.("sync-leave", { userId: REMOTE_A.userId, sessionId: REMOTE_A.sessionId });
+    usePlayerRenderStore.getState().reset();
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("언마운트 후 알림 구독을 해제하고 다시 마운트하면 한 번만 알린다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    currentChannel = { presenceState: () => presenceStateOf([ME]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    runEffectCleanups();
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
+    expect(toastMock).not.toHaveBeenCalled();
+
+    useTownPresence();
+    presenceHandler?.("sync");
+    expect(toastMock).not.toHaveBeenCalled();
+    currentChannel.presenceState = () => presenceStateOf([ME, REMOTE_A]);
+    presenceHandler?.("sync");
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId, REMOTE_A.playerId]);
+    expect(toastMock).toHaveBeenCalledExactlyOnceWith("A님이 입장했습니다.", { duration: 3000 });
+  });
+
+  it("퇴장 grace 대기 중 타운을 떠나면 다음 방문에 과거 퇴장을 알리지 않는다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { usePlayerRenderStore } = await import("@/entities/player");
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId, REMOTE_A.playerId]);
+    toastMock.mockClear();
+
+    currentChannel.presenceState = () => presenceStateOf([ME]);
+    presenceHandler?.("leave");
+    runEffectCleanups();
+    usePlayerRenderStore.getState().reset();
+    vi.advanceTimersByTime(DEPARTURE_GRACE_MS);
+
+    useTownPresence();
+    presenceHandler?.("sync");
+    usePlayerRenderStore.getState().publishRenderedPlayers([ME.playerId]);
+    expect(toastMock).not.toHaveBeenCalledWith("A님이 퇴장했습니다.", expect.anything());
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("useTownPresence: town:main 재연결 시 stale participant 회귀 방지", () => {
   beforeEach(async () => {
@@ -140,7 +293,10 @@ describe("useTownPresence: town:main 재연결 시 stale participant 회귀 방�
     const { useTownPresence } = await import("./useTownPresence");
     const { useTownPresenceStore } = await import("./useTownPresenceStore");
 
-    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]) };
+    currentChannel = {
+      presenceState: () => presenceStateOf([ME, REMOTE_A, REMOTE_B]),
+      track: vi.fn().mockResolvedValue("ok"),
+    };
     useTownPresence();
     presenceHandler?.("sync");
 
@@ -304,7 +460,11 @@ describe("useTownPresence: 정상 퇴장(sync-leave)을 접속자 목록에 즉�
     useTownPresence();
     presenceHandler?.("sync");
 
-    broadcastHandler?.("sync-leave", { userId: REMOTE_B.userId });
+    broadcastHandler?.("sync-leave", { userId: REMOTE_B.userId, sessionId: REMOTE_B.sessionId });
+
+    // 서버 제거 전의 snapshot이 sync와 주기적 보정 양쪽에서 재수신되는 순서를 재현한다.
+    presenceHandler?.("sync");
+    await vi.advanceTimersByTimeAsync(PRESENCE_RECONCILE_INTERVAL_MS);
 
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).not.toContain(
       REMOTE_B.userId,
@@ -315,6 +475,40 @@ describe("useTownPresence: 정상 퇴장(sync-leave)을 접속자 목록에 즉�
         .participants.map((p) => p.userId)
         .sort(),
     ).toEqual(["me", "remote-a"].sort());
+  });
+
+  it("이전 방문의 퇴장 신호가 새 방문의 참여자를 제거하지 않는다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    const oldVisit = { ...REMOTE_B, sessionId: "old-visit", presenceRef: "old-ref" };
+    const newVisit = { ...REMOTE_B, sessionId: "new-visit", presenceRef: "new-ref" };
+    currentChannel = { presenceState: () => presenceStateOf([ME, oldVisit]) };
+    useTownPresence();
+    presenceHandler?.("sync");
+    currentChannel.presenceState = () => presenceStateOf([ME, newVisit]);
+    presenceHandler?.("sync");
+
+    broadcastHandler?.("sync-leave", { userId: REMOTE_B.userId, sessionId: "old-visit" });
+
+    expect(useTownPresenceStore.getState().participants).toContainEqual(
+      expect.objectContaining({ userId: REMOTE_B.userId, sessionId: "new-visit" }),
+    );
+  });
+
+  it("방문 식별자가 없는 퇴장 신호는 현재 참여자를 제거하지 않는다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const { useTownPresenceStore } = await import("./useTownPresenceStore");
+    currentChannel = {
+      presenceState: () => presenceStateOf([ME, { ...REMOTE_B, sessionId: "new-visit" }]),
+    };
+    useTownPresence();
+    presenceHandler?.("sync");
+
+    broadcastHandler?.("sync-leave", { userId: REMOTE_B.userId });
+
+    expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain(
+      REMOTE_B.userId,
+    );
   });
 
   it("본인 userId의 sync-leave 신호는 무시한다", async () => {
@@ -330,22 +524,46 @@ describe("useTownPresence: 정상 퇴장(sync-leave)을 접속자 목록에 즉�
     expect(useTownPresenceStore.getState().participants.map((p) => p.userId)).toContain(ME.userId);
   });
 
-  it("언마운트 시 town:main이 SUBSCRIBED면 sync-leave를 브로드캐스트한다", async () => {
+  it("언마운트 시 sync-leave를 보내고 채널 제거를 기다리지 않고 presence를 해제한다", async () => {
     const { useTownPresence } = await import("./useTownPresence");
 
     const send = vi.fn().mockResolvedValue("ok");
-    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]), send };
+    const track = vi.fn().mockResolvedValue("ok");
+    const untrack = vi.fn().mockResolvedValue("ok");
+    currentChannel = { presenceState: () => presenceStateOf([ME, REMOTE_A]), send, track, untrack };
     useTownPresence();
+    const trackedSessionId = track.mock.calls.at(-1)?.[0]?.sessionId;
 
     runEffectCleanups();
+
+    expect(untrack).toHaveBeenCalledTimes(1);
+    expect(trackedSessionId).toEqual(expect.any(String));
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "broadcast",
         event: "sync-leave",
-        payload: { userId: ME.userId },
+        payload: { userId: ME.userId, sessionId: trackedSessionId },
       }),
     );
+  });
+
+  it("타운에 다시 들어오면 이전 방문과 다른 ID로 입장 정보를 전송한다", async () => {
+    const { useTownPresence } = await import("./useTownPresence");
+    const firstTrack = vi.fn().mockResolvedValue("ok");
+    currentChannel = { presenceState: () => presenceStateOf([ME]), track: firstTrack };
+    useTownPresence();
+    const firstSessionId = firstTrack.mock.calls.at(-1)?.[0]?.sessionId;
+    runEffectCleanups();
+
+    const secondTrack = vi.fn().mockResolvedValue("ok");
+    currentChannel = { presenceState: () => presenceStateOf([ME]), track: secondTrack };
+    useTownPresence();
+    const secondSessionId = secondTrack.mock.calls.at(-1)?.[0]?.sessionId;
+
+    expect(firstSessionId).toEqual(expect.any(String));
+    expect(secondSessionId).toEqual(expect.any(String));
+    expect(secondSessionId).not.toBe(firstSessionId);
   });
 
   it("언마운트 시 town:main이 SUBSCRIBED가 아니면 sync-leave를 보내지 않는다", async () => {

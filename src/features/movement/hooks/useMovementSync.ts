@@ -8,12 +8,17 @@ import {
   createPresenceTrackSignature,
   createSyncPositionPayload,
 } from "@/features/movement/model/payload";
-import { PresenceMetadata, SyncPositionPayload } from "@/features/movement/model/types";
+import {
+  PresenceMetadata,
+  SyncLeavePayload,
+  SyncPositionPayload,
+} from "@/features/movement/model/types";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { PRESENCE_VILLAGE_TRACK_DEBOUNCE_MS } from "@/shared/constants";
 import { useDebouncedValue } from "@/shared/hooks/useDebouncedValue";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { getVillageChannelName } from "@/shared/lib/realtime";
+import { sendKeepaliveBroadcast } from "@/shared/lib/realtime/sendKeepaliveBroadcast";
 import {
   acquireTownChannel,
   getTownChannel,
@@ -24,6 +29,7 @@ import {
   reconnectTownChannel,
 } from "@/shared/lib/realtime/townChannelManager";
 import { useUserStore } from "@/shared/store/useUserStore";
+import { v4 as uuidv4 } from "uuid";
 import { useShallow } from "zustand/react/shallow";
 
 import { useEffect, useRef } from "react";
@@ -87,8 +93,17 @@ export function useMovementSync(enabled = true) {
       syncState.departureController.cancel(remoteUserId);
     };
 
+    const isDepartedVisit = (player: PresenceMetadata | SyncPositionPayload) => {
+      const departed = syncState.departedVisits.get(player.userId);
+      if (!departed) return false;
+      // 방문 식별자가 없는 메시지는 현재 캐릭터의 방문을 추정하지 않는다.
+      const visit = player.sessionId ?? player.joinedAt;
+      return !visit || departed.has(visit);
+    };
+
     const upsertVisibleRemotePlayer = (player: PresenceMetadata | SyncPositionPayload) => {
       if (!player.userId || player.userId === playerId) return;
+      if (isDepartedVisit(player)) return;
 
       clearPendingRemoval(player.userId);
 
@@ -98,8 +113,11 @@ export function useMovementSync(enabled = true) {
         return;
       }
 
+      const current = useMovementStore.getState().remotePlayers[player.userId];
       updateRemotePlayer({
         ...player,
+        joinedAt: player.joinedAt ?? current?.joinedAt,
+        sessionId: player.sessionId ?? current?.sessionId,
         characterId: resolveCharacterId(player.characterId),
         lastUpdatedAt: Date.now(),
       });
@@ -125,6 +143,8 @@ export function useMovementSync(enabled = true) {
           event: "sync-leave",
           payload: {
             userId: playerId,
+            joinedAt: syncState.joinedAt,
+            sessionId: syncState.sessionId,
           },
         })
         .then((res) => {
@@ -145,7 +165,7 @@ export function useMovementSync(enabled = true) {
       Object.values(presenceState)
         .flat()
         .forEach((presence) => {
-          if (!presence.userId) return;
+          if (!presence.userId || isDepartedVisit(presence)) return;
 
           nextPresenceUserIds.add(presence.userId);
           clearPendingRemoval(presence.userId);
@@ -198,6 +218,7 @@ export function useMovementSync(enabled = true) {
 
       const payload: PresenceMetadata = createPresencePayload({
         userId: playerId,
+        sessionId: syncState.sessionId,
         nickname: state.nickname || "익명",
         joinedAt: syncState.joinedAt,
         villageId: currentTrackedVillageId,
@@ -285,18 +306,30 @@ export function useMovementSync(enabled = true) {
         }
 
         if (event === "join") {
-          const newPresences = (payload as { newPresences?: PresenceMetadata[] } | undefined)
-            ?.newPresences;
+          const joinPayload = payload as
+            | { currentPresences?: PresenceMetadata[]; newPresences?: PresenceMetadata[] }
+            | undefined;
+          const newPresences = joinPayload?.newPresences?.filter(
+            (presence) => !isDepartedVisit(presence),
+          );
 
-          const hasRemoteJoin = newPresences?.some((presence) =>
-            Boolean(presence.userId && presence.userId !== playerId),
+          const hasRemoteJoin = newPresences?.some(
+            (presence) =>
+              presence.userId &&
+              presence.userId !== playerId &&
+              !joinPayload?.currentPresences?.some(
+                (current) =>
+                  current.userId === presence.userId &&
+                  (current.sessionId ?? current.joinedAt) ===
+                    (presence.sessionId ?? presence.joinedAt),
+              ),
           );
           newPresences?.forEach((presence) => {
             syncState.handlers.upsertVisibleRemotePlayer(presence);
           });
 
-          // 신규 사용자에게 기존 사용자의 최신 좌표를 전달하기 위해 Presence를 한 번 갱신한다.
-          // 이동 중 좌표 동기화는 player_move Broadcast가 담당하므로 이동마다 track하지 않는다.
+          // 새 방문에만 최신 좌표를 응답한다. metadata 갱신도 join으로 오므로
+          // 같은 방문에 다시 track하면 상대와 갱신 응답을 반복하게 된다.
           if (hasRemoteJoin && syncState.trackedVillageId === targetVillageId) {
             void syncState.handlers.trackCurrentPresence(0, true);
           }
@@ -307,7 +340,7 @@ export function useMovementSync(enabled = true) {
           ?.leftPresences;
 
         leftPresences?.forEach((presence) => {
-          if (presence.userId) {
+          if (presence.userId && !isDepartedVisit(presence)) {
             syncState.handlers.scheduleRemotePlayerRemovalCheck(presence.userId);
           }
         });
@@ -321,11 +354,22 @@ export function useMovementSync(enabled = true) {
 
         if (event !== "sync-leave" || !payload) return;
 
-        const leavePayload = payload as { userId?: string };
+        const leavePayload = payload as Partial<SyncLeavePayload>;
         const remoteUserId = leavePayload.userId;
         if (!remoteUserId || remoteUserId === playerId) return;
 
-        // 정상 퇴장 신호는 즉시 반영하고, 신호가 없으면 Presence 이탈이 fallback을 처리한다.
+        const current = useMovementStore.getState().remotePlayers[remoteUserId];
+        const currentVisit = current?.sessionId ?? current?.joinedAt;
+        const visit = leavePayload.sessionId ?? leavePayload.joinedAt;
+        if (!visit) return;
+        const departed =
+          syncState.departedVisits.get(remoteUserId) ?? new Set<string | undefined>();
+        departed.add(visit);
+        syncState.departedVisits.set(remoteUserId, departed);
+        // 이전 방문의 늦은 퇴장 신호로 새로 입장한 캐릭터를 제거하지 않는다.
+        if (currentVisit !== visit) return;
+
+        clearPendingRemoval(remoteUserId);
         removeRemotePlayer(remoteUserId);
       });
 
@@ -370,6 +414,7 @@ export function useMovementSync(enabled = true) {
       syncState.activeUserId = null;
 
       syncState.departureController.cancelAll();
+      syncState.departedVisits.clear();
 
       Array.from(syncState.channelBindings.values()).forEach((binding) => {
         binding.cleanupObservers();
@@ -426,9 +471,11 @@ export function useMovementSync(enabled = true) {
       return;
     }
 
-    if (syncState.activeUserId && syncState.activeUserId !== channelUserId) {
-      syncState.handlers.cleanupAllChannels();
+    if (syncState.activeUserId !== channelUserId) {
+      if (syncState.activeUserId) syncState.handlers.cleanupAllChannels();
       syncState.joinedAt = new Date().toISOString();
+      // StrictMode 재설정과 같은 밀리초의 재입장도 이전 방문과 구분한다.
+      syncState.sessionId = uuidv4();
     }
 
     syncState.activeUserId = channelUserId;
@@ -513,6 +560,8 @@ export function useMovementSync(enabled = true) {
         event: PLAYER_MOVE_EVENT,
         payload: createSyncPositionPayload({
           userId: playerId,
+          joinedAt: syncStateRef.current.joinedAt,
+          sessionId: syncStateRef.current.sessionId,
           nickname,
           characterId,
           position: lastSyncedPosition,
@@ -534,4 +583,22 @@ export function useMovementSync(enabled = true) {
       syncState.handlers.cleanupAllChannels();
     };
   }, []);
+
+  useEffect(() => {
+    if (!enabled || !playerId || typeof window === "undefined") return;
+
+    const handlePageHide = () => {
+      const { trackedVillageId, joinedAt, sessionId } = syncStateRef.current;
+      if (!trackedVillageId || !sessionId) return;
+
+      sendKeepaliveBroadcast({
+        topic: getVillageChannelName(trackedVillageId),
+        event: "sync-leave",
+        payload: { userId: playerId, joinedAt, sessionId },
+      });
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [enabled, playerId]);
 }

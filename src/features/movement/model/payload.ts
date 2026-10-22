@@ -9,6 +9,7 @@ import {
 
 interface CreatePresencePayloadParams {
   userId: string;
+  sessionId?: string;
   nickname: string;
   joinedAt: string;
   villageId: VillageId;
@@ -19,6 +20,8 @@ interface CreatePresencePayloadParams {
 
 interface CreateSyncPositionPayloadParams {
   userId: string;
+  joinedAt?: string;
+  sessionId?: string;
   nickname: string;
   villageId: VillageId;
   position: Position;
@@ -28,6 +31,7 @@ interface CreateSyncPositionPayloadParams {
 
 export const createPresencePayload = ({
   userId,
+  sessionId,
   nickname,
   joinedAt,
   villageId,
@@ -36,6 +40,7 @@ export const createPresencePayload = ({
   actionState = null,
 }: CreatePresencePayloadParams): PresenceMetadata => ({
   userId,
+  sessionId,
   nickname,
   joinedAt,
   villageId,
@@ -46,6 +51,7 @@ export const createPresencePayload = ({
 
 export const createPresenceTrackSignature = ({
   userId,
+  sessionId,
   nickname,
   joinedAt,
   villageId,
@@ -54,6 +60,7 @@ export const createPresenceTrackSignature = ({
 }: PresenceMetadata) =>
   JSON.stringify({
     userId,
+    sessionId,
     nickname,
     joinedAt,
     villageId,
@@ -63,6 +70,8 @@ export const createPresenceTrackSignature = ({
 
 export const createSyncPositionPayload = ({
   userId,
+  joinedAt,
+  sessionId,
   nickname,
   villageId,
   position,
@@ -70,6 +79,8 @@ export const createSyncPositionPayload = ({
   actionState = null,
 }: CreateSyncPositionPayloadParams): SyncPositionPayload => ({
   userId,
+  joinedAt,
+  sessionId,
   nickname,
   villageId,
   position,

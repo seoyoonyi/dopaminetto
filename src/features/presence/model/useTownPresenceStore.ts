@@ -1,3 +1,4 @@
+import { usePlayerRenderStore } from "@/entities/player";
 import { VillageId } from "@/entities/village";
 import { TOWN_MAIN_CHANNEL } from "@/shared/lib/realtime";
 import {
@@ -6,6 +7,7 @@ import {
 } from "@/shared/lib/realtime/departureGrace";
 import { getTownChannelStatus } from "@/shared/lib/realtime/townChannelManager";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 
 import { groupParticipantsByVillage } from "../lib/groupByVillage";
@@ -19,6 +21,7 @@ interface TownPresenceState {
   isConnected: boolean;
   lastSyncedAt?: string;
   localJoinedAt: string;
+  localSessionId: string;
   previousUserIds: Set<string>;
   isAwaitingInitialJoin: boolean;
   /** 현재 유저의 음성 채널 연결 여부. presence track payload에 포함되어 다른 유저에게 공유된다. */
@@ -38,12 +41,14 @@ interface TownPresenceState {
   isAudioToggling: boolean;
 
   setParticipants: (participants: PresenceParticipant[], currentUserId: string) => void;
+  flushPendingNotifications: () => void;
+  clearPendingNotifications: () => void;
   setConnectionState: (isConnected: boolean) => void;
   /**
    * 정상 퇴장(뒤로가기/페이지 이탈) 신호를 받으면 grace 없이 즉시 참여자를 제거한다.
    * 신호가 없는 비정상 종료는 기존 presence leave + grace가 fallback으로 처리한다.
    */
-  markParticipantDeparted: (userId: string) => void;
+  markParticipantDeparted: (userId: string, sessionId: string) => void;
   /** 음성 연결 상태를 업데이트하고 presence track이 재전송되도록 한다. */
   setVoiceConnected: (voiceConnected: boolean) => void;
   /** 툴바에 표시할 음성 연결 진행 상태를 업데이트한다. */
@@ -63,13 +68,37 @@ interface TownPresenceState {
 }
 
 export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
+  const pendingNotifications = new Map<
+    string,
+    { type: "join" | "leave"; nickname: string; playerId?: string }
+  >();
+
+  const queueNotification = (participant: PresenceParticipant, type: "join" | "leave") => {
+    const pending = pendingNotifications.get(participant.userId);
+    // 화면에 반영되기 전에 뒤집힌 입퇴장은 서로 상쇄한다.
+    if (pending && pending.type !== type) {
+      pendingNotifications.delete(participant.userId);
+      return;
+    }
+    if (!usePresenceNotificationStore.getState().isPresenceNotificationEnabled) return;
+    // 구버전 presence에는 캐릭터 ID가 없어 제거 완료 여부를 판정할 수 없다.
+    if (type === "leave" && !participant.playerId) return;
+    pendingNotifications.set(participant.userId, {
+      type,
+      nickname: participant.nickname,
+      playerId: participant.playerId,
+    });
+  };
+
   /**
-   * 가장 최근에 setParticipants()로 들어온 원본(raw) presence 스냅샷의 userId 집합이다.
+   * 가장 최근 presence 스냅샷에서 정상 퇴장한 이전 등록을 제외한 userId 집합이다.
    * store의 participants는 departure grace 동안 이탈 후보를 계속 표시(retain)하므로,
    * "지금 실제로 존재하는가"를 판단하려면 store가 아니라 이 원본 스냅샷을 봐야 한다 —
    * get().participants를 쓰면 보류 중인 유저가 항상 "존재함"으로 판정되는 순환 오류가 생긴다.
    */
   let latestRawSnapshotUserIds = new Set<string>();
+  // sync-leave 이후 서버가 아직 제거하지 않은 동일 presence 등록의 재등장을 막는다.
+  const departedPresenceRefs = new Map<string, Set<string | undefined>>();
 
   /**
    * 이탈 확정 유예(grace) 정책. Movement의 remote player 제거와 동일한 shared 정책을 쓴다
@@ -77,7 +106,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
    * 만료되면 즉시 확정하지 않고, 신선한 presence 스냅샷이 도착할 때(reconcile) 재검증한다.
    */
   /**
-   * 이탈을 최종 확정한다. 참여자 목록에서 제거하고 퇴장 토스트를 띄운다.
+   * 이탈을 최종 확정한다. 참여자 목록에서 제거하고 화면 반영을 기다리는 알림을 등록한다.
    * grace 만료(onConfirmed)와 정상 퇴장 신호(markParticipantDeparted) 양쪽에서 쓴다.
    * 이미 목록에 없으면 아무 것도 하지 않는다.
    */
@@ -88,9 +117,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
     const nextParticipants = latestState.participants.filter((p) => p.userId !== userId);
 
-    if (usePresenceNotificationStore.getState().isPresenceNotificationEnabled) {
-      toast(`${departedParticipant.nickname}님이 퇴장했습니다.`, { duration: 3000 });
-    }
+    queueNotification(departedParticipant, "leave");
 
     set({
       participants: nextParticipants,
@@ -98,6 +125,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
       lastSyncedAt: new Date().toISOString(),
       previousUserIds: new Set(nextParticipants.map((p) => p.userId)),
     });
+    get().flushPendingNotifications();
   };
 
   const departureController = createDepartureGraceController({
@@ -113,6 +141,7 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
     isConnected: false,
     lastSyncedAt: undefined,
     localJoinedAt: new Date().toISOString(),
+    localSessionId: uuidv4(),
     previousUserIds: new Set(),
     isAwaitingInitialJoin: true,
     voiceConnected: false,
@@ -122,7 +151,42 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
     toggleLocalAudio: null,
     isAudioToggling: false,
 
+    clearPendingNotifications: () => pendingNotifications.clear(),
+
+    flushPendingNotifications: () => {
+      if (!usePresenceNotificationStore.getState().isPresenceNotificationEnabled) {
+        pendingNotifications.clear();
+        return;
+      }
+      const { isSceneReady, renderedUserIds } = usePlayerRenderStore.getState();
+      if (!isSceneReady) return;
+
+      pendingNotifications.forEach((notification, userId) => {
+        const isJoin = notification.type === "join";
+        // grace 동안 목록에 남아 있어도 원본 스냅샷에서 사라진 입장은 알리지 않는다.
+        if (isJoin && !latestRawSnapshotUserIds.has(userId)) return;
+        const participant = get().participants.find((p) => p.userId === userId);
+        const playerId = participant?.playerId ?? notification.playerId;
+        if (!playerId || renderedUserIds.has(playerId) !== isJoin) return;
+
+        pendingNotifications.delete(userId);
+        const nickname = participant?.nickname ?? notification.nickname;
+        toast(`${nickname}님이 ${isJoin ? "입장" : "퇴장"}했습니다.`, { duration: 3000 });
+      });
+    },
+
     setParticipants: (participants, currentUserId) => {
+      departedPresenceRefs.forEach((presenceRefs, userId) => {
+        presenceRefs.forEach((presenceRef) => {
+          if (!participants.some((p) => p.userId === userId && p.presenceRef === presenceRef)) {
+            presenceRefs.delete(presenceRef);
+          }
+        });
+        if (presenceRefs.size === 0) departedPresenceRefs.delete(userId);
+      });
+      participants = participants.filter(
+        (p) => !departedPresenceRefs.get(p.userId)?.has(p.presenceRef),
+      );
       latestRawSnapshotUserIds = new Set(participants.map((p) => p.userId));
 
       const state = get();
@@ -147,17 +211,6 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
         resolvedParticipants.displayParticipants,
       );
       const initialJoinParticipant = resolvedParticipants.initialJoinParticipant;
-      const isPresenceNotificationEnabled =
-        usePresenceNotificationStore.getState().isPresenceNotificationEnabled;
-      const shouldShowInitialJoinNotification =
-        initialJoinParticipant !== undefined && isPresenceNotificationEnabled;
-
-      if (shouldShowInitialJoinNotification) {
-        toast(`${initialJoinParticipant.nickname}님이 입장했습니다.`, {
-          duration: 3000,
-        });
-      }
-
       if (initialJoinParticipant) {
         set({
           participants: resolvedParticipants.displayParticipants,
@@ -168,14 +221,13 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
         });
 
         departureController.reconcile();
+        get().flushPendingNotifications();
         return;
       }
 
-      if (isPresenceNotificationEnabled) {
-        resolvedParticipants.joinToastParticipants.forEach((participant) => {
-          toast(`${participant.nickname}님이 입장했습니다.`, { duration: 3000 });
-        });
-      }
+      resolvedParticipants.joinToastParticipants.forEach((participant) => {
+        queueNotification(participant, "join");
+      });
 
       set({
         participants: resolvedParticipants.displayParticipants,
@@ -186,11 +238,19 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
       // 신선한 presence 스냅샷이 반영된 뒤, 재연결 중이라 확정을 보류해뒀던 이탈을 재검증한다.
       departureController.reconcile();
+      get().flushPendingNotifications();
     },
 
     setConnectionState: (isConnected) => set({ isConnected }),
 
-    markParticipantDeparted: (userId) => {
+    markParticipantDeparted: (userId, sessionId) => {
+      if (!sessionId) return;
+      const participant = get().participants.find((p) => p.userId === userId);
+      if (!participant || participant.sessionId !== sessionId) return;
+      const presenceRefs = departedPresenceRefs.get(userId) ?? new Set<string | undefined>();
+      presenceRefs.add(participant.presenceRef);
+      departedPresenceRefs.set(userId, presenceRefs);
+      latestRawSnapshotUserIds.delete(userId);
       departureController.cancel(userId);
       confirmDeparture(userId);
     },
@@ -217,12 +277,16 @@ export const useTownPresenceStore = create<TownPresenceState>((set, get) => {
 
     reset: () => {
       departureController.cancelAll();
+      pendingNotifications.clear();
+      latestRawSnapshotUserIds.clear();
+      departedPresenceRefs.clear();
 
       set({
         participants: [],
         groupedParticipants: {},
         isConnected: false,
         lastSyncedAt: undefined,
+        localSessionId: uuidv4(),
         previousUserIds: new Set(),
         isAwaitingInitialJoin: true,
         voiceConnected: false,

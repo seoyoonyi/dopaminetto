@@ -216,7 +216,7 @@ export class TownScene extends Phaser.Scene {
     this.mapCameraController.renderFrontLayer();
 
     // 배경색 설정 (맵 이미지 로드 실패/바깥 영역용)
-    this.cameras.main.setBackgroundColor("#c8aa78");
+    this.cameras.main.setBackgroundColor("#eaf4fc");
 
     this.campfireAmbientController = new AmbientSoundController(
       this,

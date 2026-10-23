@@ -208,7 +208,9 @@ export class MapLoader {
 
     return this.getLayerObjects(layer)
       .filter(
-        (object) => object.name === CAMPFIRE_OBJECT_NAME || object.type === CAMPFIRE_OBJECT_TYPE,
+        (object) =>
+          object.visible !== false &&
+          (object.name === CAMPFIRE_OBJECT_NAME || object.type === CAMPFIRE_OBJECT_TYPE),
       )
       .map((object) => {
         const properties = parseObjectProperties(object.properties);

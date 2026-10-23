@@ -2949,7 +2949,7 @@
                  "point":true,
                  "rotation":0,
                  "type":"Campfire",
-                 "visible":true,
+                 "visible":false,
                  "width":0,
                  "x":481.818181818182,
                  "y":337.272727272727

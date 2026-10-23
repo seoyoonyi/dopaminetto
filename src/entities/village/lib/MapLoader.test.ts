@@ -16,6 +16,8 @@ const loadTownMap = () => {
 type TestTiledObject = {
   name?: string;
   type?: string;
+  visible?: boolean;
+  id?: number;
 };
 
 type TestTiledLayer = {
@@ -216,7 +218,10 @@ describe("MapLoader", () => {
   });
 
   it("parses the campfire Point Object from the Effects layer", () => {
-    const mapLoader = loadTownMap();
+    const tmj = updateLayerObjects(loadTownMapJson(), "Effects", (objects) =>
+      objects.map((object) => ({ ...object, visible: true })),
+    );
+    const mapLoader = new MapLoader(tmj);
     const campfireEffects = mapLoader.getCampfireEffects();
 
     expect(campfireEffects).toHaveLength(1);
@@ -232,7 +237,10 @@ describe("MapLoader", () => {
   });
 
   it("derives a static collision rect matching the rendered campfire-base footprint", () => {
-    const mapLoader = loadTownMap();
+    const tmj = updateLayerObjects(loadTownMapJson(), "Effects", (objects) =>
+      objects.map((object) => ({ ...object, visible: true })),
+    );
+    const mapLoader = new MapLoader(tmj);
     const campfire = mapLoader.getCampfireEffects()[0];
     const derivedRect = mapLoader
       .getCollisionRects()
@@ -243,6 +251,17 @@ describe("MapLoader", () => {
     expect(derivedRect).toBeDefined();
     expect(derivedRect!.x + derivedRect!.width / 2).toBeCloseTo(campfire.x + 18);
     expect(derivedRect!.y + derivedRect!.height / 2).toBeCloseTo(campfire.y - 10);
+  });
+
+  it("ignores hidden campfire objects while preserving them in the map", () => {
+    const tmj = loadTownMapJson();
+    const campfireObject = tmj.layers.find((layer: TestTiledLayer) => layer.name === "Effects")
+      ?.objects?.[0];
+    const mapLoader = new MapLoader(tmj);
+
+    expect(campfireObject).toMatchObject({ name: "campfire", visible: false });
+    expect(mapLoader.getCampfireEffects()).toEqual([]);
+    expect(mapLoader.getCollisionRects().some((rect) => rect.id === campfireObject.id)).toBe(false);
   });
 
   it("returns an empty campfire effect list when the Effects layer is missing", () => {

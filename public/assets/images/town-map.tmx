@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="11" nextobjectid="430">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="11" nextobjectid="434">
  <editorsettings>
   <export target="town-map.tmj" format="json"/>
  </editorsettings>
@@ -239,6 +239,10 @@
   <object id="423" x="374.306" y="856.911" width="31.8126" height="49.4111"/>
   <object id="424" x="1033.57" y="852.173" width="37.9044" height="55.5029"/>
   <object id="425" x="812.238" y="946.934" width="48.0574" height="105.591"/>
+  <object id="430" name="snowman-head" type="Snowman" x="520" y="320" width="60" height="56"/>
+  <object id="431" name="snowman-arms" type="Snowman" x="500" y="352" width="100" height="34"/>
+  <object id="432" name="snowman-body" type="Snowman" x="512" y="376" width="84" height="40"/>
+  <object id="433" name="snowman-base" type="Snowman" x="508" y="408" width="96" height="24"/>
  </objectgroup>
  <objectgroup id="6" name="Trigger" locked="1">
   <object id="348" name="village-a" type="VillageArea" x="-8.51571" y="-12.1948" width="765.146" height="595.57"/>

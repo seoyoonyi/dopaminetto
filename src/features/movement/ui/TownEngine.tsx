@@ -104,7 +104,9 @@ export const TownEngine = () => {
       height: GAME_CONFIG.HEIGHT,
       parent: gameContainerRef.current,
       scene: TownScene,
-      backgroundColor: "#222",
+      backgroundColor: getComputedStyle(gameContainerRef.current)
+        .getPropertyValue("--winter-town-canvas-background")
+        .trim(),
       pixelArt: true, // 도트 그래픽 보간(안티앨리어싱) 방지
       roundPixels: true, // 소수점 좌표 렌더링 시 외곽선 뭉개짐(번짐) 방지
       scale: {
@@ -129,7 +131,7 @@ export const TownEngine = () => {
 
   return (
     <div
-      className="relative w-full h-full flex items-center justify-center bg-[#c8aa78] overflow-hidden rounded-lg shadow-2xl border-4 border-gray-800"
+      className="relative w-full h-full flex items-center justify-center bg-[var(--winter-town-canvas-background)] overflow-hidden rounded-lg shadow-2xl border-4 border-gray-800"
       style={{ imageRendering: "pixelated" }}
     >
       {mapLoadStatus === "error" ? (

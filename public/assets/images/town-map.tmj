@@ -44,7 +44,7 @@
                  "width":2.18134,
                  "x":858.722,
                  "y":448.629
-                }, 
+                },
                 {
                  "height":76.8333,
                  "id":17,
@@ -2794,6 +2794,54 @@
                  "width":48.0574,
                  "x":812.238,
                  "y":946.934
+                },
+                {
+                 "height":56,
+                 "id":430,
+                 "name":"snowman-head",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"Snowman",
+                 "visible":true,
+                 "width":60,
+                 "x":520,
+                 "y":320
+                },
+                {
+                 "height":34,
+                 "id":431,
+                 "name":"snowman-arms",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"Snowman",
+                 "visible":true,
+                 "width":100,
+                 "x":500,
+                 "y":352
+                },
+                {
+                 "height":40,
+                 "id":432,
+                 "name":"snowman-body",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"Snowman",
+                 "visible":true,
+                 "width":84,
+                 "x":512,
+                 "y":376
+                },
+                {
+                 "height":24,
+                 "id":433,
+                 "name":"snowman-base",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"Snowman",
+                 "visible":true,
+                 "width":96,
+                 "x":508,
+                 "y":408
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -2901,7 +2949,7 @@
                  "point":true,
                  "rotation":0,
                  "type":"Campfire",
-                 "visible":true,
+                 "visible":false,
                  "width":0,
                  "x":481.818181818182,
                  "y":337.272727272727
@@ -2913,7 +2961,7 @@
          "y":0
         }],
  "nextlayerid":11,
- "nextobjectid":430,
+ "nextobjectid":434,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.2",

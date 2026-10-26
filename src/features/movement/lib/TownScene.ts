@@ -10,7 +10,9 @@ import {
   AMBIENT_AUDIO_URLS,
   AmbientSoundController,
   CAMPFIRE_SOUND_CONFIG,
+  CHRISTMAS_TREE_SOUND_CONFIG,
   resolveCampfireSources,
+  resolveChristmasTreeSources,
 } from "@/features/ambientSound/phaser";
 import {
   CHARACTER_OPTIONS,
@@ -63,6 +65,7 @@ export class TownScene extends Phaser.Scene {
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
   private campfireAmbientController?: AmbientSoundController;
+  private christmasTreeAmbientController?: AmbientSoundController;
 
   /** 스프라이트 변경이 캔버스에 반영된 프레임에서 표시 상태를 공개한다. */
   private publishRenderedPlayers = () => {
@@ -99,6 +102,8 @@ export class TownScene extends Phaser.Scene {
     this.remotePlayersController = undefined;
     this.campfireAmbientController?.destroy();
     this.campfireAmbientController = undefined;
+    this.christmasTreeAmbientController?.destroy();
+    this.christmasTreeAmbientController = undefined;
   };
 
   constructor() {
@@ -125,6 +130,7 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
+    this.load.audio(AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE, AMBIENT_AUDIO_URLS.CHRISTMAS_TREE);
 
     ChristmasTreeEffectsController.preload(this);
 
@@ -229,6 +235,19 @@ export class TownScene extends Phaser.Scene {
       mapLoader ? resolveCampfireSources(mapLoader) : [],
       CAMPFIRE_SOUND_CONFIG,
     );
+
+    const christmasTreeSources = mapLoader ? resolveChristmasTreeSources(mapLoader) : [];
+    if (
+      christmasTreeSources.length > 0 &&
+      this.cache?.audio?.exists(AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE)
+    ) {
+      this.christmasTreeAmbientController = new AmbientSoundController(
+        this,
+        AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE,
+        christmasTreeSources,
+        CHRISTMAS_TREE_SOUND_CONFIG,
+      );
+    }
 
     if (mapLoader) {
       const christmasTreeEffect = mapLoader.getChristmasTreeEffect();
@@ -335,7 +354,7 @@ export class TownScene extends Phaser.Scene {
       syncCharacterDepth(this.player, this.playerNameLabel);
     }
 
-    // 4. 모닥불 환경음 거리 기반 볼륨 갱신
+    // 4. 모닥불과 캐롤의 거리 기반 볼륨 갱신
     // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용한다.
     // 사용자 볼륨/음소거 설정은 매 프레임 store snapshot을 pull해 출력 배율로 반영한다(별도 구독 없음).
     const ambientSettings = useAmbientSoundStore.getState();
@@ -343,6 +362,11 @@ export class TownScene extends Phaser.Scene {
       this.player,
       useMovementStore.getState().villageId,
       ambientSettings.isMuted ? 0 : ambientSettings.volume,
+    );
+    this.christmasTreeAmbientController?.update(
+      this.player,
+      useMovementStore.getState().villageId,
+      ambientSettings.isChristmasTreeMuted ? 0 : ambientSettings.christmasTreeVolume,
     );
   };
 }

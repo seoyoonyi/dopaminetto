@@ -7,11 +7,22 @@ import { AmbientSoundFalloffConfig } from "@/features/ambientSound/model/types";
  */
 export const AMBIENT_AUDIO_KEYS = {
   CAMPFIRE: "ambient-campfire",
+  CHRISTMAS_TREE: "ambient-christmas-tree",
 } as const;
 
 export const AMBIENT_AUDIO_URLS = {
   CAMPFIRE: "/assets/audio/ambient/campfire.mp3",
+  CHRISTMAS_TREE: "/assets/audio/ambient/christmas-carol.mp3",
 } as const;
+
+/** 트리 캐롤의 초기 근거리·외곽 감쇠값. 실제 청취 후 조정한다. */
+export const CHRISTMAS_TREE_SOUND_CONFIG: AmbientSoundFalloffConfig = {
+  innerRadius: 100,
+  outerRadius: 320,
+  maxVolume: 1,
+  minVolume: 0.05,
+  volumeSmoothingRate: 0.006,
+};
 
 /**
  * 모닥불 환경음의 거리 기반 감쇠 파라미터 (px, 맵 좌표 기준)

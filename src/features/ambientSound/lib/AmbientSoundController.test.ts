@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { AmbientSoundFalloffConfig } from "@/features/ambientSound/model/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AmbientSoundController } from "./AmbientSoundController";
@@ -38,7 +39,7 @@ function makeBufferSource() {
   };
 }
 
-function setup(sources = [SOURCE]) {
+function setup(sources = [SOURCE], falloff: AmbientSoundFalloffConfig = FALLOFF) {
   const nodes: ReturnType<typeof makeBufferSource>[] = [];
   const gains: ReturnType<typeof makeGain>[] = [];
   const buffer = { duration: 44 };
@@ -66,7 +67,7 @@ function setup(sources = [SOURCE]) {
     scene as never,
     "ambient-campfire",
     sources,
-    FALLOFF,
+    falloff,
   );
   controllers.push(controller);
   return { controller, context, nodes, gains, buffer, destination };
@@ -206,5 +207,32 @@ describe("AmbientSoundController", () => {
       expect(nodes[0].stop).toHaveBeenCalledTimes(1);
       expect(nodes[0].disconnect).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it("minVolume 설정은 반경 바깥에서도 유지되고 userVolume을 적용하며, 다른 빌리지에서는 정지한다", () => {
+    const { controller, nodes, gains } = setup([SOURCE], { ...FALLOFF, minVolume: 0.05 });
+
+    controller.update(INSIDE, "village-a");
+    expect(gains[0].gain.value).toBe(1);
+
+    controller.update({ x: 800, y: 400 }, "village-a", 0.4);
+    expect(gains[0].gain.value).toBeCloseTo(0.05 * 0.4, 10);
+    expect(nodes[0].stop).not.toHaveBeenCalled();
+
+    controller.update({ x: 800, y: 400 }, "lobby", 0.4);
+    expect(nodes[0].stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("minVolume 생략 시 기존처럼 outerRadius에서 재생을 멈춘다", () => {
+    const { controller, nodes } = setup();
+    controller.update(INSIDE, "village-a");
+    controller.update({ x: 700, y: 400 }, "village-a");
+    expect(nodes[0].stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("minVolume 설정 시 innerRadius부터 outerRadius까지 선형으로 감쇠한다", () => {
+    const { controller, gains } = setup([SOURCE], { ...FALLOFF, minVolume: 0.05 });
+    controller.update({ x: 600, y: 400 }, "village-a");
+    expect(gains[0].gain.value).toBeCloseTo(0.525, 10);
   });
 });

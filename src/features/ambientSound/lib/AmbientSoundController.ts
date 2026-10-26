@@ -69,17 +69,18 @@ export class AmbientSoundController {
   }
 
   /**
-   * 거리(px)를 innerRadius~outerRadius 구간에서 maxVolume~0으로 선형 매핑한다.
-   * innerRadius 이내는 항상 maxVolume, outerRadius 이상은 항상 0.
+   * 거리(px)를 innerRadius~outerRadius 구간에서 maxVolume~minVolume으로 선형 매핑한다.
+   * innerRadius 이내는 maxVolume, outerRadius 이상은 minVolume이다(기본값 0).
    */
   private calculateTargetVolume(distance: number): number {
     const { innerRadius, outerRadius, maxVolume } = this.falloffConfig;
+    const minVolume = this.falloffConfig.minVolume ?? 0;
 
     if (distance <= innerRadius) return maxVolume;
-    if (distance >= outerRadius) return 0;
+    if (distance >= outerRadius) return minVolume;
 
-    const falloff = 1 - (distance - innerRadius) / (outerRadius - innerRadius);
-    return maxVolume * falloff;
+    const falloff = (distance - innerRadius) / (outerRadius - innerRadius);
+    return maxVolume - (maxVolume - minVolume) * falloff;
   }
 
   /**

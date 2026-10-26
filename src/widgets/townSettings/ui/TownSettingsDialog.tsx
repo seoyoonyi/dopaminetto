@@ -58,7 +58,7 @@ export function TownSettingsDialog() {
           </ul>
         </nav>
 
-        <div className="min-w-0 flex-1">
+        <div className="h-48 min-w-0 flex-1 overflow-y-auto">
           {activeCategory === "sound" ? <AmbientSoundSettings /> : <PresenceNotificationSettings />}
         </div>
       </div>

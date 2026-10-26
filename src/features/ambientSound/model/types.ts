@@ -21,8 +21,9 @@ export interface AmbientSoundSource {
  */
 export interface AmbientSoundFalloffConfig {
   innerRadius: number; // 이 거리(px) 이내는 항상 maxVolume
-  outerRadius: number; // 이 거리(px) 이상은 항상 0 (무음)
+  outerRadius: number; // 이 거리(px) 이상은 minVolume (기본값 0)
   maxVolume: number;
+  minVolume?: number; // 생략하면 outerRadius 이상에서 무음
   // 프레임마다 currentVolume을 targetVolume 쪽으로 얼마나 당길지 결정하는 ms 단위 보간 속도.
   // delta(ms) * 이 값을 Phaser.Math.Linear의 t로 사용한다.
   volumeSmoothingRate: number;

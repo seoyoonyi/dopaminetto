@@ -42,14 +42,16 @@ vi.mock("@/features/movement", async () => {
 });
 
 vi.mock("@/features/ambientSound/phaser", () => ({
-  AMBIENT_AUDIO_KEYS: { CAMPFIRE: "campfire" },
-  AMBIENT_AUDIO_URLS: { CAMPFIRE: "" },
+  AMBIENT_AUDIO_KEYS: { CAMPFIRE: "campfire", CHRISTMAS_TREE: "christmas-tree" },
+  AMBIENT_AUDIO_URLS: { CAMPFIRE: "", CHRISTMAS_TREE: "" },
   CAMPFIRE_SOUND_CONFIG: {},
+  CHRISTMAS_TREE_SOUND_CONFIG: {},
   AmbientSoundController: class AmbientSoundController {
     destroy = mockAmbientDestroy;
     update = vi.fn();
   },
   resolveCampfireSources: () => [],
+  resolveChristmasTreeSources: () => [],
 }));
 
 type DisplayObject = {

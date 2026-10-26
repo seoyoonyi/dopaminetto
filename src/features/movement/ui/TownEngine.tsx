@@ -12,7 +12,8 @@ import {
   resolveTownEntryGate,
 } from "@/features/movement/model/entryGate";
 import type { RestoreStatus } from "@/features/movement/model/types";
-import { MovementOverlay } from "@/features/movement/ui/MovementOverlay";
+// 테스트 중에만 직접 사용하는 디버그 오버레이로, 배포 엔진에서는 연결하지 않는다.
+// import { MovementOverlay } from "@/features/movement/ui/MovementOverlay";
 import { TownEntryPreparing } from "@/features/movement/ui/TownEntryPreparing";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/button";
@@ -151,7 +152,8 @@ export const TownEngine = () => {
           entryGate.shouldFadeIn && engineVisible && "opacity-100",
         )}
       />
-      {entryGate.canMountEngine ? <MovementOverlay /> : null}
+      {/* 테스트 전용 디버그 오버레이는 배포 화면에 렌더링하지 않는다.
+      {entryGate.canMountEngine ? <MovementOverlay /> : null} */}
     </div>
   );
 };

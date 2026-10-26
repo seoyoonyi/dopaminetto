@@ -2842,6 +2842,54 @@
                  "width":96,
                  "x":508,
                  "y":408
+                },
+                {
+                 "height":28,
+                 "id":434,
+                 "name":"christmas-tree-base-upper",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"ChristmasTree",
+                 "visible":true,
+                 "width":301,
+                 "x":585,
+                 "y":786
+                },
+                {
+                 "height":43,
+                 "id":435,
+                 "name":"christmas-tree-base-lower",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"ChristmasTree",
+                 "visible":true,
+                 "width":236,
+                 "x":622,
+                 "y":814
+                },
+                {
+                 "height":52,
+                 "id":437,
+                 "name":"christmas-tree-base-left-corner",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"ChristmasTree",
+                 "visible":true,
+                 "width":49,
+                 "x":573,
+                 "y":802
+                },
+                {
+                 "height":40,
+                 "id":438,
+                 "name":"christmas-tree-base-right-corner",
+                 "opacity":1,
+                 "rotation":0,
+                 "type":"ChristmasTree",
+                 "visible":true,
+                 "width":28,
+                 "x":858,
+                 "y":814
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -2953,6 +3001,19 @@
                  "width":0,
                  "x":481.818181818182,
                  "y":337.272727272727
+                },
+                {
+                 "height":0,
+                 "id":436,
+                 "name":"christmas-tree",
+                 "opacity":1,
+                 "point":true,
+                 "rotation":0,
+                 "type":"ChristmasTree",
+                 "visible":true,
+                 "width":0,
+                 "x":734,
+                 "y":857
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -2961,7 +3022,7 @@
          "y":0
         }],
  "nextlayerid":11,
- "nextobjectid":434,
+ "nextobjectid":440,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.12.2",

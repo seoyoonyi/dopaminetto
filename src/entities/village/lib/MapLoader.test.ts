@@ -18,6 +18,9 @@ type TestTiledObject = {
   type?: string;
   visible?: boolean;
   id?: number;
+  x?: number;
+  y?: number;
+  point?: boolean;
 };
 
 type TestTiledLayer = {
@@ -92,6 +95,27 @@ const renameObject = (
   );
 
 describe("MapLoader", () => {
+  it("Effects 레이어의 트리 기준점을 환경음 위치로 제공한다", () => {
+    const mapLoader = loadTownMap();
+
+    expect(mapLoader.getChristmasTreeEffect()).toEqual({
+      id: 436,
+      name: "christmas-tree",
+      x: 734,
+      y: 857,
+    });
+  });
+
+  it("숨겨진 트리 Effect는 런타임 기준점에서 제외한다", () => {
+    const tmj = updateLayerObjects(loadTownMapJson(), "Effects", (objects) =>
+      objects.map((object) =>
+        object.type === "ChristmasTree" ? { ...object, visible: false } : object,
+      ),
+    );
+
+    expect(new MapLoader(tmj).getChristmasTreeEffect()).toBeUndefined();
+  });
+
   it("parses image layers from TMJ", () => {
     const mapLoader = loadTownMap();
 

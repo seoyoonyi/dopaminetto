@@ -32,6 +32,7 @@ import {
   CAMPFIRE_FLAME_FRAME_WIDTH,
   CampfireEffectsController,
 } from "@/features/movement/lib/CampfireEffectsController";
+import { ChristmasTreeEffectsController } from "@/features/movement/lib/ChristmasTreeEffectsController";
 import { TownInputController } from "@/features/movement/lib/TownInputController";
 import { TownLocalPlayerController } from "@/features/movement/lib/TownLocalPlayerController";
 import { TownMapCameraController } from "@/features/movement/lib/TownMapCameraController";
@@ -124,6 +125,8 @@ export class TownScene extends Phaser.Scene {
     });
 
     this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
+
+    ChristmasTreeEffectsController.preload(this);
 
     this.load.image(CAMPFIRE_BASE_ASSET_KEY, CAMPFIRE_BASE_ASSET_URL);
     this.load.spritesheet(CAMPFIRE_FLAME_ASSET_KEY, CAMPFIRE_FLAME_ASSET_URL, {
@@ -228,6 +231,10 @@ export class TownScene extends Phaser.Scene {
     );
 
     if (mapLoader) {
+      const christmasTreeEffect = mapLoader.getChristmasTreeEffect();
+      if (christmasTreeEffect) {
+        new ChristmasTreeEffectsController(this, christmasTreeEffect, CHARACTER_DEPTH_BASE);
+      }
       new CampfireEffectsController(this, resolveCampfireVisuals(mapLoader), CHARACTER_DEPTH_BASE);
     }
 

@@ -1,6 +1,7 @@
 import { PLAYABLE_VILLAGE_IDS, VILLAGE_IDS, isVillageId } from "../config/villageData";
 import {
   CampfireEffect,
+  ChristmasTreeEffect,
   CollisionRect,
   LOBBY_VILLAGE_ID,
   MapBounds,
@@ -74,6 +75,8 @@ const VILLAGE_AREA_TYPE = "VillageArea";
 const SPAWN_POINT_TYPE = "SpawnPoint";
 const CAMPFIRE_OBJECT_NAME = "campfire";
 const CAMPFIRE_OBJECT_TYPE = "Campfire";
+const CHRISTMAS_TREE_OBJECT_NAME = "christmas-tree";
+const CHRISTMAS_TREE_OBJECT_TYPE = "ChristmasTree";
 
 // 캠프파이어 Point Object에 colliderWidth/colliderHeight/colliderOffsetX/colliderOffsetY가
 // 지정되지 않았을 때 사용하는 기본값. CampfireEffectsController가 렌더링하는 campfire-base.png
@@ -95,6 +98,7 @@ export class MapLoader {
   private readonly villageAreas: VillageArea[];
   private readonly spawnPoints: Map<VillageId, SpawnPoint>;
   private readonly campfireEffects: CampfireEffect[];
+  private readonly christmasTreeEffect: ChristmasTreeEffect | undefined;
   private readonly backgroundImage: MapImageLayer;
   private readonly frontImage: MapImageLayer;
   private mapBounds: MapBounds;
@@ -105,6 +109,7 @@ export class MapLoader {
     this.backgroundImage = this.parseRequiredImageLayer(IMAGE_LAYER_NAMES.BACKGROUND);
     this.frontImage = this.parseRequiredImageLayer(IMAGE_LAYER_NAMES.FRONT);
     this.campfireEffects = this.parseCampfireEffects();
+    this.christmasTreeEffect = this.parseChristmasTreeEffect();
     this.collisionRects = [
       ...this.parseCollisionRects(),
       ...this.deriveCampfireColliderRects(this.campfireEffects),
@@ -138,6 +143,10 @@ export class MapLoader {
 
   getCampfireEffects(): CampfireEffect[] {
     return this.campfireEffects.map((effect) => ({ ...effect }));
+  }
+
+  getChristmasTreeEffect(): ChristmasTreeEffect | undefined {
+    return this.christmasTreeEffect ? { ...this.christmasTreeEffect } : undefined;
   }
 
   getSpawnPoint(name: string): SpawnPoint | undefined {
@@ -229,6 +238,26 @@ export class MapLoader {
           colliderOffsetY: readNumberProperty(properties, "colliderOffsetY"),
         };
       });
+  }
+
+  private parseChristmasTreeEffect(): ChristmasTreeEffect | undefined {
+    const layer = this.findLayer(OBJECT_LAYER_NAMES.EFFECTS, "objectgroup");
+    const object = (layer?.objects ?? []).find(
+      (candidate) =>
+        candidate.visible !== false &&
+        candidate.point === true &&
+        (candidate.name === CHRISTMAS_TREE_OBJECT_NAME ||
+          candidate.type === CHRISTMAS_TREE_OBJECT_TYPE),
+    );
+
+    if (!object) return undefined;
+
+    return {
+      id: object.id ?? 0,
+      name: object.name ?? CHRISTMAS_TREE_OBJECT_NAME,
+      x: object.x ?? 0,
+      y: object.y ?? 0,
+    };
   }
 
   /**

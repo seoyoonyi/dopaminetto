@@ -57,6 +57,14 @@ export interface CampfireEffect {
   colliderOffsetY?: number;
 }
 
+/** Effects 오브젝트 레이어의 크리스마스트리 기준점. 렌더링과 환경음이 같은 위치를 사용한다. */
+export interface ChristmasTreeEffect {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+}
+
 export interface MapImageLayer {
   name: "Background" | "Front";
   image: string;

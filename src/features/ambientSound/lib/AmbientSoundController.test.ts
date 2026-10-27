@@ -16,7 +16,7 @@ vi.mock("phaser", () => ({
   },
 }));
 
-const SOURCE = { id: "campfire", villageId: "village-a" as const, x: 400, y: 400 };
+const SOURCE = { id: "test-source", villageId: "village-a" as const, x: 400, y: 400 };
 const INSIDE = { x: 400, y: 400 };
 const OUTSIDE = { x: 6000, y: 400 };
 // volumeSmoothingRate * delta(1000) >= 1 이라 첫 프레임에 target volume으로 스냅된다.
@@ -63,12 +63,7 @@ function setup(sources = [SOURCE], falloff: AmbientSoundFalloffConfig = FALLOFF)
     cache: { audio: { get: () => buffer } },
     game: { loop: { delta: 1000 } },
   };
-  const controller = new AmbientSoundController(
-    scene as never,
-    "ambient-campfire",
-    sources,
-    falloff,
-  );
+  const controller = new AmbientSoundController(scene as never, "ambient-test", sources, falloff);
   controllers.push(controller);
   return { controller, context, nodes, gains, buffer, destination };
 }

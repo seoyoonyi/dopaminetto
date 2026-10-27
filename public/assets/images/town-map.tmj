@@ -2991,19 +2991,6 @@
          "objects":[
                 {
                  "height":0,
-                 "id":428,
-                 "name":"campfire",
-                 "opacity":1,
-                 "point":true,
-                 "rotation":0,
-                 "type":"Campfire",
-                 "visible":false,
-                 "width":0,
-                 "x":481.818181818182,
-                 "y":337.272727272727
-                },
-                {
-                 "height":0,
                  "id":436,
                  "name":"christmas-tree",
                  "opacity":1,

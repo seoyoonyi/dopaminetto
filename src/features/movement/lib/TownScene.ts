@@ -9,9 +9,7 @@ import {
   AMBIENT_AUDIO_KEYS,
   AMBIENT_AUDIO_URLS,
   AmbientSoundController,
-  CAMPFIRE_SOUND_CONFIG,
   CHRISTMAS_TREE_SOUND_CONFIG,
-  resolveCampfireSources,
   resolveChristmasTreeSources,
 } from "@/features/ambientSound/phaser";
 import {
@@ -25,15 +23,6 @@ import {
   getLocalActionAnimationKey,
   useMovementStore,
 } from "@/features/movement";
-import {
-  CAMPFIRE_BASE_ASSET_KEY,
-  CAMPFIRE_BASE_ASSET_URL,
-  CAMPFIRE_FLAME_ASSET_KEY,
-  CAMPFIRE_FLAME_ASSET_URL,
-  CAMPFIRE_FLAME_FRAME_HEIGHT,
-  CAMPFIRE_FLAME_FRAME_WIDTH,
-  CampfireEffectsController,
-} from "@/features/movement/lib/CampfireEffectsController";
 import { ChristmasTreeEffectsController } from "@/features/movement/lib/ChristmasTreeEffectsController";
 import { TownInputController } from "@/features/movement/lib/TownInputController";
 import { TownLocalPlayerController } from "@/features/movement/lib/TownLocalPlayerController";
@@ -45,7 +34,6 @@ import {
   syncCharacterDepth,
 } from "@/features/movement/lib/characterSprite";
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
-import { resolveCampfireVisuals } from "@/features/movement/lib/resolveCampfireVisuals";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import { useSettingsDialogStore } from "@/shared/store";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
@@ -64,7 +52,6 @@ export class TownScene extends Phaser.Scene {
   private playerNameLabel!: Phaser.GameObjects.Text;
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
-  private campfireAmbientController?: AmbientSoundController;
   private christmasTreeAmbientController?: AmbientSoundController;
 
   /** 스프라이트 변경이 캔버스에 반영된 프레임에서 표시 상태를 공개한다. */
@@ -100,8 +87,6 @@ export class TownScene extends Phaser.Scene {
     this.mapCameraController = undefined;
     this.remotePlayersController?.destroy();
     this.remotePlayersController = undefined;
-    this.campfireAmbientController?.destroy();
-    this.campfireAmbientController = undefined;
     this.christmasTreeAmbientController?.destroy();
     this.christmasTreeAmbientController = undefined;
   };
@@ -129,16 +114,9 @@ export class TownScene extends Phaser.Scene {
       });
     });
 
-    this.load.audio(AMBIENT_AUDIO_KEYS.CAMPFIRE, AMBIENT_AUDIO_URLS.CAMPFIRE);
     this.load.audio(AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE, AMBIENT_AUDIO_URLS.CHRISTMAS_TREE);
 
     ChristmasTreeEffectsController.preload(this);
-
-    this.load.image(CAMPFIRE_BASE_ASSET_KEY, CAMPFIRE_BASE_ASSET_URL);
-    this.load.spritesheet(CAMPFIRE_FLAME_ASSET_KEY, CAMPFIRE_FLAME_ASSET_URL, {
-      frameWidth: CAMPFIRE_FLAME_FRAME_WIDTH,
-      frameHeight: CAMPFIRE_FLAME_FRAME_HEIGHT,
-    });
   };
 
   create = () => {
@@ -229,13 +207,6 @@ export class TownScene extends Phaser.Scene {
       getComputedStyle(this.game.canvas).getPropertyValue("--winter-town-canvas-background").trim(),
     );
 
-    this.campfireAmbientController = new AmbientSoundController(
-      this,
-      AMBIENT_AUDIO_KEYS.CAMPFIRE,
-      mapLoader ? resolveCampfireSources(mapLoader) : [],
-      CAMPFIRE_SOUND_CONFIG,
-    );
-
     const christmasTreeSources = mapLoader ? resolveChristmasTreeSources(mapLoader) : [];
     if (
       christmasTreeSources.length > 0 &&
@@ -254,7 +225,6 @@ export class TownScene extends Phaser.Scene {
       if (christmasTreeEffect) {
         new ChristmasTreeEffectsController(this, christmasTreeEffect, CHARACTER_DEPTH_BASE);
       }
-      new CampfireEffectsController(this, resolveCampfireVisuals(mapLoader), CHARACTER_DEPTH_BASE);
     }
 
     this.remotePlayersController = new TownRemotePlayersController(this);
@@ -354,15 +324,10 @@ export class TownScene extends Phaser.Scene {
       syncCharacterDepth(this.player, this.playerNameLabel);
     }
 
-    // 4. 모닥불과 캐롤의 거리 기반 볼륨 갱신
+    // 4. 캐롤의 거리 기반 볼륨 갱신
     // villageId는 이번 프레임 입력 처리(updatePosition) 이후의 최신 값을 다시 조회해 사용한다.
     // 사용자 볼륨/음소거 설정은 매 프레임 store snapshot을 pull해 출력 배율로 반영한다(별도 구독 없음).
     const ambientSettings = useAmbientSoundStore.getState();
-    this.campfireAmbientController?.update(
-      this.player,
-      useMovementStore.getState().villageId,
-      ambientSettings.isMuted ? 0 : ambientSettings.volume,
-    );
     this.christmasTreeAmbientController?.update(
       this.player,
       useMovementStore.getState().villageId,

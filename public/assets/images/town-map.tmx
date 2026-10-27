@@ -264,9 +264,6 @@
   </object>
  </objectgroup>
  <objectgroup id="10" name="Effects">
-  <object id="428" name="campfire" type="Campfire" x="481.818" y="337.273" visible="0">
-   <point/>
-  </object>
   <object id="436" name="christmas-tree" type="ChristmasTree" x="734" y="857">
    <point/>
   </object>

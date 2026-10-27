@@ -160,7 +160,6 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     for (const label of ["설정", "환경음", "크리스마스 캐롤", "타운 환경 설정"]) {
       expect(text()).toContain(label);
     }
-    expect(text()).not.toContain("모닥불");
     expectStored(100, false);
     expectDisplay(100);
     expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거");

@@ -16,7 +16,7 @@ interface AmbientSoundInstance {
 const SILENCE_THRESHOLD = 0.001;
 
 /**
- * 위치 기반 환경음(모닥불 등)의 거리 기반 재생, 볼륨 감쇠, 정지를 담당하는 범용 컨트롤러.
+ * 위치 기반 환경음의 거리 기반 재생, 볼륨 감쇠, 정지를 담당하는 범용 컨트롤러.
  * 반복 재생은 Phaser Sound(프레임마다 다음 버퍼를 예약하는 구조) 대신 native
  * AudioBufferSourceNode의 loop를 사용한다. 덕분에 백그라운드 탭으로 game loop가 멈춰도
  * 재생이 끊기지 않는다. GainNode는 Phaser soundManager.destination에 연결해 전역 볼륨/음소거를

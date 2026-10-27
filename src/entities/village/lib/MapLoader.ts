@@ -1,6 +1,5 @@
 import { PLAYABLE_VILLAGE_IDS, VILLAGE_IDS, isVillageId } from "../config/villageData";
 import {
-  CampfireEffect,
   ChristmasTreeEffect,
   CollisionRect,
   LOBBY_VILLAGE_ID,
@@ -10,12 +9,7 @@ import {
   VillageArea,
   VillageId,
 } from "../model/types";
-import {
-  TiledObjectProperty,
-  parseObjectProperties,
-  readNumberProperty,
-  readStringProperty,
-} from "./tiledObjectProperties";
+import { TiledObjectProperty } from "./tiledObjectProperties";
 
 type TiledLayerType = "imagelayer" | "objectgroup" | string;
 
@@ -73,23 +67,8 @@ const OBJECT_LAYER_NAMES = {
 
 const VILLAGE_AREA_TYPE = "VillageArea";
 const SPAWN_POINT_TYPE = "SpawnPoint";
-const CAMPFIRE_OBJECT_NAME = "campfire";
-const CAMPFIRE_OBJECT_TYPE = "Campfire";
 const CHRISTMAS_TREE_OBJECT_NAME = "christmas-tree";
 const CHRISTMAS_TREE_OBJECT_TYPE = "ChristmasTree";
-
-// 캠프파이어 Point Object에 colliderWidth/colliderHeight/colliderOffsetX/colliderOffsetY가
-// 지정되지 않았을 때 사용하는 기본값. CampfireEffectsController가 렌더링하는 campfire-base.png
-// (194x63, scale 0.4, origin 0.27/0.9) 실제 화면 표시 영역(가로 78 x 세로 25, Tiled 포인트 대비
-// x+18/y-10 중심)과 정확히 일치하도록 잡아, 돌 바닥 전체를 막아 불 사이로 통과하지 못하게 한다.
-// scale custom property로 렌더링 크기가 달라지면 이 기본값들도 scale 비율만큼 함께 조정된다
-// (deriveCampfireColliderRects 참고). DEFAULT_CAMPFIRE_SCALE은
-// resolveCampfireVisuals.ts의 DEFAULT_CAMPFIRE_SCALE과 동일하게 유지해야 한다.
-const DEFAULT_CAMPFIRE_SCALE = 0.4;
-const DEFAULT_CAMPFIRE_COLLIDER_WIDTH = 78;
-const DEFAULT_CAMPFIRE_COLLIDER_HEIGHT = 25;
-const DEFAULT_CAMPFIRE_COLLIDER_OFFSET_X = 18;
-const DEFAULT_CAMPFIRE_COLLIDER_OFFSET_Y = -10;
 
 export class MapLoader {
   private readonly tmj: TiledMapJson;
@@ -97,7 +76,6 @@ export class MapLoader {
   private readonly collisionRects: CollisionRect[];
   private readonly villageAreas: VillageArea[];
   private readonly spawnPoints: Map<VillageId, SpawnPoint>;
-  private readonly campfireEffects: CampfireEffect[];
   private readonly christmasTreeEffect: ChristmasTreeEffect | undefined;
   private readonly backgroundImage: MapImageLayer;
   private readonly frontImage: MapImageLayer;
@@ -108,12 +86,8 @@ export class MapLoader {
     this.options = options;
     this.backgroundImage = this.parseRequiredImageLayer(IMAGE_LAYER_NAMES.BACKGROUND);
     this.frontImage = this.parseRequiredImageLayer(IMAGE_LAYER_NAMES.FRONT);
-    this.campfireEffects = this.parseCampfireEffects();
     this.christmasTreeEffect = this.parseChristmasTreeEffect();
-    this.collisionRects = [
-      ...this.parseCollisionRects(),
-      ...this.deriveCampfireColliderRects(this.campfireEffects),
-    ];
+    this.collisionRects = [...this.parseCollisionRects()];
     this.villageAreas = this.parseVillageAreas();
     this.spawnPoints = this.parseSpawnPoints();
     this.validateVillageReferences();
@@ -139,10 +113,6 @@ export class MapLoader {
 
   getVillageAreas(): VillageArea[] {
     return this.villageAreas.map((area) => ({ ...area }));
-  }
-
-  getCampfireEffects(): CampfireEffect[] {
-    return this.campfireEffects.map((effect) => ({ ...effect }));
   }
 
   getChristmasTreeEffect(): ChristmasTreeEffect | undefined {
@@ -206,40 +176,6 @@ export class MapLoader {
     }));
   }
 
-  /**
-   * Effects 오브젝트 레이어의 campfire Point Object를 파싱한다.
-   * 다른 레이어(Collision/Trigger/Spawn)와 달리 Effects 레이어는 필수가 아니므로
-   * requireLayer가 아닌 findLayer를 사용해 레이어가 없으면 빈 배열을 반환한다.
-   */
-  private parseCampfireEffects(): CampfireEffect[] {
-    const layer = this.findLayer(OBJECT_LAYER_NAMES.EFFECTS, "objectgroup");
-    if (!layer) return [];
-
-    return this.getLayerObjects(layer)
-      .filter(
-        (object) =>
-          object.visible !== false &&
-          (object.name === CAMPFIRE_OBJECT_NAME || object.type === CAMPFIRE_OBJECT_TYPE),
-      )
-      .map((object) => {
-        const properties = parseObjectProperties(object.properties);
-
-        return {
-          id: object.id ?? 0,
-          name: object.name ?? CAMPFIRE_OBJECT_NAME,
-          x: object.x ?? 0,
-          y: object.y ?? 0,
-          animationKey: readStringProperty(properties, "animationKey"),
-          scale: readNumberProperty(properties, "scale"),
-          depthOffset: readNumberProperty(properties, "depthOffset"),
-          colliderWidth: readNumberProperty(properties, "colliderWidth"),
-          colliderHeight: readNumberProperty(properties, "colliderHeight"),
-          colliderOffsetX: readNumberProperty(properties, "colliderOffsetX"),
-          colliderOffsetY: readNumberProperty(properties, "colliderOffsetY"),
-        };
-      });
-  }
-
   private parseChristmasTreeEffect(): ChristmasTreeEffect | undefined {
     const layer = this.findLayer(OBJECT_LAYER_NAMES.EFFECTS, "objectgroup");
     const object = (layer?.objects ?? []).find(
@@ -258,33 +194,6 @@ export class MapLoader {
       x: object.x ?? 0,
       y: object.y ?? 0,
     };
-  }
-
-  /**
-   * campfire Point Object의 colliderWidth/colliderHeight/colliderOffsetX/colliderOffsetY
-   * (미지정 시 기본값)로 정적 충돌 사각형을 만든다. offset은 (x, y)로부터의 중심 이동량으로,
-   * 돌 바닥 스프라이트가 Tiled 포인트를 기준으로 비대칭하게 그려지는 것을 보정해 충돌 영역이
-   * 실제 화면에 보이는 돌 바닥과 겹치도록 한다. 이 결과는 기존 collisionRects에 병합되어
-   * validateMovement의 AABB 충돌 검사에 그대로 반영된다.
-   */
-  private deriveCampfireColliderRects(campfireEffects: CampfireEffect[]): CollisionRect[] {
-    return campfireEffects.map((effect) => {
-      const scaleRatio = (effect.scale ?? DEFAULT_CAMPFIRE_SCALE) / DEFAULT_CAMPFIRE_SCALE;
-      const width = effect.colliderWidth ?? DEFAULT_CAMPFIRE_COLLIDER_WIDTH * scaleRatio;
-      const height = effect.colliderHeight ?? DEFAULT_CAMPFIRE_COLLIDER_HEIGHT * scaleRatio;
-      const offsetX = effect.colliderOffsetX ?? DEFAULT_CAMPFIRE_COLLIDER_OFFSET_X * scaleRatio;
-      const offsetY = effect.colliderOffsetY ?? DEFAULT_CAMPFIRE_COLLIDER_OFFSET_Y * scaleRatio;
-
-      return {
-        id: effect.id,
-        name: effect.name,
-        type: CAMPFIRE_OBJECT_TYPE,
-        x: effect.x + offsetX - width / 2,
-        y: effect.y + offsetY - height / 2,
-        width,
-        height,
-      };
-    });
   }
 
   private parseVillageAreas(): VillageArea[] {

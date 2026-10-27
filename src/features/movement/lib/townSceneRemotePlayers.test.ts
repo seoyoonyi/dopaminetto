@@ -42,15 +42,13 @@ vi.mock("@/features/movement", async () => {
 });
 
 vi.mock("@/features/ambientSound/phaser", () => ({
-  AMBIENT_AUDIO_KEYS: { CAMPFIRE: "campfire", CHRISTMAS_TREE: "christmas-tree" },
-  AMBIENT_AUDIO_URLS: { CAMPFIRE: "", CHRISTMAS_TREE: "" },
-  CAMPFIRE_SOUND_CONFIG: {},
+  AMBIENT_AUDIO_KEYS: { CHRISTMAS_TREE: "christmas-tree" },
+  AMBIENT_AUDIO_URLS: { CHRISTMAS_TREE: "" },
   CHRISTMAS_TREE_SOUND_CONFIG: {},
   AmbientSoundController: class AmbientSoundController {
     destroy = mockAmbientDestroy;
     update = vi.fn();
   },
-  resolveCampfireSources: () => [],
   resolveChristmasTreeSources: () => [],
 }));
 
@@ -291,7 +289,6 @@ describe("TownScene 원격 캐릭터 재시작", () => {
         getBackgroundImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
         getFrontImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
         getMapBounds: () => ({ x: 0, y: 0, width: 1448, height: 1086 }),
-        getCampfireEffects: () => [],
         getChristmasTreeEffect: () => ({ id: 436, name: "christmas-tree", x: 734, y: 857 }),
       } as never,
     });
@@ -472,6 +469,7 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     events.on("shutdown", otherShutdownListener);
     events.on("destroy", otherDestroyListener);
     scene.create();
+    Object.assign(scene, { christmasTreeAmbientController: { destroy: mockAmbientDestroy } });
     const localSprite = sprites[0];
 
     events.emit("destroy");
@@ -490,12 +488,14 @@ describe("TownScene 원격 캐릭터 재시작", () => {
   it("shutdown 후 재시작하고 destroy해도 각 실행의 자원을 한 번씩 정리한다", () => {
     const { scene, events } = makeScene();
     scene.create();
+    Object.assign(scene, { christmasTreeAmbientController: { destroy: mockAmbientDestroy } });
     events.emit("shutdown");
 
     expect(mockAmbientDestroy).toHaveBeenCalledTimes(1);
     expect(events.listenerCount("destroy")).toBe(1);
 
     scene.create();
+    Object.assign(scene, { christmasTreeAmbientController: { destroy: mockAmbientDestroy } });
     events.emit("destroy");
 
     expect(mockAmbientDestroy).toHaveBeenCalledTimes(2);

@@ -24,6 +24,7 @@ import {
   useMovementStore,
 } from "@/features/movement";
 import { ChristmasTreeEffectsController } from "@/features/movement/lib/ChristmasTreeEffectsController";
+import { SnowfallEffectsController } from "@/features/movement/lib/SnowfallEffectsController";
 import { TownInputController } from "@/features/movement/lib/TownInputController";
 import { TownLocalPlayerController } from "@/features/movement/lib/TownLocalPlayerController";
 import { TownMapCameraController } from "@/features/movement/lib/TownMapCameraController";
@@ -53,6 +54,7 @@ export class TownScene extends Phaser.Scene {
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
   private christmasTreeAmbientController?: AmbientSoundController;
+  private snowfallEffectsController?: SnowfallEffectsController;
 
   /** 스프라이트 변경이 캔버스에 반영된 프레임에서 표시 상태를 공개한다. */
   private publishRenderedPlayers = () => {
@@ -89,6 +91,8 @@ export class TownScene extends Phaser.Scene {
     this.remotePlayersController = undefined;
     this.christmasTreeAmbientController?.destroy();
     this.christmasTreeAmbientController = undefined;
+    this.snowfallEffectsController?.destroy();
+    this.snowfallEffectsController = undefined;
   };
 
   constructor() {
@@ -192,6 +196,8 @@ export class TownScene extends Phaser.Scene {
     );
     this.playerNameLabel.setOrigin(0.5, 1); // 이름표의 바닥을 기준점으로 설정
     syncCharacterDepth(this.player, this.playerNameLabel);
+
+    if (mapLoader) this.snowfallEffectsController = new SnowfallEffectsController(this, mapLoader);
 
     this.inputController = new TownInputController(this.input.keyboard!);
     this.localPlayerController = new TownLocalPlayerController(this.player, {

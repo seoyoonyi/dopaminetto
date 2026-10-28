@@ -48,43 +48,68 @@ describe("SnowfallEffectsController", () => {
     expect(particleConfigs).toHaveLength(2);
     expect(particleConfigs[0]).toEqual(
       expect.objectContaining({
-        alpha: { min: 0.55, max: 0.9 },
-        accelerationX: expect.objectContaining({ onUpdate: expect.any(Function) }),
+        alpha: expect.objectContaining({
+          onEmit: expect.any(Function),
+          onUpdate: expect.any(Function),
+        }),
         frequency: 140,
+        lifespan: expect.objectContaining({ onEmit: expect.any(Function) }),
         maxAliveParticles: 40,
         scale: { min: 0.5, max: 0.7 },
+        speedY: expect.objectContaining({ onEmit: expect.any(Function) }),
+        x: expect.objectContaining({
+          onEmit: expect.any(Function),
+          onUpdate: expect.any(Function),
+        }),
       }),
     );
+    expect(particleConfigs[0]).not.toHaveProperty("accelerationX");
+    expect(particleConfigs[0]).not.toHaveProperty("speedX");
     expect(particleConfigs[1]).toEqual(
       expect.objectContaining({ frequency: 140, maxAliveParticles: 40 }),
     );
     const config = particleConfigs[0] as {
       emitZone: { source: { getRandomPoint: (point: { x: number; y: number }) => void } };
-      accelerationX: {
+      x: {
+        onEmit: (particle: Phaser.GameObjects.Particles.Particle) => number;
         onUpdate: (
           particle: Phaser.GameObjects.Particles.Particle,
           key: string,
-          t: number,
+          lifetime: number,
+          value: number,
+        ) => number;
+      };
+      lifespan: { onEmit: (particle: Phaser.GameObjects.Particles.Particle) => number };
+      speedY: { onEmit: (particle: Phaser.GameObjects.Particles.Particle) => number };
+      alpha: {
+        onEmit: (particle: Phaser.GameObjects.Particles.Particle) => number;
+        onUpdate: (
+          particle: Phaser.GameObjects.Particles.Particle,
+          key: string,
+          lifetime: number,
           value: number,
         ) => number;
       };
     };
-    expect(
-      config.accelerationX.onUpdate(
-        {} as Phaser.GameObjects.Particles.Particle,
-        "accelerationX",
-        0.25,
-        0,
-      ),
-    ).toBeCloseTo(4);
-    expect(
-      config.accelerationX.onUpdate(
-        {} as Phaser.GameObjects.Particles.Particle,
-        "accelerationX",
-        0.75,
-        0,
-      ),
-    ).toBeCloseTo(-4);
+    const particle = { x: 25, y: 20, life: 1000 } as Phaser.GameObjects.Particles.Particle;
+    expect(config.x.onEmit(particle)).toBe(0);
+    expect(config.x.onUpdate(particle, "x", 0, particle.x)).toBeCloseTo(25);
+    expect(config.x.onUpdate(particle, "x", 0.25, particle.x)).toBeCloseTo(33);
+    expect(config.x.onUpdate(particle, "x", 0.75, particle.x)).toBeCloseTo(17);
+    expect(config.x.onUpdate(particle, "x", 1, particle.x)).toBeCloseTo(25);
+    const lifespan = config.lifespan.onEmit(particle);
+    const fallSpeed = config.speedY.onEmit(particle);
+    expect(fallSpeed).toBeGreaterThanOrEqual(18);
+    expect(fallSpeed).toBeLessThanOrEqual(34);
+    expect((lifespan * fallSpeed) / 1000).toBeCloseTo(80);
+    const initialAlpha = config.alpha.onEmit(particle);
+    expect(initialAlpha).toBeGreaterThanOrEqual(0.55);
+    expect(initialAlpha).toBeLessThanOrEqual(0.9);
+    expect(config.alpha.onUpdate(particle, "alpha", 0.9, initialAlpha)).toBe(initialAlpha);
+    particle.y = 96;
+    expect(config.alpha.onUpdate(particle, "alpha", 0.95, initialAlpha)).toBeLessThan(initialAlpha);
+    particle.y = 100;
+    expect(config.alpha.onUpdate(particle, "alpha", 1, initialAlpha)).toBe(0);
     const generatePoint = config.emitZone.source.getRandomPoint;
     vi.spyOn(Math, "random").mockReturnValueOnce(0.5).mockReturnValueOnce(0.5);
     const point = { x: 0, y: 0 };

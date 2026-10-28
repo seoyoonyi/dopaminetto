@@ -10,6 +10,19 @@ import type { RemotePlayer } from "../model/types";
 import { TownScene } from "./TownScene";
 
 const mockAmbientDestroy = vi.hoisted(() => vi.fn());
+const mockSnowfall = vi.hoisted(() => ({
+  create: vi.fn(),
+  destroy: vi.fn(),
+}));
+
+vi.mock("@/features/movement/lib/SnowfallEffectsController", () => ({
+  SnowfallEffectsController: class SnowfallEffectsController {
+    constructor(...args: unknown[]) {
+      mockSnowfall.create(...args);
+    }
+    destroy = mockSnowfall.destroy;
+  },
+}));
 
 vi.mock("phaser", () => ({
   __esModule: true,
@@ -259,6 +272,8 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     useSettingsDialogStore.setState({ isOpen: false });
     useNicknameDialogStore.setState({ isOpen: false });
     mockAmbientDestroy.mockClear();
+    mockSnowfall.create.mockClear();
+    mockSnowfall.destroy.mockClear();
   });
 
   afterEach(() => {
@@ -298,6 +313,26 @@ describe("TownScene 원격 캐릭터 재시작", () => {
 
     expect(scene.add.image).toHaveBeenCalledWith(734, 857, "christmas-tree-base");
     expect(scene.add.sprite).toHaveBeenCalledWith(734, 857, "christmas-tree-decoration", 0);
+  });
+
+  it("빌리지 B에서도 맵 기반 눈 효과를 만들고 Scene 종료 때 정리한다", () => {
+    const { scene, events } = makeScene();
+    const mapLoader = {
+      getBackgroundImage: () => ({ visible: false }),
+      getFrontImage: () => ({ visible: false }),
+      getMapBounds: () => ({ x: 0, y: 0, width: 800, height: 600 }),
+      getVillageAreas: () => [],
+      getChristmasTreeEffect: () => undefined,
+    } as unknown as MapLoader;
+    useMovementStore.setState({ mapLoader, villageId: "village-b" });
+
+    scene.create();
+    expect(mockSnowfall.create).toHaveBeenCalledWith(scene, mapLoader);
+
+    scene.update(0, 16);
+
+    events.emit("shutdown");
+    expect(mockSnowfall.destroy).toHaveBeenCalledOnce();
   });
 
   it("원격 캐릭터 이름표도 캐릭터와 같은 깊이로 정렬한다", () => {

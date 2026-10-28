@@ -2,7 +2,6 @@ import type { CharacterConfig } from "@/shared/types";
 import type * as Phaser from "phaser";
 
 const CHARACTER_DEPTH_BASE = 1000;
-const NAME_LABEL_DEPTH_BASE = 9000;
 
 export function getAnimationKey(character: CharacterConfig, animationKey: string): string {
   return `${character.assetKey}-${animationKey}`;
@@ -13,8 +12,9 @@ export function syncCharacterDepth(
   sprite: Phaser.GameObjects.Sprite,
   nameLabel?: Phaser.GameObjects.Text,
 ): void {
-  sprite.setDepth(CHARACTER_DEPTH_BASE + sprite.y);
-  nameLabel?.setDepth(NAME_LABEL_DEPTH_BASE + sprite.y);
+  const depth = CHARACTER_DEPTH_BASE + sprite.y;
+  sprite.setDepth(depth);
+  nameLabel?.setDepth(depth);
 }
 
 export function applyCharacterConfig(

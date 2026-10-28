@@ -18,6 +18,9 @@ type TestTiledObject = {
   type?: string;
   visible?: boolean;
   id?: number;
+  x?: number;
+  y?: number;
+  point?: boolean;
 };
 
 type TestTiledLayer = {
@@ -92,6 +95,27 @@ const renameObject = (
   );
 
 describe("MapLoader", () => {
+  it("Effects 레이어의 트리 기준점을 환경음 위치로 제공한다", () => {
+    const mapLoader = loadTownMap();
+
+    expect(mapLoader.getChristmasTreeEffect()).toEqual({
+      id: 436,
+      name: "christmas-tree",
+      x: 734,
+      y: 857,
+    });
+  });
+
+  it("숨겨진 트리 Effect는 런타임 기준점에서 제외한다", () => {
+    const tmj = updateLayerObjects(loadTownMapJson(), "Effects", (objects) =>
+      objects.map((object) =>
+        object.type === "ChristmasTree" ? { ...object, visible: false } : object,
+      ),
+    );
+
+    expect(new MapLoader(tmj).getChristmasTreeEffect()).toBeUndefined();
+  });
+
   it("parses image layers from TMJ", () => {
     const mapLoader = loadTownMap();
 
@@ -215,58 +239,5 @@ describe("MapLoader", () => {
         renameObject(loadTownMapJson(), "Trigger", "village-a", "VillageArea", "unknown-village"),
       );
     }).toThrow("[MapLoader] VillageArea의 name이 등록되지 않은 VillageId입니다: unknown-village");
-  });
-
-  it("parses the campfire Point Object from the Effects layer", () => {
-    const tmj = updateLayerObjects(loadTownMapJson(), "Effects", (objects) =>
-      objects.map((object) => ({ ...object, visible: true })),
-    );
-    const mapLoader = new MapLoader(tmj);
-    const campfireEffects = mapLoader.getCampfireEffects();
-
-    expect(campfireEffects).toHaveLength(1);
-    expect(campfireEffects[0]).toMatchObject({
-      name: "campfire",
-      x: expect.any(Number),
-      y: expect.any(Number),
-    });
-    // TMJ에 custom property가 아직 설정되지 않았으므로 파싱 결과는 undefined여야 한다
-    // (기본값 적용은 MapLoader가 아닌 소비하는 쪽의 책임).
-    expect(campfireEffects[0].animationKey).toBeUndefined();
-    expect(campfireEffects[0].colliderWidth).toBeUndefined();
-  });
-
-  it("derives a static collision rect matching the rendered campfire-base footprint", () => {
-    const tmj = updateLayerObjects(loadTownMapJson(), "Effects", (objects) =>
-      objects.map((object) => ({ ...object, visible: true })),
-    );
-    const mapLoader = new MapLoader(tmj);
-    const campfire = mapLoader.getCampfireEffects()[0];
-    const derivedRect = mapLoader
-      .getCollisionRects()
-      .find((rect) => rect.type === "Campfire" && rect.id === campfire.id);
-
-    // 기본 오프셋(18, -10)은 CampfireEffectsController가 그리는 campfire-base.png
-    // (194x63, scale 0.4, origin 0.27/0.9)의 실제 표시 영역과 겹치도록 잡은 값이다.
-    expect(derivedRect).toBeDefined();
-    expect(derivedRect!.x + derivedRect!.width / 2).toBeCloseTo(campfire.x + 18);
-    expect(derivedRect!.y + derivedRect!.height / 2).toBeCloseTo(campfire.y - 10);
-  });
-
-  it("ignores hidden campfire objects while preserving them in the map", () => {
-    const tmj = loadTownMapJson();
-    const campfireObject = tmj.layers.find((layer: TestTiledLayer) => layer.name === "Effects")
-      ?.objects?.[0];
-    const mapLoader = new MapLoader(tmj);
-
-    expect(campfireObject).toMatchObject({ name: "campfire", visible: false });
-    expect(mapLoader.getCampfireEffects()).toEqual([]);
-    expect(mapLoader.getCollisionRects().some((rect) => rect.id === campfireObject.id)).toBe(false);
-  });
-
-  it("returns an empty campfire effect list when the Effects layer is missing", () => {
-    const mapLoader = new MapLoader(removeLayer(loadTownMapJson(), "Effects"));
-
-    expect(mapLoader.getCampfireEffects()).toEqual([]);
   });
 });

@@ -36,25 +36,12 @@ export interface SpawnPoint {
   y: number;
 }
 
-/**
- * Effects 오브젝트 레이어의 campfire Point Object에서 파싱된 원시 데이터
- * animationKey/scale/depthOffset/colliderWidth/colliderHeight/colliderOffsetX/colliderOffsetY는
- * Tiled custom property로 설정된 경우에만 값이 채워지며, 없으면 소비하는 쪽(예:
- * resolveCampfireVisuals, MapLoader의 충돌 사각형 파생 로직)에서 기본값을 적용한다.
- * MapLoader는 원시 값만 전달하고 도메인 기본값은 알지 못한다.
- */
-export interface CampfireEffect {
+/** Effects 오브젝트 레이어의 크리스마스트리 기준점. 렌더링과 환경음이 같은 위치를 사용한다. */
+export interface ChristmasTreeEffect {
   id: number;
   name: string;
   x: number;
   y: number;
-  animationKey?: string;
-  scale?: number;
-  depthOffset?: number;
-  colliderWidth?: number;
-  colliderHeight?: number;
-  colliderOffsetX?: number;
-  colliderOffsetY?: number;
 }
 
 export interface MapImageLayer {

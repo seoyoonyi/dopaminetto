@@ -40,7 +40,7 @@ let container: HTMLDivElement | null = null;
 
 beforeEach(() => {
   useSettingsDialogStore.setState({ isOpen: false });
-  useAmbientSoundStore.setState({ volume: 1, isMuted: false });
+  useAmbientSoundStore.setState({ christmasTreeVolume: 1, isChristmasTreeMuted: false });
   localStorage.clear();
   usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
 });
@@ -51,7 +51,7 @@ afterEach(() => {
   root = null;
   container = null;
   useSettingsDialogStore.setState({ isOpen: false });
-  useAmbientSoundStore.setState({ volume: 1, isMuted: false });
+  useAmbientSoundStore.setState({ christmasTreeVolume: 1, isChristmasTreeMuted: false });
   usePresenceNotificationStore.setState({ isPresenceNotificationEnabled: true });
   localStorage.clear();
   vi.clearAllMocks();
@@ -132,8 +132,8 @@ async function setRangePercent(percent: number) {
 
 // persisted store 상태(오디오/persist에 실제로 쓰이는 값)만 검증한다.
 function expectStored(percent: number, isMuted: boolean) {
-  expect(useAmbientSoundStore.getState().volume).toBeCloseTo(percent / 100, 10);
-  expect(useAmbientSoundStore.getState().isMuted).toBe(isMuted);
+  expect(useAmbientSoundStore.getState().christmasTreeVolume).toBeCloseTo(percent / 100, 10);
+  expect(useAmbientSoundStore.getState().isChristmasTreeMuted).toBe(isMuted);
   expect(muteButton().getAttribute("aria-pressed")).toBe(String(isMuted));
 }
 
@@ -157,12 +157,12 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     await clickTrigger();
     expect(dialog()).not.toBeNull();
     expect(useSettingsDialogStore.getState().isOpen).toBe(true);
-    for (const label of ["설정", "환경음", "모닥불", "타운 환경 설정"]) {
+    for (const label of ["설정", "환경음", "크리스마스 캐롤", "타운 환경 설정"]) {
       expect(text()).toContain(label);
     }
     expectStored(100, false);
     expectDisplay(100);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거");
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거");
     expectNoStatusText();
 
     await setRangePercent(70);
@@ -173,14 +173,14 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     await clickMute();
     expectStored(70, true);
     expectDisplay(0);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거 해제");
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거 해제");
     expectNoStatusText();
 
     // 음소거 중 Slider를 1% 이상으로 올리면 volume 저장 + 음소거 해제. 표시=소리가 일치한다.
     await setRangePercent(10);
     expectStored(10, false);
     expectDisplay(10);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거");
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거");
     expectNoStatusText();
 
     await pressEscape();
@@ -188,7 +188,7 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expect(useSettingsDialogStore.getState().isOpen).toBe(false);
   });
 
-  it("T2: Slider를 직접 0%로 내려도 음소거 상태가 아니며, 버튼은 볼륨을 복원한다", async () => {
+  it("T2: Slider를 직접 0%로 내려도 음소거 상태가 아니며, 버튼은 기본 음량 30%로 복원한다", async () => {
     await render();
     await clickTrigger();
 
@@ -197,14 +197,14 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expectStored(0, false);
     expectDisplay(0);
     expect(muteButton().getAttribute("aria-pressed")).toBe("false");
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 켜기");
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 켜기");
     expectNoStatusText();
 
-    // 이 상태에서 버튼 클릭 -> mute가 아니라 볼륨을 100%로 복원
+    // 이 상태에서 버튼 클릭 -> 음소거가 아니라 기본 음량 30%로 복원
     await clickMute();
-    expectStored(100, false);
-    expectDisplay(100);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거");
+    expectStored(30, false);
+    expectDisplay(30);
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거");
     expectNoStatusText();
   });
 
@@ -231,7 +231,7 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     await setRangePercent(0);
     expectStored(0, true);
     expectDisplay(0);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거 해제");
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거 해제");
 
     // 음소거 중 1%로 올림 -> 음소거 해제
     await setRangePercent(1);
@@ -239,26 +239,26 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expectDisplay(1);
   });
 
-  it("T4: 음소거 중 볼륨이 0이 된 상태에서 버튼은 100%로 복원하고 unmute한다", async () => {
+  it("T4: 음소거 중 볼륨이 0인 상태에서 버튼은 기본 음량 30%로 복원하고 음소거를 해제한다", async () => {
     // 전제: 음소거 상태에서 Slider를 0까지 내리면 volume=0 & isMuted=true 가 될 수 있다.
-    useAmbientSoundStore.setState({ volume: 0, isMuted: true });
+    useAmbientSoundStore.setState({ christmasTreeVolume: 0, isChristmasTreeMuted: true });
     await render();
     await clickTrigger();
 
     expectStored(0, true);
     expectDisplay(0);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거 해제");
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거 해제");
 
-    // 버튼 클릭 -> 0%로 unmute해서 계속 무음이 되는 대신, 100%로 복원하고 unmute.
+    // 버튼 클릭 -> 0%로 음소거 해제해 계속 무음이 되는 대신, 기본 음량 30%로 복원한다.
     await clickMute();
-    expectStored(100, false);
-    expectDisplay(100);
-    expect(muteButton().getAttribute("aria-label")).toBe("모닥불 소리 음소거");
+    expectStored(30, false);
+    expectDisplay(30);
+    expect(muteButton().getAttribute("aria-label")).toBe("크리스마스 캐롤 음소거");
     expectNoStatusText();
   });
 
   it("T5: bfcache 복원(pageshow persisted)에서만 Settings Dialog를 닫고 환경음 설정은 유지한다", async () => {
-    useAmbientSoundStore.setState({ volume: 0.4, isMuted: true });
+    useAmbientSoundStore.setState({ christmasTreeVolume: 0.4, isChristmasTreeMuted: true });
     await render();
     await clickTrigger();
     expect(useSettingsDialogStore.getState().isOpen).toBe(true);
@@ -275,11 +275,14 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expect(dialog()).toBeNull();
 
     // 닫히는 것은 Settings.isOpen 뿐이다. 환경음 persisted 상태는 초기화하지 않는다.
-    expect(useAmbientSoundStore.getState()).toMatchObject({ volume: 0.4, isMuted: true });
+    expect(useAmbientSoundStore.getState()).toMatchObject({
+      christmasTreeVolume: 0.4,
+      isChristmasTreeMuted: true,
+    });
   });
 
   it("T6: 재진입(재mount)하면 직전 isOpen=true가 남아있어도 닫힌 상태로 시작한다", async () => {
-    useAmbientSoundStore.setState({ volume: 0.4, isMuted: true });
+    useAmbientSoundStore.setState({ christmasTreeVolume: 0.4, isChristmasTreeMuted: true });
     await render();
     await clickTrigger();
     expect(useSettingsDialogStore.getState().isOpen).toBe(true);
@@ -294,7 +297,10 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expect(useSettingsDialogStore.getState().isOpen).toBe(false);
     expect(dialog()).toBeNull();
     // 재진입해도 환경음 설정은 유지된다.
-    expect(useAmbientSoundStore.getState()).toMatchObject({ volume: 0.4, isMuted: true });
+    expect(useAmbientSoundStore.getState()).toMatchObject({
+      christmasTreeVolume: 0.4,
+      isChristmasTreeMuted: true,
+    });
   });
 
   it("T7: 알림 카테고리에서 입장·퇴장 알림 상태를 확인하고 토글한다", async () => {

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { AmbientSoundFalloffConfig } from "@/features/ambientSound/model/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AmbientSoundController } from "./AmbientSoundController";
@@ -15,7 +16,7 @@ vi.mock("phaser", () => ({
   },
 }));
 
-const SOURCE = { id: "campfire", villageId: "village-a" as const, x: 400, y: 400 };
+const SOURCE = { id: "test-source", villageId: "village-a" as const, x: 400, y: 400 };
 const INSIDE = { x: 400, y: 400 };
 const OUTSIDE = { x: 6000, y: 400 };
 // volumeSmoothingRate * delta(1000) >= 1 이라 첫 프레임에 target volume으로 스냅된다.
@@ -38,7 +39,7 @@ function makeBufferSource() {
   };
 }
 
-function setup(sources = [SOURCE]) {
+function setup(sources = [SOURCE], falloff: AmbientSoundFalloffConfig = FALLOFF) {
   const nodes: ReturnType<typeof makeBufferSource>[] = [];
   const gains: ReturnType<typeof makeGain>[] = [];
   const buffer = { duration: 44 };
@@ -62,12 +63,7 @@ function setup(sources = [SOURCE]) {
     cache: { audio: { get: () => buffer } },
     game: { loop: { delta: 1000 } },
   };
-  const controller = new AmbientSoundController(
-    scene as never,
-    "ambient-campfire",
-    sources,
-    FALLOFF,
-  );
+  const controller = new AmbientSoundController(scene as never, "ambient-test", sources, falloff);
   controllers.push(controller);
   return { controller, context, nodes, gains, buffer, destination };
 }
@@ -206,5 +202,32 @@ describe("AmbientSoundController", () => {
       expect(nodes[0].stop).toHaveBeenCalledTimes(1);
       expect(nodes[0].disconnect).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it("minVolume 설정은 반경 바깥에서도 유지되고 userVolume을 적용하며, 다른 빌리지에서는 정지한다", () => {
+    const { controller, nodes, gains } = setup([SOURCE], { ...FALLOFF, minVolume: 0.05 });
+
+    controller.update(INSIDE, "village-a");
+    expect(gains[0].gain.value).toBe(1);
+
+    controller.update({ x: 800, y: 400 }, "village-a", 0.4);
+    expect(gains[0].gain.value).toBeCloseTo(0.05 * 0.4, 10);
+    expect(nodes[0].stop).not.toHaveBeenCalled();
+
+    controller.update({ x: 800, y: 400 }, "lobby", 0.4);
+    expect(nodes[0].stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("minVolume 생략 시 기존처럼 outerRadius에서 재생을 멈춘다", () => {
+    const { controller, nodes } = setup();
+    controller.update(INSIDE, "village-a");
+    controller.update({ x: 700, y: 400 }, "village-a");
+    expect(nodes[0].stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("minVolume 설정 시 innerRadius부터 outerRadius까지 선형으로 감쇠한다", () => {
+    const { controller, gains } = setup([SOURCE], { ...FALLOFF, minVolume: 0.05 });
+    controller.update({ x: 600, y: 400 }, "village-a");
+    expect(gains[0].gain.value).toBeCloseTo(0.525, 10);
   });
 });

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="11" nextobjectid="434">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="1" nextlayerid="11" nextobjectid="440">
  <editorsettings>
   <export target="town-map.tmj" format="json"/>
  </editorsettings>
@@ -243,6 +243,10 @@
   <object id="431" name="snowman-arms" type="Snowman" x="500" y="352" width="100" height="34"/>
   <object id="432" name="snowman-body" type="Snowman" x="512" y="376" width="84" height="40"/>
   <object id="433" name="snowman-base" type="Snowman" x="508" y="408" width="96" height="24"/>
+  <object id="434" name="christmas-tree-base-upper" type="ChristmasTree" x="585" y="786" width="301" height="28"/>
+  <object id="435" name="christmas-tree-base-lower" type="ChristmasTree" x="622" y="814" width="236" height="43"/>
+  <object id="437" name="christmas-tree-base-left-corner" type="ChristmasTree" x="573" y="802" width="49" height="52"/>
+  <object id="438" name="christmas-tree-base-right-corner" type="ChristmasTree" x="858" y="814" width="28" height="40"/>
  </objectgroup>
  <objectgroup id="6" name="Trigger" locked="1">
   <object id="348" name="village-a" type="VillageArea" x="-8.51571" y="-12.1948" width="765.146" height="595.57"/>
@@ -260,7 +264,7 @@
   </object>
  </objectgroup>
  <objectgroup id="10" name="Effects">
-  <object id="428" name="campfire" type="Campfire" x="481.818" y="337.273" visible="0">
+  <object id="436" name="christmas-tree" type="ChristmasTree" x="734" y="857">
    <point/>
   </object>
  </objectgroup>

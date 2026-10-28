@@ -42,14 +42,14 @@ vi.mock("@/features/movement", async () => {
 });
 
 vi.mock("@/features/ambientSound/phaser", () => ({
-  AMBIENT_AUDIO_KEYS: { CAMPFIRE: "campfire" },
-  AMBIENT_AUDIO_URLS: { CAMPFIRE: "" },
-  CAMPFIRE_SOUND_CONFIG: {},
+  AMBIENT_AUDIO_KEYS: { CHRISTMAS_TREE: "christmas-tree" },
+  AMBIENT_AUDIO_URLS: { CHRISTMAS_TREE: "" },
+  CHRISTMAS_TREE_SOUND_CONFIG: {},
   AmbientSoundController: class AmbientSoundController {
     destroy = mockAmbientDestroy;
     update = vi.fn();
   },
-  resolveCampfireSources: () => [],
+  resolveChristmasTreeSources: () => [],
 }));
 
 type DisplayObject = {
@@ -60,6 +60,7 @@ type DisplayObject = {
   texture?: { key: string };
   frame?: { name: number };
   active?: boolean;
+  depth?: number;
   anims?: {
     isPlaying: boolean;
     currentAnim: { key: string } | null;
@@ -71,17 +72,24 @@ type DisplayObject = {
   setOrigin: () => DisplayObject;
   setFlipX: () => DisplayObject;
   setFrame: () => DisplayObject;
-  setDepth: () => DisplayObject;
+  setDepth: (depth: number) => DisplayObject;
+  play: (key: string) => DisplayObject;
   setPosition: (x: number, y: number) => DisplayObject;
   setText: (text: string) => DisplayObject;
   destroy: ReturnType<typeof vi.fn>;
 };
 
 type SceneHarness = {
+  preload: () => void;
   create: () => void;
   update: (time: number, delta: number) => void;
+  load: {
+    image: ReturnType<typeof vi.fn>;
+    spritesheet: ReturnType<typeof vi.fn>;
+  };
   events: EventEmitter;
   add: {
+    image: ReturnType<typeof vi.fn>;
     sprite: ReturnType<typeof vi.fn>;
     text: ReturnType<typeof vi.fn>;
   };
@@ -119,7 +127,13 @@ function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
     setOrigin: () => object,
     setFlipX: () => object,
     setFrame: () => object,
-    setDepth: () => object,
+    setDepth(nextDepth) {
+      this.depth = nextDepth;
+      return object;
+    },
+    play() {
+      return object;
+    },
     setPosition(nextX, nextY) {
       this.x = nextX;
       this.y = nextY;
@@ -169,9 +183,11 @@ function makeScene(): {
   events.once("destroy", () => Object.assign(keyboard, { manager: null }));
   const instance = new TownScene() as unknown as Record<string, unknown> & SceneHarness;
   shutdownScenes.push(() => events.emit("shutdown"));
+  const load = { audio: vi.fn(), image: vi.fn(), spritesheet: vi.fn() };
 
   Object.assign(instance, {
-    load: { audio: vi.fn(), image: vi.fn(), spritesheet: vi.fn() },
+    game: { canvas: document.createElement("canvas") },
+    load,
     add: {
       sprite: vi.fn((x: number, y: number) => {
         const sprite = makeDisplayObject(x, y);
@@ -249,6 +265,47 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     shutdownScenes.splice(0).forEach((shutdown) => shutdown());
     useMovementStore.setState({ remotePlayers: {}, userId: "" });
     vi.restoreAllMocks();
+  });
+
+  it("트리 본체와 24프레임 장식 시트를 미리 불러온다", () => {
+    const { scene } = makeScene();
+
+    scene.preload();
+
+    expect(scene.load.image).toHaveBeenCalledWith(
+      "christmas-tree-base",
+      "/assets/images/christmas-tree-base.png",
+    );
+    expect(scene.load.spritesheet).toHaveBeenCalledWith(
+      "christmas-tree-decoration",
+      "/assets/images/christmas-tree-decoration.png",
+      { frameWidth: 320, frameHeight: 357 },
+    );
+  });
+
+  it("승인된 맵 위치에 트리 본체와 첫 장식 프레임을 표시한다", () => {
+    useMovementStore.setState({
+      mapLoader: {
+        getBackgroundImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getFrontImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getMapBounds: () => ({ x: 0, y: 0, width: 1448, height: 1086 }),
+        getChristmasTreeEffect: () => ({ id: 436, name: "christmas-tree", x: 734, y: 857 }),
+      } as never,
+    });
+    const { scene } = makeScene();
+
+    scene.create();
+
+    expect(scene.add.image).toHaveBeenCalledWith(734, 857, "christmas-tree-base");
+    expect(scene.add.sprite).toHaveBeenCalledWith(734, 857, "christmas-tree-decoration", 0);
+  });
+
+  it("원격 캐릭터 이름표도 캐릭터와 같은 깊이로 정렬한다", () => {
+    const { scene, sprites, labels } = makeScene();
+
+    scene.create();
+
+    expect(labels[1].depth).toBe(sprites[1].depth);
   });
 
   it("Scene 재시작 후 같은 사용자의 새 액션 sequence를 다시 표시한다", () => {
@@ -405,13 +462,14 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     expect(remoteSprite.texture?.key).not.toBe(actionTexture);
   });
 
-  it("Game destroy 경로에서 Scene 자원을 정리하고 이후 store 변경을 받지 않는다", () => {
+  it("Game destroy 경로에서 Scene 자원을 정리하고 이후 스토어 변경을 받지 않는다", () => {
     const { scene, events, sprites } = makeScene();
     const otherShutdownListener = vi.fn();
     const otherDestroyListener = vi.fn();
     events.on("shutdown", otherShutdownListener);
     events.on("destroy", otherDestroyListener);
     scene.create();
+    Object.assign(scene, { christmasTreeAmbientController: { destroy: mockAmbientDestroy } });
     const localSprite = sprites[0];
 
     events.emit("destroy");
@@ -430,12 +488,14 @@ describe("TownScene 원격 캐릭터 재시작", () => {
   it("shutdown 후 재시작하고 destroy해도 각 실행의 자원을 한 번씩 정리한다", () => {
     const { scene, events } = makeScene();
     scene.create();
+    Object.assign(scene, { christmasTreeAmbientController: { destroy: mockAmbientDestroy } });
     events.emit("shutdown");
 
     expect(mockAmbientDestroy).toHaveBeenCalledTimes(1);
     expect(events.listenerCount("destroy")).toBe(1);
 
     scene.create();
+    Object.assign(scene, { christmasTreeAmbientController: { destroy: mockAmbientDestroy } });
     events.emit("destroy");
 
     expect(mockAmbientDestroy).toHaveBeenCalledTimes(2);

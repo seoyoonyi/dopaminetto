@@ -12,7 +12,7 @@ import { TownScene } from "./TownScene";
 /**
  * 실제 TownScene.update() 경로를 실행해 다음을 검증한다.
  * - 설정 다이얼로그가 열리거나 채팅 입력이 포커스되면 이동/액션 입력은 차단된다.
- * - 그와 무관하게 모닥불 환경음 갱신(update() 4번 단계)은 매 프레임 계속 도달한다.
+ * - 그와 무관하게 트리 캐롤 환경음 갱신(update() 4번 단계)은 매 프레임 계속 도달한다.
  *   (`if (isInputFocused) return;`으로 되돌아가면 이 테스트가 깨진다)
  * - 다이얼로그를 닫으면 이동 입력이 복구된다.
  *
@@ -104,7 +104,7 @@ function makeScene(): SceneHarness {
   };
   Object.assign(instance, {
     player,
-    campfireAmbientController: { update: ambientUpdate },
+    christmasTreeAmbientController: { update: ambientUpdate },
     input: { keyboard },
     inputController: new TownInputController(keyboard as never),
     localPlayerController: new TownLocalPlayerController(player as never, {
@@ -130,7 +130,7 @@ beforeEach(() => {
     localActionState: null,
     updatePosition,
   });
-  useAmbientSoundStore.setState({ volume: 0.6, isMuted: false });
+  useAmbientSoundStore.setState({ christmasTreeVolume: 0.6, isChristmasTreeMuted: false });
   useSettingsDialogStore.setState({ isOpen: false });
   useNicknameDialogStore.setState({ isOpen: false });
   scene = makeScene();
@@ -182,7 +182,7 @@ describe("TownScene.update() — 입력 차단과 환경음 갱신 분리", () =
   });
 
   it("음소거 상태면 환경음 출력 배율 0을 전달한다", () => {
-    useAmbientSoundStore.setState({ volume: 0.6, isMuted: true });
+    useAmbientSoundStore.setState({ christmasTreeVolume: 0.6, isChristmasTreeMuted: true });
     useSettingsDialogStore.setState({ isOpen: true });
 
     scene.update(0, 16);

@@ -21,7 +21,7 @@ describe("ChristmasTreeEffectsController", () => {
   });
 
   it("트리 본체와 첫 장식 프레임을 승인된 바닥 깊이에 배치한다", () => {
-    const base = { setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn().mockReturnThis() };
+    const base = createBase();
     const decoration = {
       setOrigin: vi.fn().mockReturnThis(),
       setDepth: vi.fn().mockReturnThis(),
@@ -34,9 +34,10 @@ describe("ChristmasTreeEffectsController", () => {
     };
     const image = vi.fn(() => base);
     const sprite = vi.fn(() => decoration);
+    const text = vi.fn(() => createHint());
 
     new ChristmasTreeEffectsController(
-      { add: { image, sprite }, anims } as never,
+      { add: { image, sprite, text }, anims } as never,
       { id: 436, name: "christmas-tree", x: 734, y: 857 },
       1000,
     );
@@ -65,8 +66,9 @@ describe("ChristmasTreeEffectsController", () => {
     new ChristmasTreeEffectsController(
       {
         add: {
-          image: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn() })),
+          image: vi.fn(() => createBase()),
           sprite: vi.fn(() => decoration),
+          text: vi.fn(() => createHint()),
         },
         anims,
       } as never,
@@ -102,8 +104,9 @@ describe("ChristmasTreeEffectsController", () => {
     new ChristmasTreeEffectsController(
       {
         add: {
-          image: vi.fn(() => ({ setOrigin: vi.fn().mockReturnThis(), setDepth: vi.fn() })),
+          image: vi.fn(() => createBase()),
           sprite: vi.fn(() => decoration),
+          text: vi.fn(() => createHint()),
         },
         anims,
       } as never,
@@ -115,4 +118,140 @@ describe("ChristmasTreeEffectsController", () => {
     expect(anims.generateFrameNumbers).not.toHaveBeenCalled();
     expect(decoration.play).toHaveBeenCalledWith("christmas-tree-pulse");
   });
+
+  it("트리 본체만 픽셀 기준 클릭 영역과 호버 안내를 가진다", () => {
+    const tree = createTreeHarness();
+
+    new ChristmasTreeEffectsController(
+      tree.scene as never,
+      { id: 436, name: "christmas-tree", x: 734, y: 857 },
+      1000,
+      vi.fn(),
+    );
+
+    expect(tree.base.setInteractive).toHaveBeenCalledWith({
+      pixelPerfect: true,
+      cursor: "pointer",
+    });
+    expect(tree.hint.setVisible).toHaveBeenCalledWith(false);
+    expect(tree.decoration.setInteractive).not.toHaveBeenCalled();
+  });
+
+  it("트리 호버 안내를 표시하고 클릭 시 콜백을 한 번 호출한 뒤 안내를 숨긴다", () => {
+    const tree = createTreeHarness();
+    const onOpenGuestbook = vi.fn();
+
+    new ChristmasTreeEffectsController(
+      tree.scene as never,
+      { id: 436, name: "christmas-tree", x: 734, y: 857 },
+      1000,
+      onOpenGuestbook,
+    );
+
+    tree.emit("pointerover");
+    expect(tree.hint.setVisible).toHaveBeenLastCalledWith(true);
+
+    tree.emit("pointerdown");
+    expect(onOpenGuestbook).toHaveBeenCalledTimes(1);
+    expect(tree.hint.setVisible).toHaveBeenLastCalledWith(false);
+  });
+
+  it("호버 종료와 destroy에서 리스너·안내·커서를 정리한다", () => {
+    const tree = createTreeHarness();
+    const controller = new ChristmasTreeEffectsController(
+      tree.scene as never,
+      { id: 436, name: "christmas-tree", x: 734, y: 857 },
+      1000,
+      vi.fn(),
+    );
+
+    tree.emit("pointerover");
+    tree.emit("pointerout");
+    expect(tree.hint.setVisible).toHaveBeenLastCalledWith(false);
+    expect(tree.input.setDefaultCursor).toHaveBeenCalledWith("default");
+
+    controller.destroy();
+
+    expect(tree.base.off).toHaveBeenCalledWith("pointerover", expect.any(Function));
+    expect(tree.base.disableInteractive).toHaveBeenCalled();
+    expect(tree.hint.destroy).toHaveBeenCalled();
+    expect(tree.base.destroy).toHaveBeenCalled();
+    expect(tree.decoration.destroy).toHaveBeenCalled();
+    expect(tree.input.setDefaultCursor).toHaveBeenLastCalledWith("default");
+  });
 });
+
+function createTreeHarness() {
+  const handlers = new Map<string, (...args: unknown[]) => void>();
+  const base = {
+    setOrigin: vi.fn().mockReturnThis(),
+    setDepth: vi.fn().mockReturnThis(),
+    setInteractive: vi.fn().mockReturnThis(),
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      handlers.set(event, handler);
+      return base;
+    }),
+    off: vi.fn((event: string) => {
+      handlers.delete(event);
+      return base;
+    }),
+    disableInteractive: vi.fn().mockReturnThis(),
+    destroy: vi.fn(),
+  };
+  const hint = {
+    setOrigin: vi.fn().mockReturnThis(),
+    setDepth: vi.fn().mockReturnThis(),
+    setVisible: vi.fn().mockReturnThis(),
+    destroy: vi.fn(),
+  };
+  const decoration = {
+    setOrigin: vi.fn().mockReturnThis(),
+    setDepth: vi.fn().mockReturnThis(),
+    play: vi.fn().mockReturnThis(),
+    setInteractive: vi.fn(),
+    destroy: vi.fn(),
+  };
+  const input = { setDefaultCursor: vi.fn() };
+
+  return {
+    base,
+    hint,
+    decoration,
+    input,
+    emit: (event: string) => handlers.get(event)?.(),
+    scene: {
+      add: {
+        image: vi.fn(() => base),
+        sprite: vi.fn(() => decoration),
+        text: vi.fn(() => hint),
+      },
+      input,
+      anims: {
+        exists: vi.fn(() => true),
+        create: vi.fn(),
+        generateFrameNumbers: vi.fn(() => []),
+      },
+    },
+  };
+}
+
+function createHint() {
+  return {
+    setOrigin: vi.fn().mockReturnThis(),
+    setDepth: vi.fn().mockReturnThis(),
+    setVisible: vi.fn().mockReturnThis(),
+    destroy: vi.fn(),
+  };
+}
+
+function createBase() {
+  return {
+    setOrigin: vi.fn().mockReturnThis(),
+    setDepth: vi.fn().mockReturnThis(),
+    setInteractive: vi.fn().mockReturnThis(),
+    on: vi.fn().mockReturnThis(),
+    off: vi.fn().mockReturnThis(),
+    disableInteractive: vi.fn().mockReturnThis(),
+    destroy: vi.fn(),
+  };
+}

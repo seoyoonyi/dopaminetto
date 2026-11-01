@@ -2,6 +2,7 @@
 import { useAmbientSoundStore } from "@/features/ambientSound";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useSettingsDialogStore } from "@/shared/store";
+import { useGuestbookDialogStore } from "@/shared/store/useGuestbookDialogStore";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,6 +67,7 @@ type TestKey = { isDown: boolean; _justDown: boolean };
 
 const updatePosition = vi.fn();
 const ambientUpdate = vi.fn();
+const remotePlayersUpdate = vi.fn();
 let scene: SceneHarness;
 
 function makeScene(): SceneHarness {
@@ -104,6 +106,7 @@ function makeScene(): SceneHarness {
   };
   Object.assign(instance, {
     player,
+    remotePlayersController: { update: remotePlayersUpdate },
     christmasTreeAmbientController: { update: ambientUpdate },
     input: { keyboard },
     inputController: new TownInputController(keyboard as never),
@@ -124,6 +127,7 @@ function makeScene(): SceneHarness {
 beforeEach(() => {
   updatePosition.mockReset();
   ambientUpdate.mockClear();
+  remotePlayersUpdate.mockClear();
   useMovementStore.setState({
     villageId: "village-a",
     remotePlayers: {},
@@ -133,6 +137,7 @@ beforeEach(() => {
   useAmbientSoundStore.setState({ christmasTreeVolume: 0.6, isChristmasTreeMuted: false });
   useSettingsDialogStore.setState({ isOpen: false });
   useNicknameDialogStore.setState({ isOpen: false });
+  useGuestbookDialogStore.setState({ isOpen: false });
   scene = makeScene();
 });
 
@@ -202,6 +207,46 @@ describe("TownScene.update() — 입력 차단과 환경음 갱신 분리", () =
 
     expect(updatePosition).toHaveBeenCalledWith({ x: -4, y: 0 });
     expect(ambientUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("방명록이 열려 있는 동안 이동과 액션을 막고 닫으면 이동을 복구한다", () => {
+    const updateLocalPlayer = vi.spyOn(
+      scene.scene.localPlayerController as TownLocalPlayerController,
+      "update",
+    );
+    scene.wasd.A.isDown = true;
+    useGuestbookDialogStore.getState().setOpen(true);
+
+    scene.update(0, 16);
+    expect(updatePosition).not.toHaveBeenCalled();
+    expect(updateLocalPlayer).not.toHaveBeenCalled();
+    expect(ambientUpdate).toHaveBeenCalledTimes(1);
+    expect(remotePlayersUpdate).toHaveBeenCalledTimes(1);
+
+    useGuestbookDialogStore.getState().setOpen(false);
+    scene.update(0, 16);
+
+    expect(updatePosition).toHaveBeenCalledWith({ x: -4, y: 0 });
+    expect(updateLocalPlayer).toHaveBeenCalledOnce();
+    expect(ambientUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("방명록을 닫아도 다른 입력 차단 조건이 남아 있으면 이동을 막는다", () => {
+    const chatInput = document.createElement("input");
+    document.body.appendChild(chatInput);
+    chatInput.focus();
+    scene.wasd.A.isDown = true;
+    useGuestbookDialogStore.getState().setOpen(true);
+
+    scene.update(0, 16);
+    useGuestbookDialogStore.getState().setOpen(false);
+    scene.update(0, 16);
+
+    expect(updatePosition).not.toHaveBeenCalled();
+
+    chatInput.blur();
+    scene.update(0, 16);
+    expect(updatePosition).toHaveBeenCalledWith({ x: -4, y: 0 });
   });
 
   it("채팅 포커스와 설정창이 함께 있으면 둘 다 해제된 뒤 이동을 복구한다", () => {

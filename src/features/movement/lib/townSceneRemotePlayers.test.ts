@@ -2,6 +2,7 @@
 import type { MapLoader } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useSettingsDialogStore } from "@/shared/store";
+import { useGuestbookDialogStore } from "@/shared/store/useGuestbookDialogStore";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -89,6 +90,12 @@ type DisplayObject = {
   play: (key: string) => DisplayObject;
   setPosition: (x: number, y: number) => DisplayObject;
   setText: (text: string) => DisplayObject;
+  setVisible: (visible: boolean) => DisplayObject;
+  setInteractive: () => DisplayObject;
+  disableInteractive: () => DisplayObject;
+  on: (event: string, handler: () => void) => DisplayObject;
+  off: (event: string, handler?: () => void) => DisplayObject;
+  emit: (event: string) => void;
   destroy: ReturnType<typeof vi.fn>;
 };
 
@@ -118,6 +125,7 @@ type SceneHarness = {
 };
 
 function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
+  const handlers = new Map<string, () => void>();
   const object: DisplayObject = {
     x,
     y,
@@ -156,6 +164,20 @@ function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
       this.text = nextText;
       return this;
     },
+    setVisible: () => object,
+    setInteractive: () => object,
+    disableInteractive: () => object,
+    on(event, handler) {
+      handlers.set(event, handler);
+      return object;
+    },
+    off(event) {
+      handlers.delete(event);
+      return object;
+    },
+    emit(event) {
+      handlers.get(event)?.();
+    },
     destroy: vi.fn(function (this: DisplayObject) {
       this.destroyed = true;
     }),
@@ -169,9 +191,11 @@ function makeScene(): {
   events: EventEmitter;
   sprites: DisplayObject[];
   labels: DisplayObject[];
+  images: DisplayObject[];
 } {
   const createdSprites: DisplayObject[] = [];
   const createdLabels: DisplayObject[] = [];
+  const createdImages: DisplayObject[] = [];
   const events = new EventEmitter();
   const keyboard = {
     manager: { removeCapture: vi.fn() },
@@ -202,17 +226,21 @@ function makeScene(): {
     game: { canvas: document.createElement("canvas") },
     load,
     add: {
-      sprite: vi.fn((x: number, y: number) => {
-        const sprite = makeDisplayObject(x, y);
+      sprite: vi.fn((x: number, y: number, key: string, frame: number) => {
+        const sprite = makeDisplayObject(x, y).setTexture(key, frame);
         createdSprites.push(sprite);
         return sprite;
       }),
       text: vi.fn((x: number, y: number, text: string) => {
         const label = makeDisplayObject(x, y, text);
-        createdLabels.push(label);
+        if (text !== "트리를 누르면 카드를 작성할 수 있어요! 🎄") createdLabels.push(label);
         return label;
       }),
-      image: vi.fn(() => makeDisplayObject(0, 0)),
+      image: vi.fn((_x: number, _y: number, key: string) => {
+        const image = makeDisplayObject(0, 0).setTexture(key);
+        createdImages.push(image);
+        return image;
+      }),
     },
     anims: {
       create: vi.fn(),
@@ -229,7 +257,7 @@ function makeScene(): {
         startFollow: vi.fn(),
       },
     },
-    input: { keyboard },
+    input: { keyboard, setDefaultCursor: vi.fn() },
     events,
     scale: { on: vi.fn(), off: vi.fn() },
   });
@@ -239,6 +267,7 @@ function makeScene(): {
     events,
     sprites: createdSprites,
     labels: createdLabels,
+    images: createdImages,
   };
 }
 
@@ -271,6 +300,7 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     });
     useSettingsDialogStore.setState({ isOpen: false });
     useNicknameDialogStore.setState({ isOpen: false });
+    useGuestbookDialogStore.setState({ isOpen: false });
     mockAmbientDestroy.mockClear();
     mockSnowfall.create.mockClear();
     mockSnowfall.destroy.mockClear();
@@ -313,6 +343,36 @@ describe("TownScene 원격 캐릭터 재시작", () => {
 
     expect(scene.add.image).toHaveBeenCalledWith(734, 857, "christmas-tree-base");
     expect(scene.add.sprite).toHaveBeenCalledWith(734, 857, "christmas-tree-decoration", 0);
+  });
+
+  it("트리 클릭으로 방명록 상태를 열고 Scene 종료 시 상태와 트리 객체를 정리한다", () => {
+    useMovementStore.setState({
+      mapLoader: {
+        getBackgroundImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getFrontImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getMapBounds: () => ({ x: 0, y: 0, width: 1448, height: 1086 }),
+        getChristmasTreeEffect: () => ({ id: 436, name: "christmas-tree", x: 734, y: 857 }),
+      } as never,
+    });
+    const { scene, events, images, sprites } = makeScene();
+
+    scene.create();
+    const treeBase = images.find((image) => image.texture?.key === "christmas-tree-base");
+    const treeDecoration = sprites.find(
+      (sprite) => sprite.texture?.key === "christmas-tree-decoration",
+    );
+    expect(treeBase).toBeDefined();
+    expect(treeDecoration).toBeDefined();
+
+    treeBase?.emit("pointerdown");
+    expect(useGuestbookDialogStore.getState().isOpen).toBe(true);
+
+    events.emit("shutdown");
+    events.emit("destroy");
+
+    expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
+    expect(treeBase?.destroy).toHaveBeenCalledOnce();
+    expect(treeDecoration?.destroy).toHaveBeenCalledOnce();
   });
 
   it("빌리지 B에서도 맵 기반 눈 효과를 만들고 Scene 종료 때 정리한다", () => {

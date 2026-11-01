@@ -26,7 +26,35 @@ export class ChristmasTreeEffectsController {
     );
   }
 
-  constructor(scene: Phaser.Scene, effect: ChristmasTreeEffect, characterDepthBase: number) {
+  private readonly scene: Phaser.Scene;
+  private readonly base: Phaser.GameObjects.Image;
+  private readonly decoration: Phaser.GameObjects.Sprite;
+  private readonly hint: Phaser.GameObjects.Text;
+  private readonly onOpenGuestbook: () => void;
+  private destroyed = false;
+
+  private readonly onPointerOver = () => this.hint.setVisible(true);
+
+  private readonly onPointerOut = () => {
+    this.hint.setVisible(false);
+    this.scene.input.setDefaultCursor("default");
+  };
+
+  private readonly onPointerDown = () => {
+    this.hint.setVisible(false);
+    this.scene.input.setDefaultCursor("default");
+    this.onOpenGuestbook();
+  };
+
+  constructor(
+    scene: Phaser.Scene,
+    effect: ChristmasTreeEffect,
+    characterDepthBase: number,
+    onOpenGuestbook: () => void = () => undefined,
+  ) {
+    this.scene = scene;
+    this.onOpenGuestbook = onOpenGuestbook;
+
     if (!scene.anims.exists(CHRISTMAS_TREE_ANIMATION_KEY)) {
       scene.anims.create({
         key: CHRISTMAS_TREE_ANIMATION_KEY,
@@ -41,13 +69,48 @@ export class ChristmasTreeEffectsController {
 
     const depth = characterDepthBase + effect.y;
 
-    scene.add
+    this.base = scene.add
       .image(effect.x, effect.y, CHRISTMAS_TREE_BASE_ASSET_KEY)
       .setOrigin(0.5, 1)
       .setDepth(depth);
+    this.base.setInteractive({ pixelPerfect: true, cursor: "pointer" });
+    this.base.on("pointerover", this.onPointerOver);
+    this.base.on("pointerout", this.onPointerOut);
+    this.base.on("pointerdown", this.onPointerDown);
 
-    const decoration = scene.add.sprite(effect.x, effect.y, CHRISTMAS_TREE_DECORATION_ASSET_KEY, 0);
-    decoration.setOrigin(0.5, 1).setDepth(depth);
-    decoration.play(CHRISTMAS_TREE_ANIMATION_KEY);
+    this.hint = scene.add
+      .text(
+        effect.x,
+        effect.y - CHRISTMAS_TREE_FRAME_HEIGHT - 8,
+        "트리를 누르면 카드를 작성할 수 있어요! 🎄",
+        {
+          fontFamily: "galmuri9",
+          fontSize: "12px",
+          color: "#ffffff",
+          backgroundColor: "#00000088",
+          padding: { x: 4, y: 2 },
+        },
+      )
+      .setOrigin(0.5, 1)
+      .setDepth(depth + 1)
+      .setVisible(false);
+
+    this.decoration = scene.add.sprite(effect.x, effect.y, CHRISTMAS_TREE_DECORATION_ASSET_KEY, 0);
+    this.decoration.setOrigin(0.5, 1).setDepth(depth);
+    this.decoration.play(CHRISTMAS_TREE_ANIMATION_KEY);
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    this.base.off("pointerover", this.onPointerOver);
+    this.base.off("pointerout", this.onPointerOut);
+    this.base.off("pointerdown", this.onPointerDown);
+    this.base.disableInteractive();
+    this.scene.input.setDefaultCursor("default");
+    this.hint.destroy();
+    this.base.destroy();
+    this.decoration.destroy();
   }
 }

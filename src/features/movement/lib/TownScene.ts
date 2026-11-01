@@ -37,6 +37,7 @@ import {
 import { isEditableElementFocused } from "@/features/movement/lib/domFocus";
 import { CHARACTER_ACTION_CONFIGS } from "@/shared/constants";
 import { useSettingsDialogStore } from "@/shared/store";
+import { useGuestbookDialogStore } from "@/shared/store/useGuestbookDialogStore";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import * as Phaser from "phaser";
 
@@ -54,6 +55,7 @@ export class TownScene extends Phaser.Scene {
   private localUserId: string = "";
   private localCharacterId: CharacterId = "p-boy";
   private christmasTreeAmbientController?: AmbientSoundController;
+  private christmasTreeEffectsController?: ChristmasTreeEffectsController;
   private snowfallEffectsController?: SnowfallEffectsController;
 
   /** 스프라이트 변경이 캔버스에 반영된 프레임에서 표시 상태를 공개한다. */
@@ -91,8 +93,11 @@ export class TownScene extends Phaser.Scene {
     this.remotePlayersController = undefined;
     this.christmasTreeAmbientController?.destroy();
     this.christmasTreeAmbientController = undefined;
+    this.christmasTreeEffectsController?.destroy();
+    this.christmasTreeEffectsController = undefined;
     this.snowfallEffectsController?.destroy();
     this.snowfallEffectsController = undefined;
+    useGuestbookDialogStore.getState().setOpen(false);
   };
 
   constructor() {
@@ -229,7 +234,12 @@ export class TownScene extends Phaser.Scene {
     if (mapLoader) {
       const christmasTreeEffect = mapLoader.getChristmasTreeEffect();
       if (christmasTreeEffect) {
-        new ChristmasTreeEffectsController(this, christmasTreeEffect, CHARACTER_DEPTH_BASE);
+        this.christmasTreeEffectsController = new ChristmasTreeEffectsController(
+          this,
+          christmasTreeEffect,
+          CHARACTER_DEPTH_BASE,
+          () => useGuestbookDialogStore.getState().setOpen(true),
+        );
       }
     }
 
@@ -310,7 +320,8 @@ export class TownScene extends Phaser.Scene {
     const isInputFocused = isEditableElementFocused();
     const isSettingsOpen = useSettingsDialogStore.getState().isOpen;
     const isNicknameOpen = useNicknameDialogStore.getState().isOpen;
-    const isInputBlocked = isInputFocused || isSettingsOpen || isNicknameOpen;
+    const isGuestbookOpen = useGuestbookDialogStore.getState().isOpen;
+    const isInputBlocked = isInputFocused || isSettingsOpen || isNicknameOpen || isGuestbookOpen;
 
     const localInput = this.inputController?.read(isInputBlocked);
     if (localInput) {

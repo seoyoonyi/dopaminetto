@@ -9,16 +9,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
-import { ArrowLeft, List, Pencil, TreePine } from "lucide-react";
+import { List, Pencil, TreePine } from "lucide-react";
 
 import { useState } from "react";
 import type { CSSProperties } from "react";
+
+import { ChristmasCardForm } from "./ChristmasCardForm";
 
 interface ChristmasCardDialogProps {
   open: boolean;
   position: { x: number; y: number } | null;
   onOpenChange: (open: boolean) => void;
   onViewList?: () => void;
+  nickname?: string;
+  onSubmit?: (nickname: string, message: string) => Promise<void>;
 }
 
 export function ChristmasCardDialog({
@@ -26,6 +30,8 @@ export function ChristmasCardDialog({
   position,
   onOpenChange,
   onViewList,
+  nickname = "",
+  onSubmit,
 }: ChristmasCardDialogProps) {
   const [isWriting, setIsWriting] = useState(false);
 
@@ -39,15 +45,19 @@ export function ChristmasCardDialog({
       }}
     >
       <DialogContent
-        className={`z-40 w-48 gap-2 overflow-hidden border-[#aabfce] bg-[var(--winter-town-canvas-background)] p-0 text-slate-800 shadow-md sm:max-w-48 [&_[data-slot=dialog-close]]:top-1 [&_[data-slot=dialog-close]]:right-1 [&_[data-slot=dialog-close]]:p-1 ${
+        className={`z-40 ${isWriting ? "w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100dvh-1rem)] overflow-y-auto sm:max-w-sm" : "w-48 overflow-hidden sm:max-w-48"} gap-2 border-[#aabfce] bg-[var(--winter-town-canvas-background)] p-0 text-slate-800 shadow-md [&_[data-slot=dialog-close]]:top-1 [&_[data-slot=dialog-close]]:right-1 [&_[data-slot=dialog-close]]:p-1 ${
           position ? "translate-x-0 translate-y-0" : ""
         }`}
         showOverlay={false}
         style={
           position
             ? ({
-                left: "clamp(0.5rem, calc(var(--anchor-x) - 6rem), calc(100vw - 12rem))",
-                top: "clamp(0.5rem, calc(var(--anchor-y) - 4rem), calc(100dvh - 8rem))",
+                left: isWriting
+                  ? "clamp(0.5rem, calc(var(--anchor-x) - 12rem), calc(100vw - 24rem))"
+                  : "clamp(0.5rem, calc(var(--anchor-x) - 6rem), calc(100vw - 12rem))",
+                top: isWriting
+                  ? "clamp(0.5rem, calc(var(--anchor-y) - 12rem), calc(100dvh - 24rem))"
+                  : "clamp(0.5rem, calc(var(--anchor-y) - 4rem), calc(100dvh - 8rem))",
                 "--anchor-x": `${position.x}px`,
                 "--anchor-y": `${position.y}px`,
               } as CSSProperties)
@@ -64,7 +74,9 @@ export function ChristmasCardDialog({
             {isWriting ? "카드 작성하기" : "크리스마스 카드"}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {isWriting ? "카드 작성 화면은 다음 단계에서 준비할게요." : "방명록 메뉴를 선택하세요."}
+            {isWriting
+              ? "닉네임과 메시지를 입력해 크리스마스 카드를 작성하세요."
+              : "방명록 메뉴를 선택하세요."}
           </DialogDescription>
         </DialogHeader>
 
@@ -92,17 +104,11 @@ export function ChristmasCardDialog({
             </DialogFooter>
           </>
         ) : (
-          <div className="flex flex-col items-center gap-4">
-            <p className="px-2 py-1 text-sm text-slate-700">작성 기능을 곧 만날 수 있어요.</p>
-            <Button
-              className="cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
-              onClick={() => setIsWriting(false)}
-              type="button"
-              variant="outline"
-            >
-              <ArrowLeft aria-hidden="true" /> 돌아가기
-            </Button>
-          </div>
+          <ChristmasCardForm
+            nickname={nickname}
+            onBack={() => setIsWriting(false)}
+            onSubmit={onSubmit}
+          />
         )}
       </DialogContent>
     </Dialog>

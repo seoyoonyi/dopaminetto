@@ -104,6 +104,7 @@ type SceneHarness = {
   preload: () => void;
   create: () => void;
   update: (time: number, delta: number) => void;
+  game: { canvas: HTMLCanvasElement };
   load: {
     image: ReturnType<typeof vi.fn>;
     spritesheet: ReturnType<typeof vi.fn>;
@@ -382,7 +383,10 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     expect(treeBase).toBeDefined();
     expect(treeDecoration).toBeDefined();
 
-    treeBase?.emit("pointerdown", { event: { clientX: 734, clientY: 857 } });
+    treeBase?.emit("pointerdown", {
+      downElement: scene.game.canvas,
+      event: { clientX: 734, clientY: 857 },
+    });
     expect(useGuestbookDialogStore.getState().isOpen).toBe(true);
 
     events.emit("shutdown");
@@ -391,6 +395,28 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
     expect(treeBase?.destroy).toHaveBeenCalledOnce();
     expect(treeDecoration?.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("설정 다이얼로그가 열린 동안 트리를 눌러도 방명록을 열지 않는다", () => {
+    useMovementStore.setState({
+      mapLoader: {
+        getBackgroundImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getFrontImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getMapBounds: () => ({ x: 0, y: 0, width: 1448, height: 1086 }),
+        getChristmasTreeEffect: () => ({ id: 436, name: "christmas-tree", x: 734, y: 857 }),
+      } as never,
+    });
+    useSettingsDialogStore.setState({ isOpen: true });
+    const { scene, images } = makeScene();
+
+    scene.create();
+    const treeBase = images.find((image) => image.texture?.key === "christmas-tree-base");
+    treeBase?.emit("pointerdown", {
+      downElement: scene.game.canvas,
+      event: { clientX: 734, clientY: 857 },
+    });
+
+    expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
   });
 
   it("빌리지 B에서도 맵 기반 눈 효과를 만들고 Scene 종료 때 정리한다", () => {

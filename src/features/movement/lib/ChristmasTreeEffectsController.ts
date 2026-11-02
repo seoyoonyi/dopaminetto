@@ -40,7 +40,9 @@ export class ChristmasTreeEffectsController {
     this.scene.input.setDefaultCursor("default");
   };
 
-  private readonly onPointerDown = () => {
+  private readonly onPointerDown = (pointer: Phaser.Input.Pointer) => {
+    if (pointer.downElement !== this.scene.game.canvas) return;
+
     this.hint.setVisible(false);
     this.scene.input.setDefaultCursor("default");
     const camera = this.scene.cameras.main;

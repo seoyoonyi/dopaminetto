@@ -151,10 +151,32 @@ describe("ChristmasTreeEffectsController", () => {
     tree.emit("pointerover");
     expect(tree.hint.setVisible).toHaveBeenLastCalledWith(true);
 
-    tree.emit("pointerdown", { event: { clientX: 420, clientY: 280 } });
+    tree.emit("pointerdown", {
+      downElement: tree.scene.game.canvas,
+      event: { clientX: 420, clientY: 280 },
+    });
     expect(onOpenGuestbook).toHaveBeenCalledTimes(1);
     expect(onOpenGuestbook).toHaveBeenCalledWith({ x: 337, y: 249.25 });
     expect(tree.hint.setVisible).toHaveBeenLastCalledWith(false);
+  });
+
+  it("캔버스 밖 DOM을 누른 입력으로 트리 방명록을 열지 않는다", () => {
+    const tree = createTreeHarness();
+    const onOpenGuestbook = vi.fn();
+
+    new ChristmasTreeEffectsController(
+      tree.scene as never,
+      { id: 436, name: "christmas-tree", x: 734, y: 857 },
+      1000,
+      onOpenGuestbook,
+    );
+
+    tree.emit("pointerdown", {
+      downElement: {},
+      event: { clientX: 420, clientY: 280 },
+    });
+
+    expect(onOpenGuestbook).not.toHaveBeenCalled();
   });
 
   it("호버 종료와 destroy에서 리스너·안내·커서를 정리한다", () => {

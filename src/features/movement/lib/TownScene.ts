@@ -238,7 +238,10 @@ export class TownScene extends Phaser.Scene {
           this,
           christmasTreeEffect,
           CHARACTER_DEPTH_BASE,
-          (position) => useGuestbookDialogStore.getState().setOpen(true, position),
+          (position) => {
+            if (useSettingsDialogStore.getState().isOpen) return;
+            useGuestbookDialogStore.getState().setOpen(true, position);
+          },
         );
       }
     }

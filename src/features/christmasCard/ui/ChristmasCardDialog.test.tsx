@@ -115,7 +115,7 @@ describe("ChristmasGuestbook", () => {
     expect(writeButton?.className).toContain("cursor-pointer");
   });
 
-  it("갤러리가 연결되기 전 목록 보기를 비활성화하고 안내한다", async () => {
+  it("목록 보기는 전체 화면 dim modal로 준비 안내를 표시한다", async () => {
     await render();
     act(() => useGuestbookDialogStore.getState().setOpen(true));
 
@@ -123,7 +123,35 @@ describe("ChristmasGuestbook", () => {
       button.textContent?.includes("목록 보기"),
     );
 
-    expect(listButton?.disabled).toBe(true);
+    expect(listButton?.disabled).toBe(false);
+    await act(async () => listButton?.click());
+
+    expect(dialog()?.className).toContain("!w-screen");
+    const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.className).toContain("bg-black/50");
+    expect(dialog()?.className).toContain("!bg-transparent");
+    expect(dialog()?.querySelector("section")?.className).toContain("max-w-md");
+    expect(dialog()?.textContent).toContain("아직 카드 목록을 준비하고 있어요.");
+    expect(dialog()?.textContent).toContain("돌아가기");
+
+    const backButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("돌아가기"),
+    );
+    await act(async () => backButton?.click());
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull();
+    expect(dialog()?.textContent).toContain("목록 보기");
+
+    const reopenListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => reopenListButton?.click());
+    await act(async () => {
+      document
+        .querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
+        ?.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    });
+    expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
   });
 
   it("닫기 동작은 공유 열림 상태도 초기화한다", async () => {
@@ -147,6 +175,12 @@ describe("ChristmasGuestbook", () => {
     );
 
     await act(async () => writeButton?.click());
+    expect(dialog()?.className).toContain("!w-screen");
+    expect(document.querySelector('[data-slot="dialog-overlay"]')?.className).toContain(
+      "bg-black/50",
+    );
+    expect(dialog()?.className).toContain("!bg-transparent");
+    expect(dialog()?.querySelector("section")?.className).toContain("max-w-3xl");
     expect(dialog()?.querySelector("#christmas-card-nickname")).not.toBeNull();
     expect(dialog()?.querySelector("#christmas-card-message")).not.toBeNull();
     expect(dialog()?.querySelector<HTMLInputElement>("#christmas-card-nickname")?.value).toBe(

@@ -60,6 +60,12 @@ describe("ChristmasCardForm", () => {
     expect(messageField().maxLength).toBe(150);
     expect(container!.textContent).toContain("0 / 150");
     expect(container!.querySelectorAll('[data-card-template="true"]')).toHaveLength(1);
+    expect(container!.querySelector('[data-card-template="true"]')?.className).toContain(
+      "aspect-video",
+    );
+    expect(container!.querySelector('[data-card-template="true"]')?.className).toContain(
+      "max-w-2xl",
+    );
   });
 
   it("닉네임을 수정해 메시지와 함께 앞뒤 공백을 정리해 제출한다", async () => {

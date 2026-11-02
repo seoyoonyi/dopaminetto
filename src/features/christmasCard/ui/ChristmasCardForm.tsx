@@ -86,13 +86,24 @@ export function ChristmasCardForm({
   }
 
   return (
-    <form className="flex flex-col gap-3 p-3" onSubmit={handleSubmit}>
-      <div
+    <form className="flex w-full flex-col gap-3 p-3" onSubmit={handleSubmit}>
+      <section
+        aria-label="크리스마스 카드 미리보기"
+        className="relative mx-auto aspect-video w-full max-w-2xl overflow-hidden rounded-lg border border-[#e6d3b4] bg-[#fff8ed]"
         data-card-template="true"
-        className="rounded-md border border-[#e6d3b4] bg-[#fff8ed] p-2 text-center text-sm"
       >
-        🎄 메리 크리스마스
-      </div>
+        <div className="absolute inset-x-[24%] top-[31%] bottom-[18%] flex items-center justify-center">
+          <Textarea
+            aria-label="카드 메시지 미리보기"
+            className="h-full resize-none border-0 bg-transparent text-center text-sm text-[#63322d] shadow-none focus-visible:ring-1 focus-visible:ring-[#a56b48]"
+            id="christmas-card-message"
+            maxLength={150}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="따뜻한 메시지를 남겨주세요."
+            value={message}
+          />
+        </div>
+      </section>
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium" htmlFor="christmas-card-nickname">
           닉네임
@@ -112,14 +123,6 @@ export function ChristmasCardForm({
         <label className="text-xs font-medium" htmlFor="christmas-card-message">
           메시지
         </label>
-        <Textarea
-          id="christmas-card-message"
-          maxLength={150}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder="따뜻한 메시지를 남겨주세요."
-          rows={4}
-          value={message}
-        />
         <p className="text-right text-xs text-muted-foreground">{message.length} / 150</p>
       </div>
       {!onSubmit ? (

@@ -137,7 +137,7 @@ describe("ChristmasTreeEffectsController", () => {
     expect(tree.decoration.setInteractive).not.toHaveBeenCalled();
   });
 
-  it("트리 호버 안내를 표시하고 클릭 시 콜백을 한 번 호출한 뒤 안내를 숨긴다", () => {
+  it("트리 호버 안내를 표시하고 클릭 위치와 무관하게 화면상 트리 중앙을 전달한다", () => {
     const tree = createTreeHarness();
     const onOpenGuestbook = vi.fn();
 
@@ -151,8 +151,9 @@ describe("ChristmasTreeEffectsController", () => {
     tree.emit("pointerover");
     expect(tree.hint.setVisible).toHaveBeenLastCalledWith(true);
 
-    tree.emit("pointerdown");
+    tree.emit("pointerdown", { event: { clientX: 420, clientY: 280 } });
     expect(onOpenGuestbook).toHaveBeenCalledTimes(1);
+    expect(onOpenGuestbook).toHaveBeenCalledWith({ x: 337, y: 249.25 });
     expect(tree.hint.setVisible).toHaveBeenLastCalledWith(false);
   });
 
@@ -187,6 +188,7 @@ function createTreeHarness() {
     setOrigin: vi.fn().mockReturnThis(),
     setDepth: vi.fn().mockReturnThis(),
     setInteractive: vi.fn().mockReturnThis(),
+    getCenter: vi.fn(() => ({ x: 734, y: 678.5 })),
     on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       handlers.set(event, handler);
       return base;
@@ -218,13 +220,20 @@ function createTreeHarness() {
     hint,
     decoration,
     input,
-    emit: (event: string) => handlers.get(event)?.(),
+    emit: (event: string, ...args: unknown[]) => handlers.get(event)?.(...args),
     scene: {
       add: {
         image: vi.fn(() => base),
         sprite: vi.fn(() => decoration),
         text: vi.fn(() => hint),
       },
+      cameras: { main: { x: 0, y: 0, zoom: 1, worldView: { x: 100, y: 200 } } },
+      game: {
+        canvas: {
+          getBoundingClientRect: () => ({ left: 20, top: 10, width: 400, height: 300 }),
+        },
+      },
+      scale: { width: 800, height: 600 },
       input,
       anims: {
         exists: vi.fn(() => true),

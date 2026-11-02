@@ -30,7 +30,7 @@ export class ChristmasTreeEffectsController {
   private readonly base: Phaser.GameObjects.Image;
   private readonly decoration: Phaser.GameObjects.Sprite;
   private readonly hint: Phaser.GameObjects.Text;
-  private readonly onOpenGuestbook: () => void;
+  private readonly onOpenGuestbook: (position: { x: number; y: number }) => void;
   private destroyed = false;
 
   private readonly onPointerOver = () => this.hint.setVisible(true);
@@ -43,14 +43,22 @@ export class ChristmasTreeEffectsController {
   private readonly onPointerDown = () => {
     this.hint.setVisible(false);
     this.scene.input.setDefaultCursor("default");
-    this.onOpenGuestbook();
+    const camera = this.scene.cameras.main;
+    const canvasBounds = this.scene.game.canvas.getBoundingClientRect();
+    const center = this.base.getCenter();
+    const screenX = camera.x + (center.x - camera.worldView.x) * camera.zoom;
+    const screenY = camera.y + (center.y - camera.worldView.y) * camera.zoom;
+    this.onOpenGuestbook({
+      x: canvasBounds.left + screenX * (canvasBounds.width / this.scene.scale.width),
+      y: canvasBounds.top + screenY * (canvasBounds.height / this.scene.scale.height),
+    });
   };
 
   constructor(
     scene: Phaser.Scene,
     effect: ChristmasTreeEffect,
     characterDepthBase: number,
-    onOpenGuestbook: () => void = () => undefined,
+    onOpenGuestbook: (position: { x: number; y: number }) => void = () => undefined,
   ) {
     this.scene = scene;
     this.onOpenGuestbook = onOpenGuestbook;

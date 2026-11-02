@@ -92,10 +92,11 @@ type DisplayObject = {
   setText: (text: string) => DisplayObject;
   setVisible: (visible: boolean) => DisplayObject;
   setInteractive: () => DisplayObject;
+  getCenter: () => { x: number; y: number };
   disableInteractive: () => DisplayObject;
-  on: (event: string, handler: () => void) => DisplayObject;
-  off: (event: string, handler?: () => void) => DisplayObject;
-  emit: (event: string) => void;
+  on: (event: string, handler: (...args: unknown[]) => void) => DisplayObject;
+  off: (event: string, handler?: (...args: unknown[]) => void) => DisplayObject;
+  emit: (event: string, ...args: unknown[]) => void;
   destroy: ReturnType<typeof vi.fn>;
 };
 
@@ -125,7 +126,7 @@ type SceneHarness = {
 };
 
 function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
-  const handlers = new Map<string, () => void>();
+  const handlers = new Map<string, (...args: unknown[]) => void>();
   const object: DisplayObject = {
     x,
     y,
@@ -166,6 +167,7 @@ function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
     },
     setVisible: () => object,
     setInteractive: () => object,
+    getCenter: () => ({ x: 734, y: 678.5 }),
     disableInteractive: () => object,
     on(event, handler) {
       handlers.set(event, handler);
@@ -175,8 +177,8 @@ function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
       handlers.delete(event);
       return object;
     },
-    emit(event) {
-      handlers.get(event)?.();
+    emit(event, ...args) {
+      handlers.get(event)?.(...args);
     },
     destroy: vi.fn(function (this: DisplayObject) {
       this.destroyed = true;
@@ -197,6 +199,18 @@ function makeScene(): {
   const createdLabels: DisplayObject[] = [];
   const createdImages: DisplayObject[] = [];
   const events = new EventEmitter();
+  const canvas = document.createElement("canvas");
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 600,
+    right: 800,
+    bottom: 600,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
   const keyboard = {
     manager: { removeCapture: vi.fn() },
     createCursorKeys: () => ({
@@ -223,7 +237,6 @@ function makeScene(): {
   const load = { audio: vi.fn(), image: vi.fn(), spritesheet: vi.fn() };
 
   Object.assign(instance, {
-    game: { canvas: document.createElement("canvas") },
     load,
     add: {
       sprite: vi.fn((x: number, y: number, key: string, frame: number) => {
@@ -249,6 +262,10 @@ function makeScene(): {
     },
     cameras: {
       main: {
+        x: 0,
+        y: 0,
+        zoom: 1,
+        worldView: { x: 0, y: 0 },
         width: 800,
         height: 600,
         setBounds: vi.fn(),
@@ -259,7 +276,8 @@ function makeScene(): {
     },
     input: { keyboard, setDefaultCursor: vi.fn() },
     events,
-    scale: { on: vi.fn(), off: vi.fn() },
+    scale: { width: 800, height: 600, on: vi.fn(), off: vi.fn() },
+    game: { canvas },
   });
 
   return {
@@ -364,7 +382,7 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     expect(treeBase).toBeDefined();
     expect(treeDecoration).toBeDefined();
 
-    treeBase?.emit("pointerdown");
+    treeBase?.emit("pointerdown", { event: { clientX: 734, clientY: 857 } });
     expect(useGuestbookDialogStore.getState().isOpen).toBe(true);
 
     events.emit("shutdown");

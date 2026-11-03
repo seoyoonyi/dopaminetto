@@ -48,14 +48,14 @@ async function submit() {
 }
 
 describe("ChristmasCardForm", () => {
-  it("메시지가 비어 있을 때 안내 문구를 세로 중앙에 표시하고 입력하면 숨긴다", async () => {
+  it("메시지가 비어 있을 때 안내 문구를 입력 시작 위치에 표시하고 입력하면 숨긴다", async () => {
     await render();
 
     const placeholder = container!.querySelector<HTMLElement>("[data-card-message-placeholder]");
     expect(placeholder?.textContent).toBe(
       "도파민또에 남기고 싶은 이야기를 180자 안에 담아보세요. 🎄",
     );
-    expect(placeholder?.className).toContain("items-center");
+    expect(placeholder?.className).toContain("items-start");
     expect(placeholder?.className).toContain("justify-center");
 
     await setMessage("메리 크리스마스!");
@@ -134,10 +134,13 @@ describe("ChristmasCardForm", () => {
     );
     expect(messageField().parentElement?.className).toContain("top-[24%]");
     expect(messageField().parentElement?.className).toContain("max-[920px]:top-[32%]");
-    expect(messageField().parentElement?.className).toContain("max-[920px]:items-start");
+    expect(messageField().parentElement?.className).toContain("items-start");
     expect(messageField().parentElement?.className).toContain("bottom-0");
     expect(messageField().parentElement?.className).toContain("min-[921px]:top-[28%]");
     expect(messageField().parentElement?.className).toContain("min-[921px]:bottom-[30%]");
+    expect(messageField().parentElement?.className).toContain(
+      "min-[1024px]:max-[1279px]:bottom-[32%]",
+    );
     expect(messageField().parentElement?.className).not.toContain("sm:bottom-[30%]");
     expect(messageField().parentElement?.className).toContain("p-0");
     expect(messageField().parentElement?.className).toContain("sm:p-3");

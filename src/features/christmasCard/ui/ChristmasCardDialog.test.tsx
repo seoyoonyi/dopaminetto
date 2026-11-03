@@ -199,7 +199,9 @@ describe("ChristmasGuestbook", () => {
     );
 
     await act(async () => {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      dialog()
+        ?.querySelector<HTMLTextAreaElement>("#christmas-card-message")
+        ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
 
     expect(useGuestbookDialogStore.getState().isOpen).toBe(false);

@@ -143,6 +143,12 @@ export function ChristmasCardDialog({
         } text-slate-800 [&_[data-slot=dialog-close]]:top-1 [&_[data-slot=dialog-close]]:right-1 [&_[data-slot=dialog-close]]:p-1 ${
           position && !isFullScreen ? "translate-x-0 translate-y-0" : ""
         }`}
+        onKeyDownCapture={(event) => {
+          if (!isFullScreen || event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenChange(false);
+        }}
         showCloseButton={!isFullScreen}
         showOverlay={isFullScreen}
         style={

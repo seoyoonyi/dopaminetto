@@ -48,6 +48,31 @@ async function submit() {
 }
 
 describe("ChristmasCardForm", () => {
+  it("메시지가 비어 있을 때 안내 문구를 세로 중앙에 표시하고 입력하면 숨긴다", async () => {
+    await render();
+
+    const placeholder = container!.querySelector<HTMLElement>("[data-card-message-placeholder]");
+    expect(placeholder?.textContent).toBe(
+      "도파민또에 남기고 싶은 이야기를 180자 안에 담아보세요. 🎄",
+    );
+    expect(placeholder?.className).toContain("items-center");
+    expect(placeholder?.className).toContain("justify-center");
+
+    await setMessage("메리 크리스마스!");
+    expect(container!.querySelector("[data-card-message-placeholder]")).toBeNull();
+  });
+
+  it("입력한 메시지는 짧거나 길어도 같은 위쪽 여백에서 시작한다", async () => {
+    await render();
+    const field = messageField();
+
+    await setMessage("짧은 메시지");
+    expect(field.style.paddingTop).toBe("");
+
+    await setMessage("긴 메시지".repeat(25));
+    expect(field.style.paddingTop).toBe("");
+  });
+
   it("로그인 닉네임을 수정 가능한 기본값으로 표시하고 글자 수와 한 개의 카드 템플릿을 제공한다", async () => {
     await render();
 
@@ -57,15 +82,73 @@ describe("ChristmasCardForm", () => {
     expect(container!.querySelector<HTMLInputElement>("#christmas-card-nickname")?.readOnly).toBe(
       false,
     );
-    expect(messageField().maxLength).toBe(150);
-    expect(container!.textContent).toContain("0 / 150");
+    expect(container!.querySelector('label[for="christmas-card-nickname"]')?.textContent).toBe(
+      "From.",
+    );
+    expect(messageField().maxLength).toBe(180);
+    expect(container!.textContent).toContain("0 / 180");
+    expect(container!.querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
+      "메시지 개수",
+    );
+    expect(
+      container!.querySelector('label[for="christmas-card-message"]')?.parentElement?.className,
+    ).toContain("justify-between");
+    expect(
+      container!.querySelector('label[for="christmas-card-message"]')?.parentElement?.className,
+    ).toContain("text-[#63322d]");
     expect(container!.querySelectorAll('[data-card-template="true"]')).toHaveLength(1);
     expect(container!.querySelector('[data-card-template="true"]')?.className).toContain(
       "aspect-video",
     );
-    expect(container!.querySelector('[data-card-template="true"]')?.className).toContain(
-      "max-w-2xl",
+    expect(container!.querySelector('[data-card-template="true"]')?.className).toContain("w-full");
+    expect(container!.querySelector('[data-card-template="true"]')?.className).not.toContain(
+      "max-w-5xl",
     );
+    expect(container!.querySelector('[data-card-template="true"]')?.className).toContain(
+      "max-w-none",
+    );
+    expect(container!.querySelector('[data-card-template="true"]')?.className).not.toContain(
+      "h-full",
+    );
+    expect(messageField().className).toContain("text-xl");
+    expect(messageField().className).toContain("text-left");
+    expect(messageField().className).toContain("text-sm");
+    expect(messageField().className).not.toContain("text-xs");
+    expect(messageField().className).toContain("sm:text-base");
+    expect(messageField().className).toContain("md:text-lg");
+    expect(messageField().className).toContain("lg:text-xl");
+    expect(messageField().className).not.toContain("lg:text-2xl");
+    expect(messageField().className).toContain("max-[920px]:text-sm");
+    expect(messageField().className).toContain("max-[920px]:leading-5");
+    expect(messageField().className).toContain("leading-5");
+    expect(messageField().className).toContain("sm:leading-6");
+    expect(messageField().className).toContain("md:leading-7");
+    expect(messageField().className).toContain("lg:leading-8");
+    expect(messageField().className).toContain("overflow-hidden");
+    expect(messageField().className).not.toContain("overflow-y-auto");
+    expect(messageField().className).toContain("field-sizing-content");
+    expect(messageField().className).not.toContain("size-full");
+    expect(messageField().parentElement?.className).toContain("christmas-card-message-focus");
+    expect(container!.querySelector("[data-card-message-placeholder]")?.className).toContain(
+      "text-center",
+    );
+    expect(messageField().parentElement?.className).toContain("top-[24%]");
+    expect(messageField().parentElement?.className).toContain("max-[920px]:top-[32%]");
+    expect(messageField().parentElement?.className).toContain("max-[920px]:items-start");
+    expect(messageField().parentElement?.className).toContain("bottom-0");
+    expect(messageField().parentElement?.className).toContain("min-[921px]:top-[28%]");
+    expect(messageField().parentElement?.className).toContain("min-[921px]:bottom-[30%]");
+    expect(messageField().parentElement?.className).not.toContain("sm:bottom-[30%]");
+    expect(messageField().parentElement?.className).toContain("p-0");
+    expect(messageField().parentElement?.className).toContain("sm:p-3");
+    expect(messageField().parentElement?.className).toContain("lg:p-4");
+    expect(container!.querySelector("video")?.loop).toBe(true);
+    expect(container!.querySelector("video")?.muted).toBe(true);
+    expect(container!.querySelector("video")?.playsInline).toBe(true);
+    expect(container!.querySelector("video")?.getAttribute("autoplay")).not.toBeNull();
+    expect(container!.querySelector("video")?.className).toContain("min-w-[320px]");
+    expect(container!.querySelector("video")?.className).toContain("min-h-[180px]");
+    expect(container!.querySelector("img")?.getAttribute("alt")).toBe("");
   });
 
   it("닉네임을 수정해 메시지와 함께 앞뒤 공백을 정리해 제출한다", async () => {
@@ -137,7 +220,7 @@ describe("ChristmasCardForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
 
     await setMessage("  따뜻한 연말 보내세요!  ");
-    expect(container!.textContent).toContain(`${"  따뜻한 연말 보내세요!  ".length} / 150`);
+    expect(container!.textContent).toContain(`${"  따뜻한 연말 보내세요!  ".length} / 180`);
     await submit();
 
     expect(onSubmit).toHaveBeenCalledWith("눈사람", "따뜻한 연말 보내세요!");

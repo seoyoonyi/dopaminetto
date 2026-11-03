@@ -1,13 +1,17 @@
 "use client";
 
-import { validateChristmasCardMessage } from "@/features/christmasCard/model/christmasCardMessage";
+import {
+  CHRISTMAS_CARD_MESSAGE_MAX_LENGTH,
+  validateChristmasCardMessage,
+} from "@/features/christmasCard/model/christmasCardMessage";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import { Textarea } from "@/shared/ui/textarea";
 import { ArrowLeft, Send } from "lucide-react";
 
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
+
+import { ChristmasCardFace } from "./ChristmasCardFace";
 
 const NICKNAME_MAX_LENGTH = 12;
 
@@ -87,53 +91,47 @@ export function ChristmasCardForm({
 
   return (
     <form className="flex w-full flex-col gap-3 p-3" onSubmit={handleSubmit}>
-      <section
-        aria-label="크리스마스 카드 미리보기"
-        className="relative mx-auto aspect-video w-full max-w-2xl overflow-hidden rounded-lg border border-[#e6d3b4] bg-[#fff8ed]"
-        data-card-template="true"
-      >
-        <div className="absolute inset-x-[24%] top-[31%] bottom-[18%] flex items-center justify-center">
-          <Textarea
-            aria-label="카드 메시지 미리보기"
-            className="h-full resize-none border-0 bg-transparent text-center text-sm text-[#63322d] shadow-none focus-visible:ring-1 focus-visible:ring-[#a56b48]"
-            id="christmas-card-message"
-            maxLength={150}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="따뜻한 메시지를 남겨주세요."
-            value={message}
+      <ChristmasCardFace
+        editable
+        inputId="christmas-card-message"
+        message={message}
+        onMessageChange={setMessage}
+      />
+      <div className="flex shrink-0 flex-col gap-1">
+        <div className="flex items-center gap-1 border-b border-[#c8a88b] px-1 py-1 text-sm text-[#63322d]">
+          <label className="shrink-0 font-serif italic" htmlFor="christmas-card-nickname">
+            From.
+          </label>
+          <Input
+            autoComplete="off"
+            className="h-auto min-w-0 flex-1 border-0 bg-transparent px-1 py-0 text-sm text-[#63322d] shadow-none focus-visible:ring-1 focus-visible:ring-[#a56b48]"
+            id="christmas-card-nickname"
+            maxLength={NICKNAME_MAX_LENGTH}
+            onChange={(event) => setNickname(event.target.value)}
+            value={nickname}
           />
         </div>
-      </section>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium" htmlFor="christmas-card-nickname">
-          닉네임
-        </label>
-        <Input
-          autoComplete="off"
-          id="christmas-card-nickname"
-          maxLength={NICKNAME_MAX_LENGTH}
-          onChange={(event) => setNickname(event.target.value)}
-          value={nickname}
-        />
         {normalizedNickname.length === 0 ? (
           <p className="text-xs text-destructive">닉네임을 입력해 주세요.</p>
         ) : null}
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium" htmlFor="christmas-card-message">
-          메시지
+      <div className="flex shrink-0 items-center justify-between text-xs text-[#63322d]">
+        <label className="font-medium" htmlFor="christmas-card-message">
+          메시지 개수
         </label>
-        <p className="text-right text-xs text-muted-foreground">{message.length} / 150</p>
+        <p>
+          {message.length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
+        </p>
       </div>
       {!onSubmit ? (
-        <p className="text-xs text-muted-foreground">카드 저장 기능은 준비 중이에요.</p>
+        <p className="shrink-0 text-xs text-muted-foreground">카드 저장 기능은 준비 중이에요.</p>
       ) : null}
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
+        <p className="shrink-0 text-xs text-destructive" role="alert">
           {error}
         </p>
       ) : null}
-      <div className="flex justify-between gap-2">
+      <div className="flex shrink-0 justify-between gap-2">
         <Button className="cursor-pointer" onClick={onBack} type="button" variant="outline">
           <ArrowLeft aria-hidden="true" /> 돌아가기
         </Button>

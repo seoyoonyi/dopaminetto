@@ -19,13 +19,13 @@ describe("validateChristmasCardMessage", () => {
     });
   });
 
-  it("문자열 길이 150은 허용하고 151은 거부한다", () => {
-    expect(validateChristmasCardMessage("가".repeat(150)).isValid).toBe(true);
-    expect(validateChristmasCardMessage("가".repeat(151)).isValid).toBe(false);
+  it("문자열 길이 180은 허용하고 181은 거부한다", () => {
+    expect(validateChristmasCardMessage("가".repeat(180)).isValid).toBe(true);
+    expect(validateChristmasCardMessage("가".repeat(181)).isValid).toBe(false);
   });
 
   it("이모지는 JavaScript 문자열 길이 기준으로 계산한다", () => {
-    expect(validateChristmasCardMessage("🎄".repeat(75)).isValid).toBe(true);
-    expect(validateChristmasCardMessage("🎄".repeat(76)).isValid).toBe(false);
+    expect(validateChristmasCardMessage("🎄".repeat(90)).isValid).toBe(true);
+    expect(validateChristmasCardMessage("🎄".repeat(91)).isValid).toBe(false);
   });
 });

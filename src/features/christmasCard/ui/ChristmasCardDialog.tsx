@@ -38,7 +38,7 @@ export function ChristmasCardDialog({
   const isFullScreen = screen !== "menu";
   const dialogHeader = (
     <DialogHeader
-      className={`relative min-h-10 justify-center bg-[#b8ccda] px-3 pr-10 text-left ${
+      className={`relative min-h-10 shrink-0 justify-center bg-[#b8ccda] px-3 pr-10 text-left ${
         isFullScreen ? "w-full px-5 py-4" : ""
       }`}
     >
@@ -79,7 +79,7 @@ export function ChristmasCardDialog({
 
   const screenContent =
     screen === "menu" ? (
-      <DialogFooter className="flex flex-col gap-1 p-2 sm:flex-col sm:items-stretch sm:justify-start">
+      <DialogFooter className="font-display flex flex-col gap-1 p-2 sm:flex-col sm:items-stretch sm:justify-start">
         <Button
           className="h-9 w-full cursor-pointer justify-start bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
           data-primary="true"
@@ -101,7 +101,10 @@ export function ChristmasCardDialog({
         </Button>
       </DialogFooter>
     ) : screen === "writing" ? (
-      <div className="flex w-full flex-1 items-center justify-center overflow-y-auto p-3">
+      <div
+        className="flex w-full shrink-0 flex-col items-center justify-center p-3"
+        data-card-writing-content
+      >
         <ChristmasCardForm
           nickname={nickname}
           onBack={() => setScreen("menu")}
@@ -156,7 +159,9 @@ export function ChristmasCardDialog({
         {isFullScreen ? (
           <div className="pointer-events-none flex h-dvh w-full items-center justify-center p-4 sm:p-8">
             <section
-              className={`pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full ${screen === "writing" ? "max-w-3xl" : "max-w-md"} flex-col overflow-y-auto rounded-xl border border-[#aabfce] bg-[var(--winter-town-canvas-background)] shadow-xl`}
+              className={`pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-xl border border-[#aabfce] bg-[var(--winter-town-canvas-background)] shadow-xl sm:max-h-[calc(100dvh-4rem)] ${
+                screen === "writing" ? "max-w-6xl" : "max-w-md"
+              }`}
             >
               {dialogHeader}
               {screenContent}

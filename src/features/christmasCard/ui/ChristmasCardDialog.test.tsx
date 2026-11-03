@@ -180,7 +180,11 @@ describe("ChristmasGuestbook", () => {
       "bg-black/50",
     );
     expect(dialog()?.className).toContain("!bg-transparent");
-    expect(dialog()?.querySelector("section")?.className).toContain("max-w-3xl");
+    expect(dialog()?.querySelector("section")?.className).toContain("max-w-6xl");
+    expect(dialog()?.querySelector("section")?.className).toContain("max-h-[calc(100dvh-2rem)]");
+    expect(dialog()?.querySelector("section")?.className).toContain("overflow-y-auto");
+    expect(dialog()?.querySelector("section")?.className).not.toContain("h-full");
+    expect(dialog()?.querySelector("[data-card-writing-content]")?.className).toContain("shrink-0");
     expect(dialog()?.querySelector("#christmas-card-nickname")).not.toBeNull();
     expect(dialog()?.querySelector("#christmas-card-message")).not.toBeNull();
     expect(dialog()?.querySelector<HTMLInputElement>("#christmas-card-nickname")?.value).toBe(

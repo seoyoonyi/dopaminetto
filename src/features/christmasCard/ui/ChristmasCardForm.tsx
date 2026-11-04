@@ -17,12 +17,14 @@ import { ChristmasCardFace } from "./ChristmasCardFace";
 interface ChristmasCardFormProps {
   nickname: string;
   onSubmit?: (nickname: string, message: string) => Promise<void>;
+  onViewList: () => void;
   onBack: () => void;
 }
 
 export function ChristmasCardForm({
   nickname: initialNickname,
   onSubmit,
+  onViewList,
   onBack,
 }: ChristmasCardFormProps) {
   const [nickname, setNickname] = useState(initialNickname);
@@ -74,14 +76,10 @@ export function ChristmasCardForm({
           </Button>
           <Button
             className="cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
-            onClick={() => {
-              setNickname(initialNickname);
-              setMessage("");
-              setIsComplete(false);
-            }}
+            onClick={onViewList}
             type="button"
           >
-            다시 작성하기
+            목록 보기
           </Button>
         </div>
       </div>

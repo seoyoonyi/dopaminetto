@@ -36,6 +36,10 @@ export function ChristmasCardDialog({
 }: ChristmasCardDialogProps) {
   const [screen, setScreen] = useState<"menu" | "writing" | "list">("menu");
   const isFullScreen = screen !== "menu";
+  const handleViewList = () => {
+    setScreen("list");
+    onViewList?.();
+  };
   const dialogHeader = (
     <DialogHeader
       className={`relative min-h-10 shrink-0 justify-center bg-[#b8ccda] px-3 pr-10 text-left ${
@@ -90,10 +94,7 @@ export function ChristmasCardDialog({
         </Button>
         <Button
           className="h-9 w-full cursor-pointer justify-start border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
-          onClick={() => {
-            setScreen("list");
-            onViewList?.();
-          }}
+          onClick={handleViewList}
           type="button"
           variant="outline"
         >
@@ -109,6 +110,7 @@ export function ChristmasCardDialog({
           nickname={nickname}
           onBack={() => setScreen("menu")}
           onSubmit={onSubmit}
+          onViewList={handleViewList}
         />
       </div>
     ) : (

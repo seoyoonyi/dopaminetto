@@ -24,7 +24,9 @@ async function render(props: Partial<React.ComponentProps<typeof ChristmasCardFo
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(<ChristmasCardForm nickname="눈사람" onBack={vi.fn()} {...props} />);
+    root!.render(
+      <ChristmasCardForm nickname="눈사람" onBack={vi.fn()} onViewList={vi.fn()} {...props} />,
+    );
   });
 }
 
@@ -254,7 +256,8 @@ describe("ChristmasCardForm", () => {
       resolveSubmit = resolve;
     });
     const onSubmit = vi.fn(() => pending);
-    await render({ onSubmit });
+    const onViewList = vi.fn();
+    await render({ onSubmit, onViewList });
     await setMessage("행복한 겨울 보내요!");
 
     await act(async () => {
@@ -269,11 +272,11 @@ describe("ChristmasCardForm", () => {
     await act(async () => resolveSubmit());
     expect(container!.querySelector('[role="status"]')?.textContent).toContain("카드를 남겼어요");
 
-    const writeAgain = Array.from(container!.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("다시 작성하기"),
+    const listButton = Array.from(container!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
     );
-    await act(async () => writeAgain?.click());
-    expect(messageField().value).toBe("");
-    expect(submitButton().disabled).toBe(true);
+    await act(async () => listButton?.click());
+    expect(onViewList).toHaveBeenCalledOnce();
+    expect(container!.querySelector('[role="status"]')?.textContent).toContain("카드를 남겼어요");
   });
 });

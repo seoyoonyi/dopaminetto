@@ -1,3 +1,4 @@
+export const CHRISTMAS_CARD_NICKNAME_MAX_LENGTH = 12;
 export const CHRISTMAS_CARD_MESSAGE_MAX_LENGTH = 180;
 
 export function validateChristmasCardMessage(message: string) {

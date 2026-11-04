@@ -2,6 +2,7 @@
 
 import {
   CHRISTMAS_CARD_MESSAGE_MAX_LENGTH,
+  CHRISTMAS_CARD_NICKNAME_MAX_LENGTH,
   validateChristmasCardMessage,
 } from "@/features/christmasCard/model/christmasCardMessage";
 import { Button } from "@/shared/ui/button";
@@ -12,8 +13,6 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { ChristmasCardFace } from "./ChristmasCardFace";
-
-const NICKNAME_MAX_LENGTH = 12;
 
 interface ChristmasCardFormProps {
   nickname: string;
@@ -37,7 +36,7 @@ export function ChristmasCardForm({
   const canSubmit =
     Boolean(onSubmit) &&
     normalizedNickname.length > 0 &&
-    normalizedNickname.length <= NICKNAME_MAX_LENGTH &&
+    normalizedNickname.length <= CHRISTMAS_CARD_NICKNAME_MAX_LENGTH &&
     isValid &&
     !isSubmitting;
 
@@ -106,7 +105,7 @@ export function ChristmasCardForm({
             autoComplete="off"
             className="h-auto min-w-0 flex-1 border-0 bg-transparent px-1 py-0 text-sm text-[#63322d] shadow-none focus-visible:ring-1 focus-visible:ring-[#a56b48]"
             id="christmas-card-nickname"
-            maxLength={NICKNAME_MAX_LENGTH}
+            maxLength={CHRISTMAS_CARD_NICKNAME_MAX_LENGTH}
             onChange={(event) => setNickname(event.target.value)}
             value={nickname}
           />

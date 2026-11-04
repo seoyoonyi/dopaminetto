@@ -1,8 +1,13 @@
 "use client";
 
-import { ChristmasCardDialog } from "@/features/christmasCard";
+import { ChristmasCardDialog, createChristmasCard } from "@/features/christmasCard";
+import { supabase } from "@/shared/config/supabase.client";
 import { useUserInfo } from "@/shared/hooks/useUserInfo";
 import { useGuestbookDialogStore } from "@/shared/store/useGuestbookDialogStore";
+
+async function submitChristmasCard(nickname: string, message: string): Promise<void> {
+  await createChristmasCard(supabase, nickname, message);
+}
 
 export function ChristmasGuestbook() {
   const isOpen = useGuestbookDialogStore((state) => state.isOpen);
@@ -16,6 +21,7 @@ export function ChristmasGuestbook() {
     <ChristmasCardDialog
       nickname={nickname}
       onOpenChange={setOpen}
+      onSubmit={submitChristmasCard}
       open={isOpen}
       position={position}
     />

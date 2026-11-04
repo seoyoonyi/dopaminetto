@@ -14,6 +14,7 @@ import { ChristmasCardDialog } from "./ChristmasCardDialog";
 const mockUseUserInfo = vi.hoisted(() => vi.fn());
 
 vi.mock("@/shared/hooks/useUserInfo", () => ({ useUserInfo: mockUseUserInfo }));
+vi.mock("@/shared/config/supabase.client", () => ({ supabase: {} }));
 
 class ResizeObserverStub {
   observe() {}
@@ -167,7 +168,7 @@ describe("ChristmasGuestbook", () => {
     expect(useGuestbookDialogStore.getState().position).toBeNull();
   });
 
-  it("작성하기는 준비 상태 안내로 전환하고 Escape는 팝업을 닫는다", async () => {
+  it("작성하기는 실제 저장 폼으로 전환하고 Escape는 팝업을 닫는다", async () => {
     await render();
     act(() => useGuestbookDialogStore.getState().setOpen(true));
     const writeButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
@@ -193,7 +194,7 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.querySelector<HTMLInputElement>("#christmas-card-nickname")?.readOnly).toBe(
       false,
     );
-    expect(dialog()?.textContent).toContain("카드 저장 기능은 준비 중이에요.");
+    expect(dialog()?.textContent).not.toContain("카드 저장 기능은 준비 중이에요.");
     expect(dialog()?.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
       true,
     );

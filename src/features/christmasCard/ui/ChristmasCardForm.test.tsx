@@ -75,6 +75,89 @@ describe("ChristmasCardForm", () => {
     expect(field.style.paddingTop).toBe("");
   });
 
+  it("카드 메시지 영역 마지막 줄을 비워두도록 넘치는 줄바꿈을 공백으로 바꾼다", async () => {
+    await render();
+    const field = messageField();
+    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
+    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
+    field.style.lineHeight = "20px";
+    Object.defineProperty(field, "scrollHeight", {
+      configurable: true,
+      get: () => field.value.split("\n").length * 20,
+    });
+
+    await setMessage("첫째\n둘째\n셋째\n넷째");
+
+    expect(field.value).toBe("첫째\n둘째\n셋째 넷째");
+    expect(container!.textContent).toContain("11 / 180");
+  });
+
+  it("붙여넣은 줄바꿈도 카드 메시지 영역 마지막 줄을 비워둔다", async () => {
+    await render();
+    const field = messageField();
+    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
+    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
+    field.style.lineHeight = "20px";
+    Object.defineProperty(field, "scrollHeight", {
+      configurable: true,
+      get: () => field.value.split("\n").length * 20,
+    });
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => "첫째\n둘째\n셋째\n넷째" },
+    });
+
+    await act(async () => field.dispatchEvent(pasteEvent));
+
+    expect(field.value).toBe("첫째\n둘째\n셋째 넷째");
+    expect(container!.textContent).toContain("11 / 180");
+  });
+
+  it("붙여넣은 한 줄 텍스트가 자동 줄바꿈으로 마지막 줄을 넘지 않게 제한한다", async () => {
+    await render();
+    const field = messageField();
+    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
+    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
+    field.style.lineHeight = "20px";
+    Object.defineProperty(field, "scrollHeight", {
+      configurable: true,
+      get: () => Math.ceil(field.value.length / 10) * 20,
+    });
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => "1".repeat(40) },
+    });
+
+    await act(async () => field.dispatchEvent(pasteEvent));
+
+    expect(field.value).toBe("1".repeat(30));
+    expect(container!.textContent).toContain("30 / 180");
+  });
+
+  it("붙여넣기 제한 시 붙여넣기 전 수동 줄바꿈은 유지한다", async () => {
+    await render();
+    const field = messageField();
+    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
+    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
+    field.style.lineHeight = "20px";
+    Object.defineProperty(field, "scrollHeight", {
+      configurable: true,
+      get: () =>
+        field.value
+          .split("\n")
+          .reduce((rows, line) => rows + Math.max(1, Math.ceil(line.length / 10)), 0) * 20,
+    });
+    await setMessage("1\n1\n");
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => "12345678901234567890" },
+    });
+
+    await act(async () => field.dispatchEvent(pasteEvent));
+
+    expect(field.value).toBe("1\n1\n1234567890");
+  });
+
   it("로그인 닉네임을 수정 가능한 기본값으로 표시하고 글자 수와 한 개의 카드 템플릿을 제공한다", async () => {
     await render();
 
@@ -129,6 +212,8 @@ describe("ChristmasCardForm", () => {
     expect(messageField().className).toContain("overflow-hidden");
     expect(messageField().className).not.toContain("overflow-y-auto");
     expect(messageField().className).toContain("field-sizing-content");
+    expect(messageField().className).toContain("max-h-full");
+    expect(messageField().className).not.toContain("min-[921px]:h-full");
     expect(messageField().className).not.toContain("size-full");
     expect(messageField().parentElement?.className).toContain("christmas-card-message-focus");
     expect(container!.querySelector("[data-card-message-placeholder]")?.className).toContain(
@@ -139,9 +224,11 @@ describe("ChristmasCardForm", () => {
     expect(messageField().parentElement?.className).toContain("items-start");
     expect(messageField().parentElement?.className).toContain("bottom-0");
     expect(messageField().parentElement?.className).toContain("min-[921px]:top-[28%]");
-    expect(messageField().parentElement?.className).toContain("min-[921px]:bottom-[30%]");
     expect(messageField().parentElement?.className).toContain(
-      "min-[1024px]:max-[1279px]:bottom-[32%]",
+      "min-[921px]:bottom-[calc(30%_-_1lh)]",
+    );
+    expect(messageField().parentElement?.className).toContain(
+      "min-[1024px]:max-[1279px]:bottom-[calc(32%_-_1lh)]",
     );
     expect(messageField().parentElement?.className).not.toContain("sm:bottom-[30%]");
     expect(messageField().parentElement?.className).toContain("p-0");

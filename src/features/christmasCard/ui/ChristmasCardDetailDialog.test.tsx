@@ -37,7 +37,7 @@ describe("ChristmasCardDetailDialog", () => {
 
     const card = document.querySelector('[data-card-template="true"]');
     expect(card?.className).toContain("aspect-video");
-    expect(card?.querySelector("video")?.getAttribute("src")).toBe(
+    expect(card?.querySelector("video source")?.getAttribute("src")).toBe(
       "/assets/media/christmas_card_A.mp4",
     );
     expect(card?.querySelector("img")?.getAttribute("alt")).toBe("");

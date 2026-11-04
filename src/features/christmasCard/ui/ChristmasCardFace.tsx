@@ -52,8 +52,9 @@ export function ChristmasCardFace({
         onError={() => setIsVideoReady(false)}
         playsInline
         poster={CHRISTMAS_CARD_DESIGN.image}
-        src={CHRISTMAS_CARD_DESIGN.video}
-      />
+      >
+        <source src={CHRISTMAS_CARD_DESIGN.video} type="video/mp4" />
+      </video>
       <div
         className={cn(
           "christmas-card-message-focus absolute inset-x-[12%] top-[24%] bottom-0 flex items-start justify-center rounded-2xl p-0 leading-5 [--card-message-padding:0px] sm:p-3 sm:leading-6 sm:[--card-message-padding:12px] md:leading-7 lg:p-4 lg:leading-8 lg:[--card-message-padding:16px] xl:leading-9 min-[921px]:top-[28%] min-[921px]:bottom-[30%] min-[1024px]:bottom-[38%] min-[1024px]:max-[1279px]:bottom-[32%] max-[920px]:top-[32%] max-[920px]:leading-5",

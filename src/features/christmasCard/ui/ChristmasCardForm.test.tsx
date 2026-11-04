@@ -149,6 +149,9 @@ describe("ChristmasCardForm", () => {
     expect(container!.querySelector("video")?.muted).toBe(true);
     expect(container!.querySelector("video")?.playsInline).toBe(true);
     expect(container!.querySelector("video")?.getAttribute("autoplay")).not.toBeNull();
+    expect(container!.querySelector("video source")?.getAttribute("src")).toBe(
+      "/assets/media/christmas_card_A.mp4",
+    );
     expect(container!.querySelector("video")?.className).toContain("min-w-[320px]");
     expect(container!.querySelector("video")?.className).toContain("min-h-[180px]");
     expect(container!.querySelector("img")?.getAttribute("alt")).toBe("");

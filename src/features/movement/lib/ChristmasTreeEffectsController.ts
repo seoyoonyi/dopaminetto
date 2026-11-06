@@ -92,10 +92,11 @@ export class ChristmasTreeEffectsController {
       .text(
         effect.x,
         effect.y - CHRISTMAS_TREE_FRAME_HEIGHT - 8,
-        "트리를 누르면 카드를 작성할 수 있어요! 🎄",
+        "트리를 클릭하고\n크리스마스 카드를 남겨보세요!",
         {
           fontFamily: "galmuri9",
-          fontSize: "12px",
+          fontSize: "14px",
+          align: "center",
           color: "#ffffff",
           backgroundColor: "#00000088",
           padding: { x: 4, y: 2 },

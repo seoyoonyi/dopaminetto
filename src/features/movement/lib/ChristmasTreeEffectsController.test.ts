@@ -134,6 +134,12 @@ describe("ChristmasTreeEffectsController", () => {
       cursor: "pointer",
     });
     expect(tree.hint.setVisible).toHaveBeenCalledWith(false);
+    expect(tree.scene.add.text).toHaveBeenCalledWith(
+      734,
+      492,
+      "트리를 클릭하고\n크리스마스 카드를 남겨보세요!",
+      expect.objectContaining({ fontFamily: "galmuri9", fontSize: "14px", align: "center" }),
+    );
     expect(tree.decoration.setInteractive).not.toHaveBeenCalled();
   });
 

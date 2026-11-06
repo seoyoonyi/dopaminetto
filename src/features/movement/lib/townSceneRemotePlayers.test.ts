@@ -2,245 +2,19 @@
 import type { MapLoader } from "@/entities/village";
 import { useMovementStore } from "@/features/movement/model/useMovementStore";
 import { useSettingsDialogStore } from "@/shared/store";
+import { useGuestbookDialogStore } from "@/shared/store/useGuestbookDialogStore";
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
-import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RemotePlayer } from "../model/types";
-import { TownScene } from "./TownScene";
+import { makeScene, mockAmbientDestroy, mockSnowfall, shutdownScenes } from "./townSceneTestUtils";
 
-const mockAmbientDestroy = vi.hoisted(() => vi.fn());
-const mockSnowfall = vi.hoisted(() => ({
-  create: vi.fn(),
-  destroy: vi.fn(),
-}));
-
-vi.mock("@/features/movement/lib/SnowfallEffectsController", () => ({
-  SnowfallEffectsController: class SnowfallEffectsController {
-    constructor(...args: unknown[]) {
-      mockSnowfall.create(...args);
-    }
-    destroy = mockSnowfall.destroy;
+vi.mock("./ChristmasTreeEffectsController", () => ({
+  ChristmasTreeEffectsController: class {
+    static preload() {}
+    destroy() {}
   },
 }));
-
-vi.mock("phaser", () => ({
-  __esModule: true,
-  default: { Scene: class Scene {} },
-  Scene: class Scene {},
-  Math: {
-    Clamp: (value: number, min: number, max: number) => Math.min(Math.max(value, min), max),
-    Linear: (start: number, end: number, amount: number) => start + (end - start) * amount,
-    Distance: { Between: () => 0 },
-  },
-  Input: {
-    Keyboard: {
-      KeyCodes: { H: 1, ZERO: 2, X: 3, SHIFT: 4 },
-      JustDown: () => false,
-    },
-  },
-  Scale: { Events: { RESIZE: "resize" } },
-}));
-
-vi.mock("@/features/movement", async () => {
-  const config = await vi.importActual<Record<string, unknown>>("@/features/movement/model/config");
-  const actionAnimation = await vi.importActual<Record<string, unknown>>(
-    "@/features/movement/model/actionAnimation",
-  );
-  const store = await vi.importActual<Record<string, unknown>>(
-    "@/features/movement/model/useMovementStore",
-  );
-
-  return { ...config, ...actionAnimation, ...store, TownEngine: () => null };
-});
-
-vi.mock("@/features/ambientSound/phaser", () => ({
-  AMBIENT_AUDIO_KEYS: { CHRISTMAS_TREE: "christmas-tree" },
-  AMBIENT_AUDIO_URLS: { CHRISTMAS_TREE: "" },
-  CHRISTMAS_TREE_SOUND_CONFIG: {},
-  AmbientSoundController: class AmbientSoundController {
-    destroy = mockAmbientDestroy;
-    update = vi.fn();
-  },
-  resolveChristmasTreeSources: () => [],
-}));
-
-type DisplayObject = {
-  x: number;
-  y: number;
-  text?: string;
-  destroyed?: boolean;
-  texture?: { key: string };
-  frame?: { name: number };
-  active?: boolean;
-  depth?: number;
-  anims?: {
-    isPlaying: boolean;
-    currentAnim: { key: string } | null;
-    play: ReturnType<typeof vi.fn>;
-    stop: ReturnType<typeof vi.fn>;
-  };
-  setTexture: (key: string, frame?: number) => DisplayObject;
-  setScale: () => DisplayObject;
-  setOrigin: () => DisplayObject;
-  setFlipX: () => DisplayObject;
-  setFrame: () => DisplayObject;
-  setDepth: (depth: number) => DisplayObject;
-  play: (key: string) => DisplayObject;
-  setPosition: (x: number, y: number) => DisplayObject;
-  setText: (text: string) => DisplayObject;
-  destroy: ReturnType<typeof vi.fn>;
-};
-
-type SceneHarness = {
-  preload: () => void;
-  create: () => void;
-  update: (time: number, delta: number) => void;
-  load: {
-    image: ReturnType<typeof vi.fn>;
-    spritesheet: ReturnType<typeof vi.fn>;
-  };
-  events: EventEmitter;
-  add: {
-    image: ReturnType<typeof vi.fn>;
-    sprite: ReturnType<typeof vi.fn>;
-    text: ReturnType<typeof vi.fn>;
-  };
-  anims: {
-    create: ReturnType<typeof vi.fn>;
-    exists: ReturnType<typeof vi.fn>;
-    generateFrameNumbers: ReturnType<typeof vi.fn>;
-  };
-  scale: {
-    on: ReturnType<typeof vi.fn>;
-    off: ReturnType<typeof vi.fn>;
-  };
-};
-
-function makeDisplayObject(x: number, y: number, text?: string): DisplayObject {
-  const object: DisplayObject = {
-    x,
-    y,
-    text,
-    texture: { key: "" },
-    frame: { name: 0 },
-    active: true,
-    anims: {
-      isPlaying: false,
-      currentAnim: null,
-      play: vi.fn(),
-      stop: vi.fn(),
-    },
-    setTexture(key, frame) {
-      this.texture = { key };
-      this.frame = { name: frame ?? 0 };
-      return this;
-    },
-    setScale: () => object,
-    setOrigin: () => object,
-    setFlipX: () => object,
-    setFrame: () => object,
-    setDepth(nextDepth) {
-      this.depth = nextDepth;
-      return object;
-    },
-    play() {
-      return object;
-    },
-    setPosition(nextX, nextY) {
-      this.x = nextX;
-      this.y = nextY;
-      return this;
-    },
-    setText(nextText) {
-      this.text = nextText;
-      return this;
-    },
-    destroy: vi.fn(function (this: DisplayObject) {
-      this.destroyed = true;
-    }),
-  };
-
-  return object;
-}
-
-function makeScene(): {
-  scene: SceneHarness;
-  events: EventEmitter;
-  sprites: DisplayObject[];
-  labels: DisplayObject[];
-} {
-  const createdSprites: DisplayObject[] = [];
-  const createdLabels: DisplayObject[] = [];
-  const events = new EventEmitter();
-  const keyboard = {
-    manager: { removeCapture: vi.fn() },
-    createCursorKeys: () => ({
-      left: { isDown: false },
-      right: { isDown: false },
-      up: { isDown: false },
-      down: { isDown: false },
-      space: {},
-    }),
-    addKeys: () => ({
-      W: { isDown: false },
-      A: { isDown: false },
-      S: { isDown: false },
-      D: { isDown: false },
-    }),
-    addKey: () => ({}),
-    addCapture: vi.fn(),
-    removeCapture: vi.fn(),
-  };
-  // Phaser destroys the input and keyboard plugins before later Scene destroy handlers run.
-  events.once("destroy", () => Object.assign(keyboard, { manager: null }));
-  const instance = new TownScene() as unknown as Record<string, unknown> & SceneHarness;
-  shutdownScenes.push(() => events.emit("shutdown"));
-  const load = { audio: vi.fn(), image: vi.fn(), spritesheet: vi.fn() };
-
-  Object.assign(instance, {
-    game: { canvas: document.createElement("canvas") },
-    load,
-    add: {
-      sprite: vi.fn((x: number, y: number) => {
-        const sprite = makeDisplayObject(x, y);
-        createdSprites.push(sprite);
-        return sprite;
-      }),
-      text: vi.fn((x: number, y: number, text: string) => {
-        const label = makeDisplayObject(x, y, text);
-        createdLabels.push(label);
-        return label;
-      }),
-      image: vi.fn(() => makeDisplayObject(0, 0)),
-    },
-    anims: {
-      create: vi.fn(),
-      exists: vi.fn(() => true),
-      generateFrameNumbers: vi.fn(() => []),
-    },
-    cameras: {
-      main: {
-        width: 800,
-        height: 600,
-        setBounds: vi.fn(),
-        setZoom: vi.fn(),
-        setBackgroundColor: vi.fn(),
-        startFollow: vi.fn(),
-      },
-    },
-    input: { keyboard },
-    events,
-    scale: { on: vi.fn(), off: vi.fn() },
-  });
-
-  return {
-    scene: instance,
-    events,
-    sprites: createdSprites,
-    labels: createdLabels,
-  };
-}
 
 function makeRemotePlayer(overrides: Partial<RemotePlayer> = {}): RemotePlayer {
   return {
@@ -254,8 +28,6 @@ function makeRemotePlayer(overrides: Partial<RemotePlayer> = {}): RemotePlayer {
     ...overrides,
   };
 }
-
-const shutdownScenes: Array<() => void> = [];
 
 describe("TownScene 원격 캐릭터 재시작", () => {
   beforeEach(() => {
@@ -271,6 +43,7 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     });
     useSettingsDialogStore.setState({ isOpen: false });
     useNicknameDialogStore.setState({ isOpen: false });
+    useGuestbookDialogStore.setState({ isOpen: false });
     mockAmbientDestroy.mockClear();
     mockSnowfall.create.mockClear();
     mockSnowfall.destroy.mockClear();
@@ -280,39 +53,6 @@ describe("TownScene 원격 캐릭터 재시작", () => {
     shutdownScenes.splice(0).forEach((shutdown) => shutdown());
     useMovementStore.setState({ remotePlayers: {}, userId: "" });
     vi.restoreAllMocks();
-  });
-
-  it("트리 본체와 24프레임 장식 시트를 미리 불러온다", () => {
-    const { scene } = makeScene();
-
-    scene.preload();
-
-    expect(scene.load.image).toHaveBeenCalledWith(
-      "christmas-tree-base",
-      "/assets/images/christmas-tree-base.png",
-    );
-    expect(scene.load.spritesheet).toHaveBeenCalledWith(
-      "christmas-tree-decoration",
-      "/assets/images/christmas-tree-decoration.png",
-      { frameWidth: 320, frameHeight: 357 },
-    );
-  });
-
-  it("승인된 맵 위치에 트리 본체와 첫 장식 프레임을 표시한다", () => {
-    useMovementStore.setState({
-      mapLoader: {
-        getBackgroundImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
-        getFrontImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
-        getMapBounds: () => ({ x: 0, y: 0, width: 1448, height: 1086 }),
-        getChristmasTreeEffect: () => ({ id: 436, name: "christmas-tree", x: 734, y: 857 }),
-      } as never,
-    });
-    const { scene } = makeScene();
-
-    scene.create();
-
-    expect(scene.add.image).toHaveBeenCalledWith(734, 857, "christmas-tree-base");
-    expect(scene.add.sprite).toHaveBeenCalledWith(734, 857, "christmas-tree-decoration", 0);
   });
 
   it("빌리지 B에서도 맵 기반 눈 효과를 만들고 Scene 종료 때 정리한다", () => {

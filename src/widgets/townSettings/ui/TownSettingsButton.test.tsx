@@ -188,6 +188,27 @@ describe("TownSettingsButton - 실제 환경음 설정", () => {
     expect(useSettingsDialogStore.getState().isOpen).toBe(false);
   });
 
+  it("설정 바깥을 누르면 설정을 닫는다", async () => {
+    await render();
+    await clickTrigger();
+
+    const canvas = document.createElement("canvas");
+    const settingsOpenAtCanvasInput: boolean[] = [];
+    canvas.addEventListener("pointerdown", () => {
+      settingsOpenAtCanvasInput.push(useSettingsDialogStore.getState().isOpen);
+    });
+    document.body.appendChild(canvas);
+
+    await act(async () => {
+      canvas.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0 }));
+    });
+
+    expect(settingsOpenAtCanvasInput).toEqual([true]);
+    expect(useSettingsDialogStore.getState().isOpen).toBe(false);
+    expect(dialog()).toBeNull();
+    canvas.remove();
+  });
+
   it("T2: Slider를 직접 0%로 내려도 음소거 상태가 아니며, 버튼은 기본 음량 30%로 복원한다", async () => {
     await render();
     await clickTrigger();

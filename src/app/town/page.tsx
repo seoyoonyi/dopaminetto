@@ -12,6 +12,7 @@ import { useUserInfo } from "@/shared/hooks";
 import type { ConnectionStatus } from "@/shared/lib";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
+import { ChristmasGuestbook } from "@/widgets/christmasGuestbook";
 import { TownSettingsButton } from "@/widgets/townSettings";
 import { TownToolbar } from "@/widgets/townToolbar";
 import { TownVoiceSection } from "@/widgets/townVoiceSection";
@@ -167,6 +168,7 @@ function ActiveTownPage() {
           onRoleChange={setVoiceRole}
         />
       ) : null}
+      <ChristmasGuestbook />
       <TownToolbar
         isSpeaker={voiceRole === "speaker"}
         leadingSlot={

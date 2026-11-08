@@ -4,7 +4,7 @@ import { ChristmasGuestbook } from "@/widgets/christmasGuestbook";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { act } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { type Root, createRoot } from "react-dom/client";
 
 import { ChristmasCardDialog } from "./ChristmasCardDialog";
@@ -12,22 +12,40 @@ import { ChristmasCardDialog } from "./ChristmasCardDialog";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockUseUserInfo = vi.hoisted(() => vi.fn());
+const originalResizeObserver = globalThis.ResizeObserver;
 
 vi.mock("@/shared/hooks/useUserInfo", () => ({ useUserInfo: mockUseUserInfo }));
 vi.mock("@/shared/config/supabase.client", () => ({ supabase: {} }));
 
 class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
+  static instances: ResizeObserverStub[] = [];
+  targets: Element[] = [];
+  disconnected = false;
 
-globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+  constructor(private readonly callback: ResizeObserverCallback) {
+    ResizeObserverStub.instances.push(this);
+  }
+
+  observe(target: Element) {
+    this.targets.push(target);
+  }
+
+  unobserve() {}
+  disconnect() {
+    this.disconnected = true;
+  }
+
+  notify() {
+    this.callback([], this as unknown as ResizeObserver);
+  }
+}
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let boundary: HTMLDivElement | null = null;
 
 beforeEach(() => {
+  globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
   useGuestbookDialogStore.setState({ isOpen: false, position: null });
   mockUseUserInfo.mockReturnValue({
     data: { user_metadata: { nickname: "테스트 사용자" } },
@@ -40,14 +58,35 @@ afterEach(() => {
   container?.remove();
   root = null;
   container = null;
+  boundary = null;
+  ResizeObserverStub.instances = [];
+  globalThis.ResizeObserver = originalResizeObserver;
   useGuestbookDialogStore.setState({ isOpen: false, position: null });
 });
 
 async function render() {
   container = document.createElement("div");
+  boundary = document.createElement("div");
+  Object.defineProperty(boundary, "getBoundingClientRect", {
+    value: () => ({
+      left: 40,
+      top: 20,
+      right: 40 + boundary!.clientWidth,
+      bottom: 20 + boundary!.clientHeight,
+      width: boundary!.clientWidth,
+      height: boundary!.clientHeight,
+    }),
+  });
+  Object.defineProperties(boundary, {
+    clientLeft: { configurable: true, value: 0 },
+    clientTop: { configurable: true, value: 0 },
+    clientWidth: { configurable: true, value: 400 },
+    clientHeight: { configurable: true, value: 240 },
+  });
+  container.appendChild(boundary);
   document.body.appendChild(container);
   root = createRoot(container);
-  await act(async () => root!.render(<ChristmasGuestbook />));
+  await act(async () => root!.render(<ChristmasGuestbook gameAreaRef={{ current: boundary }} />));
 }
 
 function DialogHarness({
@@ -56,19 +95,21 @@ function DialogHarness({
   onSubmit: (nickname: string, message: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(true);
+  const boundaryRef = useRef<HTMLDivElement>(null);
   return (
-    <>
+    <div ref={boundaryRef}>
       <button onClick={() => setOpen(true)} type="button">
         다시 열기
       </button>
       <ChristmasCardDialog
+        boundaryRef={boundaryRef}
         nickname="눈사람"
         onOpenChange={setOpen}
         onSubmit={onSubmit}
         open={open}
         position={null}
       />
-    </>
+    </div>
   );
 }
 
@@ -77,11 +118,73 @@ function dialog() {
 }
 
 describe("ChristmasGuestbook", () => {
+  it("첫 클릭 후 게임 영역이 준비되면 다시 클릭하지 않아도 메뉴를 표시한다", async () => {
+    await render();
+    Object.defineProperties(boundary, {
+      clientWidth: { configurable: true, value: 0 },
+      clientHeight: { configurable: true, value: 0 },
+    });
+
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 100, y: 100 }));
+    const menu = dialog()!;
+    Object.defineProperty(menu, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 0, right: 192, bottom: 128, width: 192, height: 128 }),
+    });
+    expect(menu.style.visibility).toBe("hidden");
+    expect(menu.className).toContain("!animate-none");
+
+    Object.defineProperties(boundary, {
+      clientWidth: { configurable: true, value: 400 },
+      clientHeight: { configurable: true, value: 240 },
+    });
+    await act(async () => {
+      ResizeObserverStub.instances.forEach((observer) => observer.notify());
+    });
+
+    expect(menu.style.visibility).toBe("visible");
+    expect(menu.className).not.toContain("!animate-none");
+    expect(menu.style.left).toBe("48px");
+    expect(menu.style.top).toBe("36px");
+
+    await act(async () =>
+      dialog()!.querySelector<HTMLButtonElement>("[data-slot='dialog-close']")!.click(),
+    );
+
+    expect(ResizeObserverStub.instances.every((observer) => observer.disconnected)).toBe(true);
+  });
+
+  it("선택 메뉴 전체가 게임 영역 경계 안에 배치된다", async () => {
+    await render();
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 42, y: 25 }));
+    const menu = dialog()!;
+    Object.defineProperty(menu, "getBoundingClientRect", {
+      value: () => ({ left: 48, top: 28, right: 240, bottom: 156, width: 192, height: 128 }),
+    });
+
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 43, y: 26 }));
+
+    expect(menu.style.left).toBe("48px");
+    expect(menu.style.top).toBe("28px");
+    expect(menu.style.maxWidth).toBe("384px");
+    expect(menu.style.maxHeight).toBe("224px");
+
+    act(() => useGuestbookDialogStore.getState().setOpen(true));
+
+    expect(menu.style.left).toBe("144px");
+    expect(menu.style.top).toBe("76px");
+  });
+
   it("트리 클릭 위치에 오버레이 없이 작은 선택 메뉴를 표시한다", async () => {
     await render();
     expect(dialog()).toBeNull();
 
     act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 500, y: 300 }));
+    const menu = dialog()!;
+    Object.defineProperties(menu, {
+      offsetWidth: { value: 192 },
+      offsetHeight: { value: 128 },
+    });
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 501, y: 301 }));
 
     expect(dialog()?.textContent).toContain("크리스마스 카드");
     expect(dialog()?.querySelector("img")).toBeNull();
@@ -91,6 +194,11 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.className).toContain("p-0");
     expect(dialog()?.className).toContain("w-48");
     expect(dialog()?.className).toContain("z-40");
+    expect(dialog()?.className).toContain("origin-center");
+    expect(dialog()?.className).toContain("transition-none");
+    expect(dialog()?.className).toContain("[--tw-enter-translate-x:0]");
+    expect(dialog()?.className).toContain("[--tw-enter-translate-y:0.5rem]");
+    expect(dialog()?.className).not.toContain("slide-in-from-right");
     expect(dialog()?.querySelector('[data-slot="dialog-header"]')?.className).toContain(
       "bg-[#b8ccda]",
     );
@@ -108,8 +216,8 @@ describe("ChristmasGuestbook", () => {
         .slice(0, 2)
         .every((button) => button.className.includes("w-full")),
     ).toBe(true);
-    expect(dialog()?.style.getPropertyValue("--anchor-x")).toBe("500px");
-    expect(dialog()?.style.getPropertyValue("--anchor-y")).toBe("300px");
+    expect(dialog()?.style.left).toBe("240px");
+    expect(dialog()?.style.top).toBe("124px");
     const writeButton = dialog()?.querySelector<HTMLButtonElement>("button[data-primary='true']");
     expect(writeButton?.textContent).toContain("작성하기");
     expect(writeButton?.className).toContain("bg-[#f1c6bd]");

@@ -20,6 +20,7 @@ import { Button } from "@/shared/ui/button";
 import * as Phaser from "phaser";
 
 import React, { useEffect, useRef, useState } from "react";
+import type { Ref } from "react";
 
 /**
  * Phaser 게임 엔진을 React 환경에 마운트하고 관리하는 엔진 컨테이너
@@ -30,7 +31,7 @@ import React, { useEffect, useRef, useState } from "react";
  * 마을 엔진 컨테이너 컴포넌트
  * Phaser 게임 인스턴스 생성 및 관리, 위치 복원(isReady) 완료 후 마운트 수행
  */
-export const TownEngine = () => {
+export const TownEngine = ({ containerRef }: { containerRef?: Ref<HTMLDivElement> }) => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [fallbackWaitElapsed, setFallbackWaitElapsed] = useState(false);
@@ -132,6 +133,7 @@ export const TownEngine = () => {
 
   return (
     <div
+      ref={containerRef}
       className="relative w-full h-full flex items-center justify-center bg-[var(--winter-town-canvas-background)] overflow-hidden rounded-lg shadow-2xl border-4 border-gray-800"
       style={{ imageRendering: "pixelated" }}
     >

@@ -12,14 +12,16 @@ import {
 } from "@/shared/ui/dialog";
 import { ArrowLeft, List, Pencil, TreePine, X } from "lucide-react";
 
-import { useState } from "react";
-import type { CSSProperties } from "react";
+import { useRef, useState } from "react";
+import type { RefObject } from "react";
 
+import { useCardMenuPosition } from "../hooks/useCardMenuPosition";
 import { ChristmasCardForm } from "./ChristmasCardForm";
 
 interface ChristmasCardDialogProps {
   open: boolean;
   position: { x: number; y: number } | null;
+  boundaryRef: RefObject<HTMLElement | null>;
   onOpenChange: (open: boolean) => void;
   onViewList?: () => void;
   nickname?: string;
@@ -29,6 +31,7 @@ interface ChristmasCardDialogProps {
 export function ChristmasCardDialog({
   open,
   position,
+  boundaryRef,
   onOpenChange,
   onViewList,
   nickname = "",
@@ -36,6 +39,13 @@ export function ChristmasCardDialog({
 }: ChristmasCardDialogProps) {
   const [screen, setScreen] = useState<"menu" | "writing" | "list">("menu");
   const isFullScreen = screen !== "menu";
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuLayout = useCardMenuPosition({
+    active: open && !isFullScreen,
+    boundaryRef,
+    contentRef: menuRef,
+    anchor: position,
+  });
   const handleViewList = () => {
     setScreen("list");
     onViewList?.();
@@ -143,8 +153,15 @@ export function ChristmasCardDialog({
             ? "!top-0 !left-0 !h-dvh !max-h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !gap-0 !overflow-visible !rounded-none !border-0 !bg-transparent !p-0 !shadow-none !pointer-events-none sm:!max-w-none"
             : "z-40 w-48 gap-2 overflow-hidden border-[#aabfce] bg-[var(--winter-town-canvas-background)] p-0 shadow-md sm:max-w-48"
         } text-slate-800 [&_[data-slot=dialog-close]]:top-1 [&_[data-slot=dialog-close]]:right-1 [&_[data-slot=dialog-close]]:p-1 ${
-          position && !isFullScreen ? "translate-x-0 translate-y-0" : ""
+          !isFullScreen
+            ? `translate-x-0 translate-y-0 overflow-y-auto transition-none ${menuLayout.ready ? "" : "!animate-none"}`
+            : ""
+        } ${
+          !isFullScreen
+            ? "origin-center data-[state=open]:[--tw-enter-translate-x:0] data-[state=open]:[--tw-enter-translate-y:0.5rem] data-[state=closed]:[--tw-exit-translate-x:0] data-[state=closed]:[--tw-exit-translate-y:0.5rem]"
+            : ""
         }`}
+        ref={menuRef}
         onKeyDownCapture={(event) => {
           if (!isFullScreen || event.key !== "Escape") return;
           event.preventDefault();
@@ -154,14 +171,12 @@ export function ChristmasCardDialog({
         showCloseButton={!isFullScreen}
         showOverlay={isFullScreen}
         style={
-          position && !isFullScreen
-            ? ({
-                left: "clamp(0.5rem, calc(var(--anchor-x) - 6rem), calc(100vw - 12rem))",
-                top: "clamp(0.5rem, calc(var(--anchor-y) - 4rem), calc(100dvh - 8rem))",
-                "--anchor-x": `${position.x}px`,
-                "--anchor-y": `${position.y}px`,
-              } as CSSProperties)
-            : undefined
+          isFullScreen
+            ? undefined
+            : {
+                ...menuLayout.style,
+                visibility: menuLayout.ready ? "visible" : "hidden",
+              }
         }
       >
         {isFullScreen ? (

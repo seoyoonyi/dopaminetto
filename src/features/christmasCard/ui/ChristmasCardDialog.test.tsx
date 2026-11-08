@@ -43,9 +43,11 @@ class ResizeObserverStub {
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 let boundary: HTMLDivElement | null = null;
+let boundaryPosition = { left: 40, top: 20 };
 
 beforeEach(() => {
   globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+  boundaryPosition = { left: 40, top: 20 };
   useGuestbookDialogStore.setState({ isOpen: false, position: null });
   mockUseUserInfo.mockReturnValue({
     data: { user_metadata: { nickname: "테스트 사용자" } },
@@ -69,10 +71,10 @@ async function render() {
   boundary = document.createElement("div");
   Object.defineProperty(boundary, "getBoundingClientRect", {
     value: () => ({
-      left: 40,
-      top: 20,
-      right: 40 + boundary!.clientWidth,
-      bottom: 20 + boundary!.clientHeight,
+      left: boundaryPosition.left,
+      top: boundaryPosition.top,
+      right: boundaryPosition.left + boundary!.clientWidth,
+      bottom: boundaryPosition.top + boundary!.clientHeight,
       width: boundary!.clientWidth,
       height: boundary!.clientHeight,
     }),
@@ -172,6 +174,111 @@ describe("ChristmasGuestbook", () => {
 
     expect(menu.style.left).toBe("144px");
     expect(menu.style.top).toBe("76px");
+  });
+
+  it("게임 영역이 리사이즈되면 열린 메뉴를 새 경계 안으로 다시 배치한다", async () => {
+    await render();
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 430, y: 230 }));
+    const menu = dialog()!;
+    Object.defineProperties(menu, {
+      offsetWidth: { configurable: true, value: 192 },
+      offsetHeight: { configurable: true, value: 128 },
+    });
+
+    await act(async () => {
+      ResizeObserverStub.instances.forEach((observer) => observer.notify());
+    });
+
+    expect(menu.style.left).toBe("240px");
+    expect(menu.style.top).toBe("124px");
+
+    Object.defineProperties(boundary, {
+      clientWidth: { configurable: true, value: 300 },
+      clientHeight: { configurable: true, value: 180 },
+    });
+    await act(async () => {
+      ResizeObserverStub.instances.forEach((observer) => observer.notify());
+    });
+
+    expect(menu.style.left).toBe("140px");
+    expect(menu.style.top).toBe("64px");
+    expect(menu.style.maxWidth).toBe("284px");
+    expect(menu.style.maxHeight).toBe("164px");
+  });
+
+  it("메뉴가 게임 영역보다 크면 크기를 제한하고 음수 좌표를 만들지 않는다", async () => {
+    await render();
+    Object.defineProperties(boundary, {
+      clientWidth: { configurable: true, value: 120 },
+      clientHeight: { configurable: true, value: 80 },
+    });
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 430, y: 230 }));
+    const menu = dialog()!;
+    Object.defineProperties(menu, {
+      offsetWidth: { configurable: true, value: 192 },
+      offsetHeight: { configurable: true, value: 128 },
+    });
+
+    await act(async () => {
+      ResizeObserverStub.instances.forEach((observer) => observer.notify());
+    });
+
+    expect(menu.style.maxWidth).toBe("104px");
+    expect(menu.style.maxHeight).toBe("64px");
+    expect(Number.parseFloat(menu.style.left)).toBeGreaterThanOrEqual(0);
+    expect(Number.parseFloat(menu.style.top)).toBeGreaterThanOrEqual(0);
+  });
+
+  it("브라우저 리사이즈로 게임 영역 위치만 바뀌어도 메뉴를 다시 배치한다", async () => {
+    await render();
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 430, y: 230 }));
+    const menu = dialog()!;
+    Object.defineProperties(menu, {
+      offsetWidth: { configurable: true, value: 192 },
+      offsetHeight: { configurable: true, value: 128 },
+    });
+    await act(async () => {
+      ResizeObserverStub.instances.forEach((observer) => observer.notify());
+    });
+    expect(menu.style.left).toBe("240px");
+    expect(menu.style.top).toBe("124px");
+
+    boundaryPosition = { left: 200, top: 100 };
+    await act(async () => window.dispatchEvent(new Event("resize")));
+
+    expect(menu.style.left).toBe("334px");
+    expect(menu.style.top).toBe("166px");
+  });
+
+  it("스크롤로 게임 영역 위치만 바뀌어도 메뉴를 다시 배치한다", async () => {
+    await render();
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 430, y: 230 }));
+    const menu = dialog()!;
+    Object.defineProperties(menu, {
+      offsetWidth: { configurable: true, value: 192 },
+      offsetHeight: { configurable: true, value: 128 },
+    });
+    await act(async () => {
+      ResizeObserverStub.instances.forEach((observer) => observer.notify());
+    });
+    expect(menu.style.left).toBe("240px");
+    expect(menu.style.top).toBe("124px");
+
+    boundaryPosition = { left: 200, top: 100 };
+    await act(async () => window.dispatchEvent(new Event("scroll")));
+
+    expect(menu.style.left).toBe("334px");
+    expect(menu.style.top).toBe("166px");
+  });
+
+  it("메뉴를 닫으면 위치 재측정 이벤트 리스너를 정리한다", async () => {
+    const removeEventListener = vi.spyOn(window, "removeEventListener");
+    await render();
+    act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 430, y: 230 }));
+    act(() => useGuestbookDialogStore.getState().setOpen(false));
+
+    expect(removeEventListener).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(removeEventListener).toHaveBeenCalledWith("scroll", expect.any(Function), true);
   });
 
   it("트리 클릭 위치에 오버레이 없이 작은 선택 메뉴를 표시한다", async () => {

@@ -83,10 +83,14 @@ export function useCardMenuPosition({
 
     const resizeObserver = new ResizeObserver(measure);
     resizeObserver.observe(boundary);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
     measure();
 
     return () => {
       resizeObserver.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
     };
   }, [active, anchor, boundaryRef, contentRef]);
 

@@ -7,9 +7,9 @@ import {
 } from "@/features/christmasCard/model/christmasCardMessage";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, List, Send, X } from "lucide-react";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { ChristmasCardFace } from "./ChristmasCardFace";
@@ -19,6 +19,8 @@ interface ChristmasCardFormProps {
   onSubmit?: (nickname: string, message: string) => Promise<void>;
   onViewList: () => void;
   onBack: () => void;
+  onClose: () => void;
+  onComplete: () => void;
 }
 
 export function ChristmasCardForm({
@@ -26,6 +28,8 @@ export function ChristmasCardForm({
   onSubmit,
   onViewList,
   onBack,
+  onClose,
+  onComplete,
 }: ChristmasCardFormProps) {
   const [nickname, setNickname] = useState(initialNickname);
   const [message, setMessage] = useState("");
@@ -33,6 +37,13 @@ export function ChristmasCardForm({
   const [error, setError] = useState("");
   const [isComplete, setIsComplete] = useState(false);
   const submitLock = useRef(false);
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
   const normalizedNickname = nickname.trim();
   const { normalizedMessage, isValid } = validateChristmasCardMessage(message);
   const canSubmit =
@@ -52,6 +63,7 @@ export function ChristmasCardForm({
     try {
       await onSubmit(normalizedNickname, normalizedMessage);
       setIsComplete(true);
+      if (isMounted.current) onComplete();
     } catch {
       setError("카드를 저장하지 못했어요. 다시 시도해 주세요.");
     } finally {
@@ -66,20 +78,16 @@ export function ChristmasCardForm({
         <p className="text-center text-sm font-semibold" role="status">
           카드를 남겼어요!
         </p>
-        <article className="rounded-md border border-[#e6d3b4] bg-[#fff8ed] p-3 text-sm">
-          <p className="mb-1 font-semibold">{normalizedNickname}</p>
-          <p className="whitespace-pre-wrap break-words">{normalizedMessage}</p>
-        </article>
         <div className="flex justify-between gap-2">
-          <Button className="cursor-pointer" onClick={onBack} type="button" variant="outline">
-            <ArrowLeft aria-hidden="true" /> 돌아가기
-          </Button>
           <Button
             className="cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
             onClick={onViewList}
             type="button"
           >
-            목록 보기
+            <List aria-hidden="true" /> 목록 보기
+          </Button>
+          <Button className="cursor-pointer" onClick={onClose} type="button" variant="outline">
+            <X aria-hidden="true" /> 닫기
           </Button>
         </div>
       </div>

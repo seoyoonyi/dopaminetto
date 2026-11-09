@@ -46,6 +46,10 @@ let boundary: HTMLDivElement | null = null;
 let boundaryPosition = { left: 40, top: 20 };
 
 beforeEach(() => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+  );
   globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
   boundaryPosition = { left: 40, top: 20 };
   useGuestbookDialogStore.setState({ isOpen: false, position: null });
@@ -462,5 +466,33 @@ describe("ChristmasGuestbook", () => {
     await act(async () => resolveSubmit());
     expect(dialog()?.textContent).toContain("목록 보기");
     expect(dialog()?.textContent).not.toContain("카드를 남겼어요");
+  });
+
+  it("저장 완료 화면은 목록 준비 화면과 같은 폭으로 표시한다", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root!.render(<DialogHarness onSubmit={onSubmit} />));
+
+    const writeButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("작성하기"),
+    );
+    await act(async () => writeButton?.click());
+    const message = dialog()!.querySelector<HTMLTextAreaElement>("#christmas-card-message")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+      setter.call(message, "따뜻한 겨울 보내세요!");
+      message.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () =>
+      dialog()!
+        .querySelector<HTMLFormElement>("form")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+    );
+
+    expect(dialog()?.querySelector("section")?.className).toContain("max-w-md");
+    expect(dialog()?.querySelector("section")?.className).not.toContain("max-w-6xl");
+    expect(dialog()?.querySelector('[role="status"]')?.textContent).toContain("카드를 남겼어요");
   });
 });

@@ -43,7 +43,14 @@ async function render(props: Partial<React.ComponentProps<typeof ChristmasCardFo
   root = createRoot(container);
   await act(async () => {
     root!.render(
-      <ChristmasCardForm nickname="눈사람" onBack={vi.fn()} onViewList={vi.fn()} {...props} />,
+      <ChristmasCardForm
+        nickname="눈사람"
+        onBack={vi.fn()}
+        onClose={vi.fn()}
+        onComplete={vi.fn()}
+        onViewList={vi.fn()}
+        {...props}
+      />,
     );
   });
 }
@@ -450,7 +457,10 @@ describe("ChristmasCardForm", () => {
 
     expect(onSubmit).toHaveBeenCalledWith("눈사람", "따뜻한 연말 보내세요!");
     expect(container!.querySelector('[role="status"]')?.textContent).toContain("카드를 남겼어요");
-    expect(container!.textContent).toContain("따뜻한 연말 보내세요!");
+    expect(container!.textContent).not.toContain("따뜻한 연말 보내세요!");
+    expect(container!.querySelector("article")).toBeNull();
+    expect(container!.textContent).toContain("목록 보기");
+    expect(container!.textContent).toContain("닫기");
   });
 
   it("저장 실패 시 작성 내용을 유지하고 재시도 안내를 표시한다", async () => {
@@ -495,5 +505,14 @@ describe("ChristmasCardForm", () => {
     await act(async () => listButton?.click());
     expect(onViewList).toHaveBeenCalledOnce();
     expect(container!.querySelector('[role="status"]')?.textContent).toContain("카드를 남겼어요");
+    const onClose = vi.fn();
+    await render({ onSubmit: vi.fn().mockResolvedValue(undefined), onClose });
+    await setMessage("행복한 겨울 보내요!");
+    await submit();
+    const closeButton = Array.from(container!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("닫기"),
+    );
+    await act(async () => closeButton?.click());
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

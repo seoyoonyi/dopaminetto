@@ -37,8 +37,9 @@ export function ChristmasCardDialog({
   nickname = "",
   onSubmit,
 }: ChristmasCardDialogProps) {
-  const [screen, setScreen] = useState<"menu" | "writing" | "list">("menu");
+  const [screen, setScreen] = useState<"menu" | "writing" | "complete" | "list">("menu");
   const isFullScreen = screen !== "menu";
+  const isFormScreen = screen === "writing" || screen === "complete";
   const menuRef = useRef<HTMLDivElement>(null);
   const menuLayout = useCardMenuPosition({
     active: open && !isFullScreen,
@@ -49,6 +50,10 @@ export function ChristmasCardDialog({
   const handleViewList = () => {
     setScreen("list");
     onViewList?.();
+  };
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setScreen("menu");
+    onOpenChange(nextOpen);
   };
   const dialogHeader = (
     <DialogHeader
@@ -62,14 +67,14 @@ export function ChristmasCardDialog({
           className="size-4 fill-emerald-600 text-emerald-900"
           strokeWidth={1.5}
         />
-        {screen === "writing"
+        {isFormScreen
           ? "카드 작성하기"
           : screen === "list"
             ? "크리스마스 카드 목록"
             : "크리스마스 카드"}
       </DialogTitle>
       <DialogDescription className="sr-only">
-        {screen === "writing"
+        {isFormScreen
           ? "닉네임과 메시지를 입력해 크리스마스 카드를 작성하세요."
           : screen === "list"
             ? "크리스마스 카드 목록을 확인하세요."
@@ -111,7 +116,7 @@ export function ChristmasCardDialog({
           <List aria-hidden="true" /> 목록 보기
         </Button>
       </DialogFooter>
-    ) : screen === "writing" ? (
+    ) : isFormScreen ? (
       <div
         className="flex w-full shrink-0 flex-col items-center justify-center p-3"
         data-card-writing-content
@@ -119,6 +124,8 @@ export function ChristmasCardDialog({
         <ChristmasCardForm
           nickname={nickname}
           onBack={() => setScreen("menu")}
+          onClose={() => handleOpenChange(false)}
+          onComplete={() => setScreen("complete")}
           onSubmit={onSubmit}
           onViewList={handleViewList}
         />
@@ -139,14 +146,7 @@ export function ChristmasCardDialog({
     );
 
   return (
-    <Dialog
-      modal={isFullScreen}
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) setScreen("menu");
-        onOpenChange(nextOpen);
-      }}
-    >
+    <Dialog modal={isFullScreen} open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={`${
           isFullScreen
@@ -166,7 +166,7 @@ export function ChristmasCardDialog({
           if (!isFullScreen || event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();
-          onOpenChange(false);
+          handleOpenChange(false);
         }}
         showCloseButton={!isFullScreen}
         showOverlay={isFullScreen}

@@ -96,7 +96,7 @@ export function ChristmasCardFace({
     });
     document.body.appendChild(measurement);
 
-    // 현재 화면이 넓어도 최소 지원 폭에서 자동 줄바꿈을 포함해 8줄 안에 들어가야 한다.
+    // 현재 화면이 넓어도 최소 지원 폭에서 자동 줄바꿈을 포함해 6줄 안에 들어가야 한다.
     function overflows() {
       measurement.value = value;
       return (
@@ -170,8 +170,8 @@ export function ChristmasCardFace({
       ) : null}
       <div
         className={cn(
-          "christmas-card-message-focus absolute inset-x-[12%] top-[24%] h-[calc(var(--card-message-lines)*1lh_+_2px)] flex items-start justify-center rounded-2xl p-0 leading-5 [--card-message-padding:0px] sm:h-[calc(var(--card-message-lines)*1lh_+_26px)] sm:p-3 sm:leading-6 sm:[--card-message-padding:12px] md:leading-7 lg:h-[calc(var(--card-message-lines)*1lh_+_34px)] lg:p-4 lg:leading-8 lg:[--card-message-padding:16px] xl:leading-9 min-[921px]:top-[28%] max-[920px]:top-[32%] max-[920px]:leading-5 [@media(max-width:920px)]:top-[calc(32%_-_0.5lh)]",
-          editable && "christmas-card-lines",
+          "christmas-card-message-focus absolute inset-x-[12%] top-[24%] -translate-y-[clamp(8px,1.5vw,20px)] h-[calc(var(--card-message-lines)*1lh_+_18px)] flex items-start justify-center rounded-2xl p-0 leading-5 [--card-message-padding:0px] sm:h-[calc(var(--card-message-lines)*1lh_+_42px)] sm:p-3 sm:leading-6 sm:[--card-message-padding:12px] md:leading-7 lg:h-[calc(var(--card-message-lines)*1lh_+_50px)] lg:p-4 lg:leading-8 lg:[--card-message-padding:16px] xl:leading-9 min-[921px]:top-[28%] max-[920px]:top-[32%] max-[920px]:leading-5 [@media(max-width:920px)]:top-[calc(32%_-_0.5lh)]",
+          "christmas-card-lines",
         )}
         style={{ "--card-message-lines": CHRISTMAS_CARD_MESSAGE_MAX_LINES } as CSSProperties}
       >
@@ -179,7 +179,7 @@ export function ChristmasCardFace({
           <>
             <Textarea
               aria-label="카드 메시지 입력"
-              className="relative z-10 h-full w-full max-h-full min-h-0 field-sizing-fixed resize-none overflow-hidden rounded-none border-0 bg-transparent px-1 py-0 text-left text-sm leading-5 text-[#63322d] shadow-none placeholder:text-center focus-visible:border-0 focus-visible:ring-0 sm:px-1.5 sm:py-0 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:px-2 lg:py-0 lg:text-xl lg:leading-8 xl:leading-9 max-[920px]:text-sm max-[920px]:leading-5"
+              className="relative z-10 h-full w-full max-h-full min-h-0 field-sizing-fixed resize-none overflow-hidden rounded-none border-0 bg-transparent px-1 py-0 text-center text-sm leading-5 text-[#63322d] shadow-none placeholder:text-center focus-visible:border-0 focus-visible:ring-0 sm:px-1.5 sm:py-0 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:px-2 lg:py-0 lg:text-xl lg:leading-8 xl:leading-9 max-[920px]:text-sm max-[920px]:leading-5 min-[641px]:text-left"
               id={inputId}
               maxLength={CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
               onPaste={(event) => {
@@ -215,7 +215,7 @@ export function ChristmasCardFace({
             {message.length === 0 ? (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center px-1 pt-0 pb-0 text-center text-sm leading-5 text-[#8a8075] sm:px-1.5 sm:pt-3 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:px-2 lg:pt-4 lg:text-xl lg:leading-8 xl:leading-9 max-[920px]:text-sm max-[920px]:leading-5"
+                className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center px-1 pt-0 pb-0 text-center text-sm leading-5 text-[#8a8075] sm:px-1.5 sm:pt-3 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:px-2 lg:pt-4 lg:text-xl lg:leading-8 xl:leading-9 max-[920px]:text-sm max-[920px]:leading-5 [@media(max-width:520px)]:text-xs"
                 data-card-message-placeholder
               >
                 도파민또에 남기고 싶은 이야기를 180자 안에 담아보세요. 🎄
@@ -223,7 +223,7 @@ export function ChristmasCardFace({
             ) : null}
           </>
         ) : (
-          <p className="size-full overflow-hidden whitespace-pre-wrap break-words p-1 text-center text-sm leading-5 text-[#63322d] sm:p-1.5 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:p-2 lg:text-xl lg:leading-8 max-[920px]:text-sm max-[920px]:leading-5">
+          <p className="relative z-10 size-full overflow-hidden whitespace-pre-wrap break-words p-1 text-center text-sm leading-5 text-[#63322d] sm:p-1.5 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:p-2 lg:text-xl lg:leading-8 max-[920px]:text-sm max-[920px]:leading-5 min-[641px]:text-left">
             {message}
           </p>
         )}

@@ -124,6 +124,7 @@ describe("ChristmasCardForm", () => {
     );
     expect(placeholder?.className).toContain("items-start");
     expect(placeholder?.className).toContain("justify-center");
+    expect(placeholder?.className.split(" ")).toContain("[@media(max-width:520px)]:text-xs");
 
     await setMessage("메리 크리스마스!");
     expect(container!.querySelector("[data-card-message-placeholder]")).toBeNull();
@@ -159,18 +160,18 @@ describe("ChristmasCardForm", () => {
     expect(container!.textContent).toContain("11 / 180");
   });
 
-  it("넓은 화면에서도 8줄은 허용하고 9번째 수동 줄바꿈은 반영하지 않는다", async () => {
+  it("넓은 화면에서도 6줄은 허용하고 7번째 수동 줄바꿈은 반영하지 않는다", async () => {
     await render();
     mockLargeMessageArea();
-    const eightLines = Array(8).fill("1").join("\n");
-    await setMessage(eightLines);
-    expect(messageField().value).toBe(eightLines);
+    const sixLines = Array(6).fill("1").join("\n");
+    await setMessage(sixLines);
+    expect(messageField().value).toBe(sixLines);
 
-    await setMessage(`${eightLines}\n1`);
-    expect(messageField().value).toBe(eightLines);
+    await setMessage(`${sixLines}\n1`);
+    expect(messageField().value).toBe(sixLines);
   });
 
-  it("넓은 화면의 붙여넣기도 최소 폭에서 자동 줄바꿈을 포함한 8줄까지만 허용한다", async () => {
+  it("넓은 화면의 붙여넣기도 최소 폭에서 자동 줄바꿈을 포함한 6줄까지만 허용한다", async () => {
     await render();
     mockLargeMessageArea();
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
@@ -179,23 +180,23 @@ describe("ChristmasCardForm", () => {
     });
     await act(async () => messageField().dispatchEvent(pasteEvent));
 
-    expect(messageField().value).toBe("1".repeat(80));
+    expect(messageField().value).toBe("1".repeat(60));
   });
 
-  it("8줄을 넘는 직접 입력의 자동 줄바꿈도 기존 내용을 변경하지 않고 거절한다", async () => {
+  it("6줄을 넘는 직접 입력의 자동 줄바꿈도 기존 내용을 변경하지 않고 거절한다", async () => {
     await render();
     mockLargeMessageArea();
-    await setMessage("1".repeat(80));
-    expect(messageField().value).toBe("1".repeat(80));
+    await setMessage("1".repeat(60));
+    expect(messageField().value).toBe("1".repeat(60));
 
-    await setMessage("1".repeat(81));
-    expect(messageField().value).toBe("1".repeat(80));
+    await setMessage("1".repeat(61));
+    expect(messageField().value).toBe("1".repeat(60));
   });
 
-  it("마지막 8번째 줄에 붙여넣어도 기존 7줄을 합치지 않고 삽입한 끝부분만 제한한다", async () => {
+  it("마지막 6번째 줄에 붙여넣어도 기존 5줄을 합치지 않고 삽입한 끝부분만 제한한다", async () => {
     await render();
     mockLargeMessageArea();
-    const prefix = `${Array(7).fill("1").join("\n")}\n`;
+    const prefix = `${Array(5).fill("1").join("\n")}\n`;
     await setMessage(prefix);
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
@@ -311,7 +312,8 @@ describe("ChristmasCardForm", () => {
       "h-full",
     );
     expect(messageField().className).toContain("text-xl");
-    expect(messageField().className).toContain("text-left");
+    expect(messageField().className.split(" ")).toContain("text-center");
+    expect(messageField().className.split(" ")).toContain("min-[641px]:text-left");
     expect(messageField().className).toContain("text-sm");
     expect(messageField().className).not.toContain("text-xs");
     expect(messageField().className).toContain("sm:text-base");
@@ -332,6 +334,7 @@ describe("ChristmasCardForm", () => {
     expect(messageField().className).not.toContain("min-[921px]:h-full");
     expect(messageField().className).not.toContain("size-full");
     expect(messageField().parentElement?.className).toContain("christmas-card-message-focus");
+    expect(messageField().parentElement?.className).toContain("christmas-card-lines");
     expect(container!.querySelector("[data-card-message-placeholder]")?.className).toContain(
       "text-center",
     );
@@ -342,16 +345,19 @@ describe("ChristmasCardForm", () => {
     );
     expect(messageField().parentElement?.className).toContain("items-start");
     expect(messageField().parentElement?.className).toContain(
-      "h-[calc(var(--card-message-lines)*1lh_+_2px)]",
+      "-translate-y-[clamp(8px,1.5vw,20px)]",
     );
     expect(messageField().parentElement?.className).toContain(
-      "sm:h-[calc(var(--card-message-lines)*1lh_+_26px)]",
+      "h-[calc(var(--card-message-lines)*1lh_+_18px)]",
     );
     expect(messageField().parentElement?.className).toContain(
-      "lg:h-[calc(var(--card-message-lines)*1lh_+_34px)]",
+      "sm:h-[calc(var(--card-message-lines)*1lh_+_42px)]",
+    );
+    expect(messageField().parentElement?.className).toContain(
+      "lg:h-[calc(var(--card-message-lines)*1lh_+_50px)]",
     );
     expect(messageField().parentElement?.getAttribute("style")).toContain(
-      "--card-message-lines: 8",
+      "--card-message-lines: 6",
     );
     expect(messageField().parentElement?.className).toContain("min-[921px]:top-[28%]");
     expect(messageField().parentElement?.className).not.toContain("bottom-[0.5lh]");

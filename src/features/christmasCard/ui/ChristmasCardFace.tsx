@@ -8,10 +8,20 @@ import {
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/shared/ui/textarea";
 
-import { useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 
 import Image from "next/image";
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function getMotionPreference() {
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function getServerMotionPreference() {
+  return true;
+}
 
 interface ChristmasCardFaceProps {
   message: string;
@@ -29,6 +39,21 @@ export function ChristmasCardFace({
   onMessageChange,
 }: ChristmasCardFaceProps) {
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const subscribeToMotionPreference = useCallback((onChange: () => void) => {
+    const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+    const handleChange = () => {
+      setIsVideoReady(false);
+      onChange();
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+  const isMotionReduced = useSyncExternalStore(
+    subscribeToMotionPreference,
+    getMotionPreference,
+    getServerMotionPreference,
+  );
 
   function updateMessage(
     textarea: HTMLTextAreaElement,
@@ -128,19 +153,21 @@ export function ChristmasCardFace({
         sizes="(max-width: 768px) 100vw, 1152px"
         src={CHRISTMAS_CARD_DESIGN.image}
       />
-      <video
-        aria-hidden="true"
-        autoPlay
-        className={`absolute inset-0 size-full min-h-[180px] min-w-[320px] object-contain motion-reduce:hidden ${isVideoReady ? "motion-safe:block" : "hidden"}`}
-        loop
-        muted
-        onCanPlay={() => setIsVideoReady(true)}
-        onError={() => setIsVideoReady(false)}
-        playsInline
-        poster={CHRISTMAS_CARD_DESIGN.image}
-      >
-        <source src={CHRISTMAS_CARD_DESIGN.video} type="video/mp4" />
-      </video>
+      {!isMotionReduced ? (
+        <video
+          aria-hidden="true"
+          autoPlay
+          className={`absolute inset-0 size-full min-h-[180px] min-w-[320px] object-contain motion-reduce:hidden ${isVideoReady ? "motion-safe:block" : "hidden"}`}
+          loop
+          muted
+          onCanPlay={() => setIsVideoReady(true)}
+          onError={() => setIsVideoReady(false)}
+          playsInline
+          poster={CHRISTMAS_CARD_DESIGN.image}
+        >
+          <source src={CHRISTMAS_CARD_DESIGN.video} type="video/mp4" />
+        </video>
+      ) : null}
       <div
         className={cn(
           "christmas-card-message-focus absolute inset-x-[12%] top-[24%] h-[calc(var(--card-message-lines)*1lh_+_2px)] flex items-start justify-center rounded-2xl p-0 leading-5 [--card-message-padding:0px] sm:h-[calc(var(--card-message-lines)*1lh_+_26px)] sm:p-3 sm:leading-6 sm:[--card-message-padding:12px] md:leading-7 lg:h-[calc(var(--card-message-lines)*1lh_+_34px)] lg:p-4 lg:leading-8 lg:[--card-message-padding:16px] xl:leading-9 min-[921px]:top-[28%] max-[920px]:top-[32%] max-[920px]:leading-5 [@media(max-width:920px)]:top-[calc(32%_-_0.5lh)]",

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { act } from "react";
 import { type Root, createRoot } from "react-dom/client";
@@ -10,6 +10,15 @@ import { ChristmasCardDetailDialog } from "./ChristmasCardDetailDialog";
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+
+Object.defineProperty(window, "matchMedia", {
+  configurable: true,
+  value: vi.fn(() => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })),
+});
 
 afterEach(() => {
   if (root) act(() => root!.unmount());

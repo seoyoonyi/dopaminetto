@@ -18,6 +18,23 @@ afterEach(() => {
   container = null;
   vi.restoreAllMocks();
   vi.clearAllMocks();
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  });
+});
+
+Object.defineProperty(window, "matchMedia", {
+  configurable: true,
+  value: vi.fn(() => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })),
 });
 
 async function render(props: Partial<React.ComponentProps<typeof ChristmasCardForm>> = {}) {
@@ -68,6 +85,36 @@ function mockLargeMessageArea() {
 }
 
 describe("ChristmasCardForm", () => {
+  it("모션 감소 설정이 켜지면 영상을 빼고 설정 변경을 따라 다시 렌더링한다", async () => {
+    let matches = true;
+    let changeListener: ((event: MediaQueryListEvent) => void) | undefined;
+    const mediaQuery = {
+      get matches() {
+        return matches;
+      },
+      addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => {
+        changeListener = listener as (event: MediaQueryListEvent) => void;
+      },
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList;
+    vi.spyOn(window, "matchMedia").mockReturnValue(mediaQuery);
+
+    await render();
+    expect(container!.querySelector("video")).toBeNull();
+    expect(container!.querySelector("video source")).toBeNull();
+    expect(container!.querySelector("img")?.getAttribute("alt")).toBe("");
+
+    matches = false;
+    await act(async () => changeListener?.(new Event("change") as MediaQueryListEvent));
+    expect(container!.querySelector("video source")?.getAttribute("src")).toBe(
+      "/assets/media/christmas_card_A.mp4",
+    );
+
+    matches = true;
+    await act(async () => changeListener?.(new Event("change") as MediaQueryListEvent));
+    expect(container!.querySelector("video")).toBeNull();
+  });
+
   it("메시지가 비어 있을 때 안내 문구를 입력 시작 위치에 표시하고 입력하면 숨긴다", async () => {
     await render();
 

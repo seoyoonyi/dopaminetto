@@ -3,7 +3,6 @@ import type { CharacterActionConfig, CharacterConfig, CharacterId } from "@/shar
 export const DEFAULT_CHARACTER_ID: CharacterId = "p-boy";
 const ACTION_ATLAS_FRAME_WIDTH = 40;
 const ACTION_ATLAS_FRAME_HEIGHT = 70;
-const P_GIRL_ACTION_ATLAS_FRAME_WIDTH = 49;
 
 const createCharacterConfig = ({
   id,
@@ -61,8 +60,8 @@ export const CHARACTER_CONFIGS = {
     assetKey: "p-boy-sprite",
     assetUrl: "/assets/images/p-boy-sprite-s.png",
     previewAssetUrl: "/assets/images/characters/previews/p-boy.webp",
-    previewImageWidth: 169,
-    previewImageHeight: 312,
+    previewImageWidth: 220,
+    previewImageHeight: 360,
     imageWidth: 120,
     imageHeight: 280,
     scale: 1,
@@ -74,10 +73,10 @@ export const CHARACTER_CONFIGS = {
     assetKey: "p-girl-sprite",
     assetUrl: "/assets/images/p-girl-sprite-s.png",
     previewAssetUrl: "/assets/images/characters/previews/p-girl.webp",
-    previewImageWidth: 236,
-    previewImageHeight: 341,
-    imageWidth: 147,
-    imageHeight: 252,
+    previewImageWidth: 220,
+    previewImageHeight: 360,
+    imageWidth: 120,
+    imageHeight: 280,
     scale: 1,
     originY: 1,
   }),
@@ -100,10 +99,11 @@ export const CHARACTER_ACTION_CONFIGS = {
   "p-girl": {
     assetKey: "p-girl-actions",
     assetUrl: "/assets/images/p-girl-sprite-actions-final-s.png",
-    frameWidth: P_GIRL_ACTION_ATLAS_FRAME_WIDTH,
+    frameWidth: ACTION_ATLAS_FRAME_WIDTH,
     frameHeight: ACTION_ATLAS_FRAME_HEIGHT,
     originY: 69 / ACTION_ATLAS_FRAME_HEIGHT,
-    visibleHeight: 63,
+    // 겨울 액션 atlas는 방향별 시트(70px 프레임)와 같은 픽셀 배율로 그려져 액션 스케일 1.0을 유지한다.
+    visibleHeight: ACTION_ATLAS_FRAME_HEIGHT,
   },
 } satisfies Record<CharacterId, CharacterActionConfig>;
 

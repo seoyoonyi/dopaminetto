@@ -320,7 +320,7 @@ describe("ChristmasCardForm", () => {
     );
     expect(messageField().className).toContain("text-xl");
     expect(messageField().className.split(" ")).toContain("text-center");
-    expect(messageField().className.split(" ")).toContain("min-[641px]:text-left");
+    expect(messageField().className).not.toContain("min-[641px]:text-left");
     expect(messageField().className).toContain("text-sm");
     expect(messageField().className).not.toContain("text-xs");
     expect(messageField().className).toContain("sm:text-base");

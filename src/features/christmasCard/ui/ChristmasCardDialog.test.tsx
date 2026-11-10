@@ -393,11 +393,14 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.textContent).toContain("카드 상세 보기");
     expect(dialog()?.textContent).toContain("From. 눈사람");
     expect(dialog()?.textContent).toContain("따뜻한 겨울 보내세요!");
-    await act(async () =>
-      Array.from(dialog()!.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("목록으로"))
-        ?.click(),
+    const detailButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록으로"),
     );
+    expect(detailButton?.parentElement?.className).toContain("justify-between");
+    expect(detailButton?.parentElement?.querySelector("time")?.dateTime).toBe(
+      "2026-11-10T00:00:00.000Z",
+    );
+    await act(async () => detailButton?.click());
     expect(dialog()?.textContent).toContain("1 / 1");
 
     const backButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>

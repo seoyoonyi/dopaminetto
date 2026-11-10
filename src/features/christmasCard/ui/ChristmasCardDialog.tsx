@@ -162,22 +162,24 @@ export function ChristmasCardDialog({
       </div>
     ) : screen === "detail" && selectedCard ? (
       <div className="flex flex-col gap-4 p-4 sm:p-6">
-        <Button
-          autoFocus
-          className="w-fit cursor-pointer"
-          onClick={() => setScreen("list")}
-          type="button"
-          variant="outline"
-        >
-          <ArrowLeft aria-hidden="true" /> 목록으로
-        </Button>
         <ChristmasCardFace message={selectedCard.content} />
         <p className="border-b border-[#c8a88b] pb-2 text-sm text-[#63322d]">
           From. {selectedCard.nickname}
         </p>
-        <time className="text-xs text-[#63322d]" dateTime={selectedCard.created_at}>
-          {new Date(selectedCard.created_at).toLocaleString("ko-KR")}
-        </time>
+        <div className="flex items-center justify-between gap-3">
+          <time className="min-w-0 text-xs text-[#63322d]" dateTime={selectedCard.created_at}>
+            {new Date(selectedCard.created_at).toLocaleString("ko-KR")}
+          </time>
+          <Button
+            autoFocus
+            className="w-fit shrink-0 cursor-pointer"
+            onClick={() => setScreen("list")}
+            type="button"
+            variant="outline"
+          >
+            <ArrowLeft aria-hidden="true" /> 목록으로
+          </Button>
+        </div>
       </div>
     ) : (
       <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center">

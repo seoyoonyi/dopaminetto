@@ -12,6 +12,7 @@ import { useUserInfo } from "@/shared/hooks";
 import type { ConnectionStatus } from "@/shared/lib";
 import { useUserStore } from "@/shared/store/useUserStore";
 import { ChatPanel } from "@/widgets/chatPanel";
+import { ChristmasGuestbook } from "@/widgets/christmasGuestbook";
 import { TownSettingsButton } from "@/widgets/townSettings";
 import { TownToolbar } from "@/widgets/townToolbar";
 import { TownVoiceSection } from "@/widgets/townVoiceSection";
@@ -19,7 +20,7 @@ import { UsersPanel } from "@/widgets/usersPanel";
 import { Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -76,6 +77,7 @@ function TownSingleTabGate() {
 }
 
 function ActiveTownPage() {
+  const gameAreaRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { data: user, isLoading } = useUserInfo();
   const userNickname = user?.user_metadata?.nickname;
@@ -153,7 +155,7 @@ function ActiveTownPage() {
     <div className="flex h-dvh flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-w-3xl lg:flex-row">
         <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
-          <TownEngine />
+          <TownEngine containerRef={gameAreaRef} />
         </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t lg:h-full lg:w-96 lg:min-w-96 lg:flex-none lg:border-l lg:border-t-0">
           {panelContent}
@@ -167,6 +169,7 @@ function ActiveTownPage() {
           onRoleChange={setVoiceRole}
         />
       ) : null}
+      <ChristmasGuestbook gameAreaRef={gameAreaRef} />
       <TownToolbar
         isSpeaker={voiceRole === "speaker"}
         leadingSlot={

@@ -223,7 +223,7 @@ export function ChristmasCardFace({
             ) : null}
           </>
         ) : (
-          <p className="relative z-10 size-full overflow-hidden whitespace-pre-wrap break-words p-1 text-center text-sm leading-5 text-[#63322d] sm:p-1.5 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:p-2 lg:text-xl lg:leading-8 max-[920px]:text-sm max-[920px]:leading-5 min-[641px]:text-left">
+          <p className="relative z-10 size-full overflow-hidden whitespace-pre-wrap break-words p-1 text-left text-sm leading-5 text-[#63322d] sm:p-1.5 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:p-2 lg:text-xl lg:leading-8 max-[920px]:text-sm max-[920px]:leading-5">
             {message}
           </p>
         )}

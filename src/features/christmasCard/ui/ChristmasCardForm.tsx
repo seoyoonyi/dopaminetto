@@ -12,11 +12,12 @@ import { ArrowLeft, List, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import type { ChristmasCard } from "../model/christmasCard";
 import { ChristmasCardFace } from "./ChristmasCardFace";
 
 interface ChristmasCardFormProps {
   nickname: string;
-  onSubmit?: (nickname: string, message: string) => Promise<void>;
+  onSubmit?: (nickname: string, message: string) => Promise<void | ChristmasCard>;
   onViewList: () => void;
   onBack: () => void;
   onClose: () => void;

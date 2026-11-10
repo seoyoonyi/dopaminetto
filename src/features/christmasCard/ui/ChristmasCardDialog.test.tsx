@@ -378,7 +378,7 @@ describe("ChristmasGuestbook", () => {
     expect(overlay).not.toBeNull();
     expect(overlay?.className).toContain("bg-black/50");
     expect(dialog()?.className).toContain("!bg-transparent");
-    expect(dialog()?.querySelector("section")?.className).toContain("max-w-4xl");
+    expect(dialog()?.querySelector("section")?.className).toContain("max-w-6xl");
     expect(dialog()?.textContent).toContain("1 / 1");
     expect(dialog()?.textContent).toContain("돌아가기");
     await vi.waitFor(() =>

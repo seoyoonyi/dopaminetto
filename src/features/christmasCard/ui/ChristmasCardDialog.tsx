@@ -181,9 +181,9 @@ export function ChristmasCardDialog({
           </Button>
         </div>
       </div>
-    ) : (
-      <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-        {screen === "list" && onLoadCards ? (
+    ) : screen === "list" ? (
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 p-6">
+        {onLoadCards ? (
           <ChristmasCardGallery
             onLoadCards={onLoadCards}
             onPageChange={setPage}
@@ -200,6 +200,19 @@ export function ChristmasCardDialog({
             <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
           </>
         )}
+        <Button
+          className="shrink-0 self-center cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
+          onClick={() => setScreen("menu")}
+          type="button"
+          variant="outline"
+        >
+          <ArrowLeft aria-hidden="true" /> 돌아가기
+        </Button>
+      </div>
+    ) : (
+      <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="font-display text-lg font-semibold">아직 카드 목록을 준비하고 있어요.</p>
+        <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
         <Button
           className="cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
           onClick={() => setScreen("menu")}
@@ -252,7 +265,7 @@ export function ChristmasCardDialog({
                 screen === "writing"
                   ? "max-w-6xl"
                   : screen === "list"
-                    ? "max-w-4xl"
+                    ? "h-[min(calc(100dvh-2rem),52.43rem)] max-w-6xl sm:h-[min(calc(100dvh-4rem),52.43rem)]"
                     : screen === "complete"
                       ? "max-w-md"
                       : "max-w-6xl"

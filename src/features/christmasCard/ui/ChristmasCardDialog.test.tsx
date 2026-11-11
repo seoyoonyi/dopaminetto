@@ -388,6 +388,20 @@ describe("ChristmasGuestbook", () => {
       'button[aria-label="눈사람님의 카드 보기"]',
     );
     expect(cardButton?.textContent).toContain("따뜻한 겨울 보내세요!");
+    expect(cardButton?.className).toContain(
+      "before:bg-[url('/assets/images/christmas_card_bg.webp')]",
+    );
+    expect(cardButton?.className).toContain("before:bg-[length:256px_256px]");
+    expect(cardButton?.className).toContain("before:bg-repeat");
+    expect(cardButton?.className).toContain("before:opacity-100");
+    const cardGrid = dialog()?.querySelector("ul");
+    expect(cardGrid?.className).toContain("grid-rows-[repeat(6,minmax(19rem,auto))]");
+    expect(cardGrid?.className).toContain("sm:grid-rows-[repeat(3,minmax(19rem,auto))]");
+    expect(cardGrid?.className).toContain("lg:grid-rows-[repeat(2,minmax(19rem,auto))]");
+    expect(cardGrid?.parentElement?.className).toContain("lg:min-h-[38.75rem]");
+    expect(cardGrid?.querySelectorAll("li")).toHaveLength(1);
+    expect(cardGrid?.querySelector("span.truncate")?.className).toContain("text-right");
+    expect(cardGrid?.querySelector("time")?.className).toContain("text-right");
 
     await act(async () => cardButton?.click());
     expect(dialog()?.textContent).toContain("카드 상세 보기");

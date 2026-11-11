@@ -97,11 +97,31 @@ export function ChristmasCardGallery({
                     <button
                       ref={card.id === selectedCardId ? selectedCardRef : undefined}
                       aria-label={`${card.nickname}님의 카드 보기`}
-                      className="flex h-full min-h-48 w-full cursor-pointer flex-col gap-4 rounded-xl border border-[#c8a88b] bg-[#fff8ed] p-4 text-left text-[#63322d] transition-colors hover:bg-[#ffefd9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a56b48] active:bg-[#f9e2c5]"
+                      className="
+                        relative isolate flex h-full min-h-76 w-full cursor-pointer
+                        flex-col gap-4 overflow-hidden rounded-xl
+                        border border-[#D9B99C]
+                        p-4 text-left text-[#63322d]
+                        shadow-[0_3px_12px_rgba(99,50,45,0.09)]
+                        transition-[background-color,border-color,box-shadow]
+                        duration-300 ease-out
+                        hover:bg-[#FFF1D9]
+                        hover:border-[#D6A66F]
+                        hover:shadow-[inset_0_0_24px_rgba(255,215,150,0.45),0_0_16px_rgba(245,191,113,0.35)]
+                        active:scale-[0.99]
+                        before:pointer-events-none before:absolute before:inset-0
+                        before:-z-10 before:rounded-[inherit]
+                        before:bg-[url('/assets/images/christmas_card_bg.webp')]
+                        before:bg-[length:256px_256px]
+                        before:bg-repeat before:opacity-100
+                        focus-visible:outline-2
+                        focus-visible:outline-offset-2
+                        focus-visible:outline-[#a56b48]
+                      "
                       onClick={() => onSelect(card)}
                       type="button"
                     >
-                      <span className="line-clamp-4 flex-1 whitespace-pre-wrap break-words bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.625rem-1px),rgb(165_107_72_/_16%)_calc(1.625rem-1px)_1.625rem)] text-base leading-relaxed">
+                      <span className="relative z-10 line-clamp-4 flex-1 whitespace-pre-wrap break-words bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.625rem-1px),rgb(165_107_72_/_16%)_calc(1.625rem-1px)_1.625rem)] text-base leading-relaxed">
                         {card.content}
                       </span>
                       <span className="relative z-10 flex flex-col gap-1 text-sm">

@@ -96,23 +96,24 @@ export function ChristmasCardGallery({
                       className="
                         relative isolate flex h-full min-h-76 w-full cursor-pointer
                         flex-col gap-4 overflow-hidden rounded-xl
-                        border border-[#D9B99C]
+                        border border-[#B5C9D8]
+                        bg-transparent
                         p-4 text-left text-[#63322d]
-                        shadow-[0_3px_12px_rgba(99,50,45,0.09)]
+                        shadow-[0_2px_8px_rgba(65,99,121,0.08)]
                         transition-[background-color,border-color,box-shadow]
                         duration-300 ease-out
-                        hover:bg-[#FFF1D9]
-                        hover:border-[#D6A66F]
-                        hover:shadow-[inset_0_0_24px_rgba(255,215,150,0.45),0_0_16px_rgba(245,191,113,0.35)]
+                        hover:bg-[#D9E8F2]
+                        hover:border-[#7FA6BC]
+                        hover:shadow-[inset_0_0_18px_rgba(255,255,255,0.55),0_4px_18px_rgba(75,126,157,0.22)]
                         active:scale-[0.99]
                         before:pointer-events-none before:absolute before:inset-0
                         before:-z-10 before:rounded-[inherit]
                         before:bg-[url('/assets/images/christmas_card_bg.webp')]
-                        before:bg-[length:256px_256px]
-                        before:bg-repeat before:opacity-100
+                        before:bg-[length:512px_512px]
+                        before:bg-repeat before:opacity-20
                         focus-visible:outline-2
                         focus-visible:outline-offset-2
-                        focus-visible:outline-[#a56b48]
+                        focus-visible:outline-[#7FA6BC]
                       "
                       onClick={() => onSelect(card)}
                       type="button"

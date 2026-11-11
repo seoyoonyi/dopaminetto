@@ -391,9 +391,20 @@ describe("ChristmasGuestbook", () => {
     expect(cardButton?.className).toContain(
       "before:bg-[url('/assets/images/christmas_card_bg.webp')]",
     );
-    expect(cardButton?.className).toContain("before:bg-[length:256px_256px]");
+    expect(cardButton?.className).toContain("before:bg-[length:512px_512px]");
     expect(cardButton?.className).toContain("before:bg-repeat");
-    expect(cardButton?.className).toContain("before:opacity-100");
+    expect(cardButton?.className).toContain("before:opacity-20");
+    expect(cardButton?.className).toContain("border-[#B5C9D8]");
+    expect(cardButton?.className).toContain("bg-transparent");
+    expect(cardButton?.className).toContain("shadow-[0_2px_8px_rgba(65,99,121,0.08)]");
+    expect(cardButton?.className).toContain("hover:bg-[#D9E8F2]");
+    expect(cardButton?.className).toContain("hover:border-[#7FA6BC]");
+    expect(cardButton?.className).toContain(
+      "hover:shadow-[inset_0_0_18px_rgba(255,255,255,0.55),0_4px_18px_rgba(75,126,157,0.22)]",
+    );
+    expect(cardButton?.className).toContain("focus-visible:outline-2");
+    expect(cardButton?.className).toContain("focus-visible:outline-offset-2");
+    expect(cardButton?.className).toContain("focus-visible:outline-[#7FA6BC]");
     const cardGrid = dialog()?.querySelector("ul");
     expect(cardGrid?.className).toContain("grid-rows-[repeat(6,minmax(19rem,auto))]");
     expect(cardGrid?.className).toContain("sm:grid-rows-[repeat(3,minmax(19rem,auto))]");

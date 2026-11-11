@@ -16,22 +16,44 @@ vi.mock("../hooks/useChristmasCardsQuery", () => ({
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 
-class ObserverStub {
-  constructor(callback: IntersectionObserverCallback | ResizeObserverCallback) {
+class ResizeObserverStub {
+  static instances: ResizeObserverStub[] = [];
+  targets = new Set<Element>();
+
+  constructor(private callback: ResizeObserverCallback) {
+    ResizeObserverStub.instances.push(this);
+  }
+
+  observe(target: Element) {
+    this.targets.add(target);
+  }
+
+  unobserve() {}
+  disconnect() {}
+
+  notify() {
+    this.callback([], this as unknown as ResizeObserver);
+  }
+}
+
+class IntersectionObserverStub {
+  constructor(callback: IntersectionObserverCallback) {
     void callback;
   }
+
   observe() {}
   unobserve() {}
   disconnect() {}
 }
 
 beforeEach(() => {
+  ResizeObserverStub.instances = [];
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
   );
-  vi.stubGlobal("IntersectionObserver", ObserverStub);
-  vi.stubGlobal("ResizeObserver", ObserverStub);
+  vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 });
 
 afterEach(() => {
@@ -161,7 +183,7 @@ describe("ChristmasCardGallery", () => {
     );
   });
 
-  it("첫째 줄 카드 핀이 잘리지 않도록 목록 그리드 위쪽 여백을 둔다", async () => {
+  it("첫째 줄 핀과 스크롤바에 필요한 목록 그리드 여백을 둔다", async () => {
     mockUseChristmasCardsQuery.mockReturnValue({
       data: {
         cards: [
@@ -197,8 +219,69 @@ describe("ChristmasCardGallery", () => {
       ),
     );
 
-    expect(container.querySelector("ul")?.className.split(" ")).toContain("pt-1");
+    expect(container.querySelector("ul")?.className.split(" ")).toEqual(
+      expect.arrayContaining(["pt-1", "pl-1"]),
+    );
+    expect(container.querySelector("ul")?.className).not.toContain("pr-2");
     expect(container.querySelector("[data-owned-pin]")?.getAttribute("class")).toContain("-top-1");
+    const messageArea = container.querySelector<HTMLElement>("[data-owned-card] > span");
+    const clampedMessage = messageArea?.querySelector<HTMLElement>("span");
+    expect(messageArea?.className).toContain("flex-1");
+    expect(clampedMessage?.className).toContain("line-clamp-7");
+    expect(clampedMessage?.className).not.toContain("flex-1");
+    expect(clampedMessage?.className).toContain("text-base");
+    expect(clampedMessage?.className).toContain("sm:text-sm");
+    expect(clampedMessage?.className).toContain("lg:text-base");
+  });
+
+  it("목록에 세로 스크롤이 생길 때만 오른쪽 여백을 적용한다", async () => {
+    mockUseChristmasCardsQuery.mockReturnValue({
+      data: {
+        cards: [
+          {
+            id: 1,
+            created_at: "2026-11-12",
+            nickname: "QA_나1",
+            content: "내 카드",
+            event_type: "christmas",
+            user_id: "user-1",
+          },
+        ],
+        totalCount: 1,
+      },
+      isError: false,
+      isPending: false,
+      isPlaceholderData: false,
+      refetch: vi.fn(),
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () =>
+      root!.render(
+        <ChristmasCardGallery
+          onLoadCards={async () => ({ cards: [], totalCount: 1 })}
+          onPageChange={vi.fn()}
+          onSelect={vi.fn()}
+          page={1}
+        />,
+      ),
+    );
+
+    const scrollViewport = container.querySelector<HTMLElement>('[data-slot="carousel-content"]')!;
+    Object.defineProperties(scrollViewport, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 500 },
+    });
+
+    await act(async () => {
+      ResizeObserverStub.instances
+        .filter((observer) => observer.targets.has(scrollViewport))
+        .forEach((observer) => observer.notify());
+    });
+
+    expect(container.querySelector("ul")?.className).toContain("pr-2");
   });
 
   it("현재 페이지에만 스켈레톤 여섯 장을 표시한다", async () => {

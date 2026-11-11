@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/button";
 import {
   Carousel,
@@ -38,7 +39,9 @@ export function ChristmasCardGallery({
 }: ChristmasCardGalleryProps) {
   const query = useChristmasCardsQuery(onLoadCards, page);
   const [api, setApi] = useState<CarouselApi>();
+  const [hasVerticalOverflow, setHasVerticalOverflow] = useState(false);
   const [openTooltipCardId, setOpenTooltipCardId] = useState<number | null>(null);
+  const cardGridRef = useRef<HTMLUListElement>(null);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
   const [startIndex] = useState(page - 1);
   const [totalCount, setTotalCount] = useState(0);
@@ -57,6 +60,20 @@ export function ChristmasCardGallery({
   useEffect(() => {
     selectedCardRef.current?.focus({ preventScroll: true });
   }, [api, selectedCardId]);
+
+  useEffect(() => {
+    const cardGrid = cardGridRef.current;
+    const scrollViewport = cardGrid?.closest<HTMLElement>('[data-slot="carousel-content"]');
+    if (!cardGrid || !scrollViewport) return;
+
+    const observer = new ResizeObserver(() => {
+      setHasVerticalOverflow(scrollViewport.scrollHeight > scrollViewport.clientHeight);
+    });
+    observer.observe(scrollViewport);
+    observer.observe(cardGrid);
+
+    return () => observer.disconnect();
+  }, [page, query.data?.cards.length]);
 
   return (
     <Carousel
@@ -92,7 +109,13 @@ export function ChristmasCardGallery({
                 아직 작성된 카드가 없어요.
               </p>
             ) : (
-              <ul className="grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pr-3 pt-1 pb-3 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]">
+              <ul
+                ref={cardGridRef}
+                className={cn(
+                  "grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pt-1 pb-3 pl-1 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]",
+                  hasVerticalOverflow && "pr-2",
+                )}
+              >
                 {query.data.cards.map((card) => {
                   const isOwnedCard = Boolean(userId && card.user_id === userId);
                   const cardButton = (
@@ -131,8 +154,10 @@ export function ChristmasCardGallery({
                       }}
                       type="button"
                     >
-                      <span className="relative z-10 line-clamp-4 flex-1 whitespace-pre-wrap break-words bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.625rem-1px),rgb(85_117_139_/_18%)_calc(1.625rem-1px)_1.625rem)] text-base leading-relaxed">
-                        {card.content}
+                      <span className="relative z-10 flex-1 whitespace-pre-wrap break-words bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.625rem-1px),rgb(85_117_139_/_18%)_calc(1.625rem-1px)_1.625rem)]">
+                        <span className="line-clamp-7 text-base leading-[1.625rem] sm:text-sm lg:text-base">
+                          {card.content}
+                        </span>
                       </span>
                       <span className="relative z-10 flex flex-col gap-1 text-sm">
                         <span className="truncate text-right font-medium">

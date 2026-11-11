@@ -452,7 +452,8 @@ describe("ChristmasGuestbook", () => {
     expect(cardButton?.className).toContain("focus-visible:outline-offset-2");
     expect(cardButton?.className).toContain("focus-visible:outline-[#7FA6BC]");
     const cardGrid = dialog()?.querySelector("ul");
-    expect(cardGrid?.className).toContain("pr-3");
+    expect(cardGrid?.className).not.toContain("pr-2");
+    expect(cardGrid?.className).toContain("pl-1");
     expect(cardGrid?.className).toContain("pb-3");
     expect(cardGrid?.className).toContain("grid-rows-[repeat(6,minmax(19rem,auto))]");
     expect(cardGrid?.className).toContain("sm:grid-rows-[repeat(3,minmax(19rem,auto))]");

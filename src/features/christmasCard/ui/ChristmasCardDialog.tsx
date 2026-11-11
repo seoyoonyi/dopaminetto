@@ -126,7 +126,7 @@ export function ChristmasCardDialog({
           onClick={() => setScreen("writing")}
           type="button"
         >
-          <Pencil aria-hidden="true" /> 작성하기
+          <Pencil aria-hidden="true" /> 카드 작성하기
         </Button>
         <Button
           className="h-9 w-full cursor-pointer justify-start border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
@@ -176,12 +176,15 @@ export function ChristmasCardDialog({
           </time>
           <Button
             autoFocus
-            className="font-display relative w-full shrink-0 cursor-pointer sm:w-40 sm:pl-8"
+            className="font-display w-full shrink-0 cursor-pointer px-2 sm:w-32"
             onClick={() => setScreen("list")}
             type="button"
             variant="outline"
           >
-            <List aria-hidden="true" className="absolute left-3" /> 목록 보기
+            <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+              <List aria-hidden="true" />
+              <span>목록 보기</span>
+            </span>
           </Button>
         </div>
       </div>
@@ -209,11 +212,14 @@ export function ChristmasCardDialog({
         )}
         <DialogFooter className="w-full shrink-0 justify-center">
           <Button
-            className="font-display relative w-full cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8] sm:w-40"
+            className="font-display w-full cursor-pointer bg-[#f1c6bd] px-2 text-[#63322d] hover:bg-[#e8b2a8] sm:w-32"
             onClick={() => setScreen("writing")}
             type="button"
           >
-            <Pencil aria-hidden="true" className="absolute left-3" /> 카드 작성하기
+            <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+              <Pencil aria-hidden="true" />
+              <span>카드 작성하기</span>
+            </span>
           </Button>
         </DialogFooter>
       </div>

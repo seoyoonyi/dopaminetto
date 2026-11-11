@@ -144,20 +144,25 @@ export function ChristmasCardForm({
       ) : null}
       <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:justify-between">
         <Button
-          className="font-display relative w-full cursor-pointer sm:w-40 sm:pl-8"
+          className="font-display w-full cursor-pointer px-2 sm:w-32"
           onClick={onBack}
           type="button"
           variant="outline"
         >
-          <List aria-hidden="true" className="absolute left-3" /> 목록 보기
+          <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+            <List aria-hidden="true" />
+            <span>목록 보기</span>
+          </span>
         </Button>
         <Button
-          className="font-display relative w-full cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8] sm:w-40 sm:pl-8"
+          className="font-display w-full cursor-pointer bg-[#f1c6bd] px-2 text-[#63322d] hover:bg-[#e8b2a8] sm:w-32"
           disabled={!canSubmit}
           type="submit"
         >
-          <Send aria-hidden="true" className="absolute left-3" />{" "}
-          {isSubmitting ? "보내는 중" : "카드 남기기"}
+          <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+            <Send aria-hidden="true" />
+            <span>{isSubmitting ? "보내는 중" : "카드 남기기"}</span>
+          </span>
         </Button>
       </div>
     </form>

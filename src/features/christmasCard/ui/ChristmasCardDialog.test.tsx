@@ -344,7 +344,7 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.style.left).toBe("240px");
     expect(dialog()?.style.top).toBe("124px");
     const writeButton = dialog()?.querySelector<HTMLButtonElement>("button[data-primary='true']");
-    expect(writeButton?.textContent).toContain("작성하기");
+    expect(writeButton?.textContent).toContain("카드 작성하기");
     expect(writeButton?.className).toContain("bg-[#f1c6bd]");
     expect(writeButton?.className).toContain("cursor-pointer");
   });
@@ -424,8 +424,11 @@ describe("ChristmasGuestbook", () => {
     expect(galleryActions).toHaveLength(1);
     expect(galleryActions[0]?.className).toContain("font-display");
     expect(galleryActions[0]?.className).toContain("w-full");
-    expect(galleryActions[0]?.className).toContain("sm:w-40");
-    expect(galleryActions[0]?.querySelector("svg")?.classList.contains("left-3")).toBe(true);
+    expect(galleryActions[0]?.className).toContain("sm:w-32");
+    expect(galleryActions[0]?.className).toContain("px-2");
+    expect(galleryActions[0]?.querySelector("span")?.className).toContain("justify-center");
+    expect(galleryActions[0]?.querySelector("span")?.className).toContain("sm:justify-evenly");
+    expect(galleryActions[0]?.querySelector("svg")?.classList.contains("absolute")).toBe(false);
     expect(galleryActions[0]?.parentElement?.className).toContain("justify-center");
     await vi.waitFor(() =>
       expect(dialog()?.querySelector('button[aria-label="눈사람님의 카드 보기"]')).not.toBeNull(),
@@ -483,10 +486,11 @@ describe("ChristmasGuestbook", () => {
     expect(detailButton?.parentElement?.parentElement?.className).toContain("lg:flex-1");
     expect(detailButton?.className).toContain("font-display");
     expect(detailButton?.className).toContain("w-full");
-    expect(detailButton?.className).toContain("sm:w-40");
-    expect(detailButton?.className).toContain("sm:pl-8");
+    expect(detailButton?.className).toContain("sm:w-32");
+    expect(detailButton?.className).toContain("px-2");
     expect(detailButton?.parentElement?.className).toContain("flex-col");
-    expect(detailButton?.querySelector("svg")?.classList.contains("left-3")).toBe(true);
+    expect(detailButton?.querySelector("span")?.className).toContain("justify-center");
+    expect(detailButton?.querySelector("span")?.className).toContain("sm:justify-evenly");
     expect(detailButton?.querySelector("svg")?.classList.contains("lucide-list")).toBe(true);
     expect(detailButton?.parentElement?.querySelector("time")?.dateTime).toBe(
       "2026-11-10T00:00:00.000Z",
@@ -598,14 +602,12 @@ describe("ChristmasGuestbook", () => {
         (button) =>
           button.className.includes("font-display") &&
           button.className.includes("w-full") &&
-          button.className.includes("sm:w-40") &&
-          button.className.includes("sm:pl-8") &&
-          button.className.includes("relative") &&
-          button.querySelector("svg")?.classList.contains("absolute") &&
-          button.querySelector("svg")?.classList.contains("left-3"),
+          button.className.includes("sm:w-32") &&
+          button.className.includes("px-2") &&
+          button.querySelector("span")?.className.includes("justify-center") &&
+          button.querySelector("span")?.className.includes("sm:justify-evenly"),
       ),
     ).toBe(true);
-    expect(formButtons[0]?.className).toContain("pl-8");
     expect(formButtons[0]?.parentElement?.className).toContain("flex-col");
     expect(formButtons[0]?.parentElement?.className).toContain("sm:flex-row");
     expect(dialog()?.querySelector<HTMLInputElement>("#christmas-card-nickname")?.value).toBe(

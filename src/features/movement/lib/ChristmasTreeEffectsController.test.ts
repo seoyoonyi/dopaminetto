@@ -201,12 +201,9 @@ describe("ChristmasTreeEffectsController", () => {
 
     controller.destroy();
 
-    expect(tree.base.off).toHaveBeenCalledWith("pointerover", expect.any(Function));
-    expect(tree.base.disableInteractive).toHaveBeenCalled();
     expect(tree.hint.destroy).toHaveBeenCalled();
     expect(tree.base.destroy).toHaveBeenCalled();
     expect(tree.decoration.destroy).toHaveBeenCalled();
-    expect(tree.input.setDefaultCursor).toHaveBeenLastCalledWith("default");
   });
 });
 

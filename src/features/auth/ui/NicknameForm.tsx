@@ -124,7 +124,7 @@ export function NicknameForm() {
           <CarouselContent>
             {CHARACTER_OPTIONS.map((character) => (
               <CarouselItem key={character.id}>
-                <div className="flex h-40 items-end justify-center rounded-lg border bg-white p-4">
+                <div className="flex h-40 items-center justify-center rounded-lg border bg-white p-4">
                   <Image
                     src={character.previewAssetUrl}
                     alt={`${character.name} 캐릭터 미리보기`}

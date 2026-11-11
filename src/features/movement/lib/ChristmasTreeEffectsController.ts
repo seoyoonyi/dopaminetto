@@ -115,11 +115,8 @@ export class ChristmasTreeEffectsController {
     if (this.destroyed) return;
     this.destroyed = true;
 
-    this.base.off("pointerover", this.onPointerOver);
-    this.base.off("pointerout", this.onPointerOut);
-    this.base.off("pointerdown", this.onPointerDown);
-    this.base.disableInteractive();
-    this.scene.input.setDefaultCursor("default");
+    // scene shutdown 시 DisplayList가 먼저 오브젝트를 파괴하므로 base.scene이 없을 수 있다.
+    // GameObject.destroy()가 리스너·인터랙션·커서 정리를 담당하고, 중복 호출은 무시된다.
     this.hint.destroy();
     this.base.destroy();
     this.decoration.destroy();

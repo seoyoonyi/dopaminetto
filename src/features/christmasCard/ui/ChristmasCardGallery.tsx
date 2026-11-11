@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { useChristmasCardsQuery } from "../hooks/useChristmasCardsQuery";
 import { CHRISTMAS_CARD_PAGE_SIZE } from "../model/christmasCard";
 import type { ChristmasCard, ChristmasCardPage } from "../model/christmasCard";
+import { ChristmasCardGallerySkeleton } from "./ChristmasCardGallerySkeleton";
 
 interface ChristmasCardGalleryProps {
   page: number;
@@ -67,13 +68,8 @@ export function ChristmasCardGallery({
             className="min-h-[117.75rem] sm:min-h-[58.5rem] lg:min-h-[38.75rem]"
             inert={index + 1 !== page}
           >
-            {index + 1 !== page || query.isPending || query.isPlaceholderData ? (
-              <p
-                className="flex min-h-64 items-center justify-center text-sm text-[#63322d]"
-                role="status"
-              >
-                카드를 불러오고 있어요.
-              </p>
+            {index + 1 !== page ? null : query.isPending || query.isPlaceholderData ? (
+              <ChristmasCardGallerySkeleton />
             ) : query.isError ? (
               <div className="flex min-h-64 flex-col items-center justify-center gap-4">
                 <p className="text-sm text-[#63322d]" role="alert">

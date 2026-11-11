@@ -8,7 +8,7 @@ import { act } from "react";
 import { useRef, useState } from "react";
 import { type Root, createRoot } from "react-dom/client";
 
-import type { ChristmasCard } from "../model/christmasCard";
+import type { ChristmasCard, ChristmasCardPage } from "../model/christmasCard";
 import { ChristmasCardDialog } from "./ChristmasCardDialog";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -434,6 +434,49 @@ describe("ChristmasGuestbook", () => {
         ?.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
     });
     expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
+  });
+
+  it("카드 목록을 불러오는 동안 여섯 장의 스켈레톤을 표시하고 실제 카드로 바꾼다", async () => {
+    await render();
+
+    let resolveCards!: (page: ChristmasCardPage) => void;
+    mockLoadCards.mockReturnValueOnce(
+      new Promise<ChristmasCardPage>((resolve) => {
+        resolveCards = resolve;
+      }),
+    );
+
+    act(() => useGuestbookDialogStore.getState().setOpen(true));
+    const listButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => listButton?.click());
+
+    const loadingStatus = dialog()?.querySelector('[role="status"]');
+    expect(loadingStatus?.getAttribute("aria-label")).toBe("카드를 불러오고 있어요.");
+    expect(loadingStatus?.querySelectorAll("li")).toHaveLength(6);
+    expect(loadingStatus?.querySelector("ul")?.getAttribute("aria-hidden")).toBe("true");
+
+    await act(async () =>
+      resolveCards({
+        cards: [
+          {
+            id: 7,
+            created_at: "2026-11-11T00:00:00.000Z",
+            nickname: "눈사람",
+            content: "즐거운 크리스마스!",
+            event_type: "christmas",
+            user_id: "user-1",
+          },
+        ],
+        totalCount: 1,
+      }),
+    );
+
+    await vi.waitFor(() =>
+      expect(dialog()?.querySelector('button[aria-label="눈사람님의 카드 보기"]')).not.toBeNull(),
+    );
+    expect(dialog()?.querySelector('[role="status"]')).toBeNull();
   });
 
   it("닫기 동작은 공유 열림 상태도 초기화한다", async () => {

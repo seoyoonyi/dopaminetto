@@ -87,7 +87,7 @@ export function ChristmasCardGallery({
                 아직 작성된 카드가 없어요.
               </p>
             ) : (
-              <ul className="grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]">
+              <ul className="grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pr-3 pb-3 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]">
                 {query.data.cards.map((card) => (
                   <li key={card.id}>
                     <button

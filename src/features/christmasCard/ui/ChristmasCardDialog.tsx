@@ -144,7 +144,7 @@ export function ChristmasCardDialog({
           nickname={nickname}
           onBack={() => {
             requestVersion.current += 1;
-            setScreen("menu");
+            setScreen("list");
           }}
           onClose={closeDialog}
           onComplete={() => setScreen("complete")}
@@ -161,60 +161,65 @@ export function ChristmasCardDialog({
         />
       </div>
     ) : screen === "detail" && selectedCard ? (
-      <div className="flex flex-col gap-4 p-4 sm:p-6">
-        <ChristmasCardFace message={selectedCard.content} />
-        <p className="border-b border-[#c8a88b] pb-2 text-sm text-[#63322d]">
+      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4 lg:flex-1">
+        <div className="shrink-0">
+          <ChristmasCardFace message={selectedCard.content} />
+        </div>
+        <p className="shrink-0 border-b border-[#c8a88b] px-1 py-1 text-sm text-[#63322d] sm:px-0 sm:pt-0 sm:pb-2">
           From. {selectedCard.nickname}
         </p>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex shrink-0 flex-col justify-between gap-3 sm:flex-row sm:items-center lg:mt-auto">
           <time className="min-w-0 text-xs text-[#63322d]" dateTime={selectedCard.created_at}>
             {new Date(selectedCard.created_at).toLocaleString("ko-KR")}
           </time>
           <Button
             autoFocus
-            className="w-fit shrink-0 cursor-pointer"
+            className="font-display relative w-full shrink-0 cursor-pointer sm:w-40 sm:pl-8"
             onClick={() => setScreen("list")}
             type="button"
             variant="outline"
           >
-            <ArrowLeft aria-hidden="true" /> 목록으로
+            <List aria-hidden="true" className="absolute left-3" /> 목록 보기
           </Button>
         </div>
       </div>
     ) : screen === "list" ? (
       <div className="flex min-h-0 w-full flex-1 flex-col gap-4 p-6">
         {onLoadCards ? (
-          <ChristmasCardGallery
-            onLoadCards={onLoadCards}
-            onPageChange={setPage}
-            onSelect={(card) => {
-              setSelectedCard(card);
-              setScreen("detail");
-            }}
-            page={page}
-            selectedCardId={selectedCard?.id}
-          />
+          <div className="christmas-card-gallery-scrollbar min-h-0 flex-1 overflow-hidden">
+            <ChristmasCardGallery
+              onLoadCards={onLoadCards}
+              onPageChange={setPage}
+              onSelect={(card) => {
+                setSelectedCard(card);
+                setScreen("detail");
+              }}
+              page={page}
+              selectedCardId={selectedCard?.id}
+            />
+          </div>
         ) : (
           <>
             <p className="font-display text-lg font-semibold">아직 카드 목록을 준비하고 있어요.</p>
             <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
           </>
         )}
-        <Button
-          className="shrink-0 self-center cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
-          onClick={() => setScreen("menu")}
-          type="button"
-          variant="outline"
-        >
-          <ArrowLeft aria-hidden="true" /> 돌아가기
-        </Button>
+        <DialogFooter className="w-full shrink-0 justify-center">
+          <Button
+            className="font-display relative w-full cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8] sm:w-40"
+            onClick={() => setScreen("writing")}
+            type="button"
+          >
+            <Pencil aria-hidden="true" className="absolute left-3" /> 카드 작성하기
+          </Button>
+        </DialogFooter>
       </div>
     ) : (
       <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="font-display text-lg font-semibold">아직 카드 목록을 준비하고 있어요.</p>
         <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
         <Button
-          className="cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
+          className="font-display cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
           onClick={() => setScreen("menu")}
           type="button"
           variant="outline"
@@ -261,14 +266,16 @@ export function ChristmasCardDialog({
         {isFullScreen ? (
           <div className="pointer-events-none flex h-dvh w-full items-center justify-center p-4 sm:p-8">
             <section
-              className={`pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-xl border border-[#aabfce] bg-[var(--winter-town-canvas-background)] shadow-xl sm:max-h-[calc(100dvh-4rem)] ${
+              className={`pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-[#aabfce] bg-[var(--winter-town-canvas-background)] shadow-xl sm:max-h-[calc(100dvh-4rem)] ${
                 screen === "writing"
                   ? "max-w-6xl"
                   : screen === "list"
                     ? "h-[min(calc(100dvh-2rem),52.43rem)] max-w-6xl sm:h-[min(calc(100dvh-4rem),52.43rem)]"
-                    : screen === "complete"
-                      ? "max-w-md"
-                      : "max-w-6xl"
+                    : screen === "detail"
+                      ? "max-w-6xl lg:h-[min(calc(100dvh-4rem),52.43rem)]"
+                      : screen === "complete"
+                        ? "max-w-md"
+                        : "max-w-6xl"
               }`}
             >
               {dialogHeader}

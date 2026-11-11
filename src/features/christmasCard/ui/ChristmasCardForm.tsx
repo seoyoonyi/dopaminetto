@@ -7,7 +7,7 @@ import {
 } from "@/features/christmasCard/model/christmasCardMessage";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import { ArrowLeft, List, Send, X } from "lucide-react";
+import { List, Send, X } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -81,13 +81,18 @@ export function ChristmasCardForm({
         </p>
         <div className="flex justify-between gap-2">
           <Button
-            className="cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
+            className="font-display relative w-40 cursor-pointer bg-[#f1c6bd] pl-8 text-[#63322d] hover:bg-[#e8b2a8]"
             onClick={onViewList}
             type="button"
           >
-            <List aria-hidden="true" /> 목록 보기
+            <List aria-hidden="true" className="absolute left-3" /> 목록 보기
           </Button>
-          <Button className="cursor-pointer" onClick={onClose} type="button" variant="outline">
+          <Button
+            className="font-display cursor-pointer"
+            onClick={onClose}
+            type="button"
+            variant="outline"
+          >
             <X aria-hidden="true" /> 닫기
           </Button>
         </div>
@@ -137,16 +142,22 @@ export function ChristmasCardForm({
           {error}
         </p>
       ) : null}
-      <div className="flex shrink-0 justify-between gap-2">
-        <Button className="cursor-pointer" onClick={onBack} type="button" variant="outline">
-          <ArrowLeft aria-hidden="true" /> 돌아가기
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:justify-between">
+        <Button
+          className="font-display relative w-full cursor-pointer sm:w-40 sm:pl-8"
+          onClick={onBack}
+          type="button"
+          variant="outline"
+        >
+          <List aria-hidden="true" className="absolute left-3" /> 목록 보기
         </Button>
         <Button
-          className="cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
+          className="font-display relative w-full cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8] sm:w-40 sm:pl-8"
           disabled={!canSubmit}
           type="submit"
         >
-          <Send aria-hidden="true" /> {isSubmitting ? "보내는 중" : "카드 남기기"}
+          <Send aria-hidden="true" className="absolute left-3" />{" "}
+          {isSubmitting ? "보내는 중" : "카드 남기기"}
         </Button>
       </div>
     </form>

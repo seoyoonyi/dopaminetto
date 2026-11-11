@@ -349,6 +349,43 @@ describe("ChristmasGuestbook", () => {
     expect(writeButton?.className).toContain("cursor-pointer");
   });
 
+  it("갤러리에서 카드 작성하기를 누르면 기존 작성 화면으로 전환한다", async () => {
+    await render();
+    act(() => useGuestbookDialogStore.getState().setOpen(true));
+
+    const listButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => listButton?.click());
+    await vi.waitFor(() =>
+      expect(
+        Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("카드 작성하기"),
+        ),
+      ).not.toBeUndefined(),
+    );
+
+    const writeButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("카드 작성하기"),
+    );
+    expect(writeButton?.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    await act(async () => writeButton?.click());
+
+    expect(dialog()?.querySelector('[data-slot="dialog-title"]')?.textContent).toBe(
+      "카드 작성하기",
+    );
+    expect(dialog()?.querySelector("#christmas-card-message")).not.toBeNull();
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).not.toBeNull();
+    const formListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    expect(formListButton?.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    await act(async () => formListButton?.click());
+    expect(dialog()?.querySelector('[data-slot="dialog-title"]')?.textContent).toBe(
+      "크리스마스 카드 목록",
+    );
+  });
+
   it("목록 보기는 전체 화면에서 저장된 카드 목록을 열고 상세 보기로 이동한다", async () => {
     await render();
     mockLoadCards.mockResolvedValueOnce({
@@ -380,7 +417,16 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.className).toContain("!bg-transparent");
     expect(dialog()?.querySelector("section")?.className).toContain("max-w-6xl");
     expect(dialog()?.textContent).toContain("1 / 1");
-    expect(dialog()?.textContent).toContain("돌아가기");
+    expect(dialog()?.textContent).toContain("카드 작성하기");
+    const galleryActions = Array.from(dialog()!.querySelectorAll("button")).filter((button) =>
+      button.textContent?.includes("카드 작성하기"),
+    );
+    expect(galleryActions).toHaveLength(1);
+    expect(galleryActions[0]?.className).toContain("font-display");
+    expect(galleryActions[0]?.className).toContain("w-full");
+    expect(galleryActions[0]?.className).toContain("sm:w-40");
+    expect(galleryActions[0]?.querySelector("svg")?.classList.contains("left-3")).toBe(true);
+    expect(galleryActions[0]?.parentElement?.className).toContain("justify-center");
     await vi.waitFor(() =>
       expect(dialog()?.querySelector('button[aria-label="눈사람님의 카드 보기"]')).not.toBeNull(),
     );
@@ -406,6 +452,8 @@ describe("ChristmasGuestbook", () => {
     expect(cardButton?.className).toContain("focus-visible:outline-offset-2");
     expect(cardButton?.className).toContain("focus-visible:outline-[#7FA6BC]");
     const cardGrid = dialog()?.querySelector("ul");
+    expect(cardGrid?.className).toContain("pr-3");
+    expect(cardGrid?.className).toContain("pb-3");
     expect(cardGrid?.className).toContain("grid-rows-[repeat(6,minmax(19rem,auto))]");
     expect(cardGrid?.className).toContain("sm:grid-rows-[repeat(3,minmax(19rem,auto))]");
     expect(cardGrid?.className).toContain("lg:grid-rows-[repeat(2,minmax(19rem,auto))]");
@@ -416,25 +464,45 @@ describe("ChristmasGuestbook", () => {
 
     await act(async () => cardButton?.click());
     expect(dialog()?.textContent).toContain("카드 상세 보기");
+    expect(dialog()?.querySelector("section")?.className).not.toContain(
+      "h-[min(calc(100dvh-2rem),52.43rem)]",
+    );
+    expect(dialog()?.querySelector("section")?.className).toContain(
+      "lg:h-[min(calc(100dvh-4rem),52.43rem)]",
+    );
+    expect(dialog()?.querySelector("section")?.className).toContain("max-w-6xl");
     expect(dialog()?.textContent).toContain("From. 눈사람");
     expect(dialog()?.textContent).toContain("따뜻한 겨울 보내세요!");
     const detailButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("목록으로"),
+      button.textContent?.includes("목록 보기"),
     );
     expect(detailButton?.parentElement?.className).toContain("justify-between");
+    expect(detailButton?.parentElement?.className).toContain("lg:mt-auto");
+    expect(detailButton?.parentElement?.className).not.toContain("sm:mt-5");
+    expect(detailButton?.parentElement?.parentElement?.className).toContain("lg:flex-1");
+    expect(detailButton?.className).toContain("font-display");
+    expect(detailButton?.className).toContain("w-full");
+    expect(detailButton?.className).toContain("sm:w-40");
+    expect(detailButton?.className).toContain("sm:pl-8");
+    expect(detailButton?.parentElement?.className).toContain("flex-col");
+    expect(detailButton?.querySelector("svg")?.classList.contains("left-3")).toBe(true);
+    expect(detailButton?.querySelector("svg")?.classList.contains("lucide-list")).toBe(true);
     expect(detailButton?.parentElement?.querySelector("time")?.dateTime).toBe(
       "2026-11-10T00:00:00.000Z",
     );
     await act(async () => detailButton?.click());
     expect(dialog()?.textContent).toContain("1 / 1");
 
-    const backButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("돌아가기"),
-    );
-    await act(async () => backButton?.click());
+    const closeButton = dialog()?.querySelector<HTMLButtonElement>('button[aria-label="닫기"]');
+    await act(async () => closeButton?.click());
     expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull();
-    expect(dialog()?.textContent).toContain("목록 보기");
+    expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
 
+    const reopenButton = Array.from(container!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("다시 열기"),
+    );
+    await act(async () => reopenButton?.click());
+    await act(async () => useGuestbookDialogStore.getState().setOpen(true));
     const reopenListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
       button.textContent?.includes("목록 보기"),
     );
@@ -518,11 +586,27 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.className).toContain("!bg-transparent");
     expect(dialog()?.querySelector("section")?.className).toContain("max-w-6xl");
     expect(dialog()?.querySelector("section")?.className).toContain("max-h-[calc(100dvh-2rem)]");
-    expect(dialog()?.querySelector("section")?.className).toContain("overflow-y-auto");
+    expect(dialog()?.querySelector("section")?.className).toContain("overflow-hidden");
     expect(dialog()?.querySelector("section")?.className).not.toContain("h-full");
     expect(dialog()?.querySelector("[data-card-writing-content]")?.className).toContain("shrink-0");
     expect(dialog()?.querySelector("#christmas-card-nickname")).not.toBeNull();
     expect(dialog()?.querySelector("#christmas-card-message")).not.toBeNull();
+    const formButtons = Array.from(dialog()!.querySelectorAll("form button"));
+    expect(
+      formButtons.every(
+        (button) =>
+          button.className.includes("font-display") &&
+          button.className.includes("w-full") &&
+          button.className.includes("sm:w-40") &&
+          button.className.includes("sm:pl-8") &&
+          button.className.includes("relative") &&
+          button.querySelector("svg")?.classList.contains("absolute") &&
+          button.querySelector("svg")?.classList.contains("left-3"),
+      ),
+    ).toBe(true);
+    expect(formButtons[0]?.className).toContain("pl-8");
+    expect(formButtons[0]?.parentElement?.className).toContain("flex-col");
+    expect(formButtons[0]?.parentElement?.className).toContain("sm:flex-row");
     expect(dialog()?.querySelector<HTMLInputElement>("#christmas-card-nickname")?.value).toBe(
       "테스트 사용자",
     );
@@ -530,6 +614,11 @@ describe("ChristmasGuestbook", () => {
       false,
     );
     expect(dialog()?.textContent).not.toContain("카드 저장 기능은 준비 중이에요.");
+    expect(
+      Array.from(dialog()!.querySelectorAll("button")).some((button) =>
+        button.textContent?.includes("목록 보기"),
+      ),
+    ).toBe(true);
     expect(dialog()?.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
       true,
     );
@@ -649,5 +738,10 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.textContent).toContain("목록 보기");
     expect(dialog()?.textContent).toContain("닫기");
     expect(dialog()?.textContent).not.toContain("카드 상세 보기");
+    expect(
+      Array.from(dialog()!.querySelectorAll("[data-card-writing-content] button")).every((button) =>
+        button.className.includes("font-display"),
+      ),
+    ).toBe(true);
   });
 });

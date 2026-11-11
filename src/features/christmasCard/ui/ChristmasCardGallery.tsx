@@ -9,6 +9,8 @@ import {
   CarouselPrevious,
 } from "@/shared/ui/carousel";
 import type { CarouselApi } from "@/shared/ui/carousel";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
+import { Pin } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -23,6 +25,7 @@ interface ChristmasCardGalleryProps {
   onLoadCards: (page: number) => Promise<ChristmasCardPage>;
   onSelect: (card: ChristmasCard) => void;
   selectedCardId?: number;
+  userId?: string;
 }
 
 export function ChristmasCardGallery({
@@ -31,9 +34,11 @@ export function ChristmasCardGallery({
   onLoadCards,
   onSelect,
   selectedCardId,
+  userId,
 }: ChristmasCardGalleryProps) {
   const query = useChristmasCardsQuery(onLoadCards, page);
   const [api, setApi] = useState<CarouselApi>();
+  const [openTooltipCardId, setOpenTooltipCardId] = useState<number | null>(null);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
   const [startIndex] = useState(page - 1);
   const [totalCount, setTotalCount] = useState(0);
@@ -87,18 +92,20 @@ export function ChristmasCardGallery({
                 아직 작성된 카드가 없어요.
               </p>
             ) : (
-              <ul className="grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pr-3 pb-3 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]">
-                {query.data.cards.map((card) => (
-                  <li key={card.id}>
+              <ul className="grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pr-3 pt-1 pb-3 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]">
+                {query.data.cards.map((card) => {
+                  const isOwnedCard = Boolean(userId && card.user_id === userId);
+                  const cardButton = (
                     <button
+                      data-owned-card={isOwnedCard ? "true" : undefined}
                       ref={card.id === selectedCardId ? selectedCardRef : undefined}
-                      aria-label={`${card.nickname}님의 카드 보기`}
+                      aria-label={`${card.nickname}님의 카드 보기${isOwnedCard ? ", 내가 작성한 카드" : ""}`}
                       className="
                         relative isolate flex h-full min-h-76 w-full cursor-pointer
-                        flex-col gap-4 overflow-hidden rounded-xl
+                        flex-col gap-4 overflow-visible rounded-xl
                         border border-[#B5C9D8]
                         bg-transparent
-                        p-4 text-left text-[#63322d]
+                        p-4 text-left text-[#334B5C]
                         shadow-[0_2px_8px_rgba(65,99,121,0.08)]
                         transition-[background-color,border-color,box-shadow]
                         duration-300 ease-out
@@ -116,9 +123,15 @@ export function ChristmasCardGallery({
                         focus-visible:outline-[#7FA6BC]
                       "
                       onClick={() => onSelect(card)}
+                      onFocus={() => {
+                        if (isOwnedCard) setOpenTooltipCardId(card.id);
+                      }}
+                      onBlur={() => {
+                        if (openTooltipCardId === card.id) setOpenTooltipCardId(null);
+                      }}
                       type="button"
                     >
-                      <span className="relative z-10 line-clamp-4 flex-1 whitespace-pre-wrap break-words bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.625rem-1px),rgb(165_107_72_/_16%)_calc(1.625rem-1px)_1.625rem)] text-base leading-relaxed">
+                      <span className="relative z-10 line-clamp-4 flex-1 whitespace-pre-wrap break-words bg-[repeating-linear-gradient(to_bottom,transparent_0_calc(1.625rem-1px),rgb(85_117_139_/_18%)_calc(1.625rem-1px)_1.625rem)] text-base leading-relaxed">
                         {card.content}
                       </span>
                       <span className="relative z-10 flex flex-col gap-1 text-sm">
@@ -129,9 +142,40 @@ export function ChristmasCardGallery({
                           {new Date(card.created_at).toLocaleString("ko-KR")}
                         </time>
                       </span>
+                      {isOwnedCard ? (
+                        <Tooltip
+                          open={openTooltipCardId === card.id}
+                          onOpenChange={(open) => setOpenTooltipCardId(open ? card.id : null)}
+                        >
+                          <TooltipTrigger asChild>
+                            <span
+                              aria-hidden="true"
+                              className="absolute -top-1 -right-1 z-20"
+                              data-owned-pin
+                            >
+                              <Pin
+                                aria-hidden="true"
+                                className="size-5 rotate-[25deg] fill-[#55758B] text-[#55758B] drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]"
+                                strokeWidth={1.8}
+                              />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            align="end"
+                            arrowClassName="-translate-x-2.5 -translate-y-px fill-[#426B84]"
+                            className="border border-[#B5C9D8] bg-[#426B84] text-[#EAF4FC]"
+                            side="top"
+                            sideOffset={6}
+                          >
+                            내가 작성한 카드
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : null}
                     </button>
-                  </li>
-                ))}
+                  );
+
+                  return <li key={card.id}>{cardButton}</li>;
+                })}
               </ul>
             )}
           </CarouselItem>

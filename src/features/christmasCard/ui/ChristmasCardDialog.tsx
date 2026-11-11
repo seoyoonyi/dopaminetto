@@ -30,6 +30,7 @@ interface ChristmasCardDialogProps {
   nickname?: string;
   onSubmit?: (nickname: string, message: string) => Promise<void | ChristmasCard>;
   onLoadCards?: (page: number) => Promise<ChristmasCardPage>;
+  userId?: string;
 }
 
 export function ChristmasCardDialog({
@@ -41,6 +42,7 @@ export function ChristmasCardDialog({
   nickname = "",
   onSubmit,
   onLoadCards,
+  userId,
 }: ChristmasCardDialogProps) {
   const [screen, setScreen] = useState<"menu" | "writing" | "complete" | "list" | "detail">("menu");
   const [selectedCard, setSelectedCard] = useState<ChristmasCard | null>(null);
@@ -188,6 +190,7 @@ export function ChristmasCardDialog({
         {onLoadCards ? (
           <div className="christmas-card-gallery-scrollbar min-h-0 flex-1 overflow-hidden">
             <ChristmasCardGallery
+              userId={userId}
               onLoadCards={onLoadCards}
               onPageChange={setPage}
               onSelect={(card) => {

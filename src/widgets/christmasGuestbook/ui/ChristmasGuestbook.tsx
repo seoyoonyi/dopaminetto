@@ -34,6 +34,7 @@ export function ChristmasGuestbook({
   return (
     <ChristmasCardDialog
       nickname={nickname}
+      userId={user?.id}
       boundaryRef={gameAreaRef}
       onOpenChange={setOpen}
       onLoadCards={loadChristmasCards}

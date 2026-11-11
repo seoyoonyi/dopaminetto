@@ -7,7 +7,7 @@ import {
 } from "@/features/christmasCard/model/christmasCardMessage";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import { List, Send, X } from "lucide-react";
+import { List, Send } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -81,19 +81,19 @@ export function ChristmasCardForm({
         </p>
         <div className="flex justify-between gap-2">
           <Button
-            className="font-display relative w-40 cursor-pointer bg-[#f1c6bd] pl-8 text-[#63322d] hover:bg-[#e8b2a8]"
+            className="font-display w-24 cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
             onClick={onViewList}
             type="button"
           >
-            <List aria-hidden="true" className="absolute left-3" /> 목록 보기
+            <List aria-hidden="true" /> 목록 보기
           </Button>
           <Button
-            className="font-display cursor-pointer"
+            className="font-display w-24 cursor-pointer"
             onClick={onClose}
             type="button"
             variant="outline"
           >
-            <X aria-hidden="true" /> 닫기
+            닫기
           </Button>
         </div>
       </div>

@@ -16,7 +16,10 @@ import { useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import { useCardMenuPosition } from "../hooks/useCardMenuPosition";
+import type { ChristmasCard, ChristmasCardPage } from "../model/christmasCard";
+import { ChristmasCardFace } from "./ChristmasCardFace";
 import { ChristmasCardForm } from "./ChristmasCardForm";
+import { ChristmasCardGallery } from "./ChristmasCardGallery";
 
 interface ChristmasCardDialogProps {
   open: boolean;
@@ -25,7 +28,9 @@ interface ChristmasCardDialogProps {
   onOpenChange: (open: boolean) => void;
   onViewList?: () => void;
   nickname?: string;
-  onSubmit?: (nickname: string, message: string) => Promise<void>;
+  onSubmit?: (nickname: string, message: string) => Promise<void | ChristmasCard>;
+  onLoadCards?: (page: number) => Promise<ChristmasCardPage>;
+  userId?: string;
 }
 
 export function ChristmasCardDialog({
@@ -36,8 +41,13 @@ export function ChristmasCardDialog({
   onViewList,
   nickname = "",
   onSubmit,
+  onLoadCards,
+  userId,
 }: ChristmasCardDialogProps) {
-  const [screen, setScreen] = useState<"menu" | "writing" | "complete" | "list">("menu");
+  const [screen, setScreen] = useState<"menu" | "writing" | "complete" | "list" | "detail">("menu");
+  const [selectedCard, setSelectedCard] = useState<ChristmasCard | null>(null);
+  const [page, setPage] = useState(1);
+  const requestVersion = useRef(0);
   const isFullScreen = screen !== "menu";
   const isFormScreen = screen === "writing" || screen === "complete";
   const menuRef = useRef<HTMLDivElement>(null);
@@ -51,9 +61,16 @@ export function ChristmasCardDialog({
     setScreen("list");
     onViewList?.();
   };
+  const closeDialog = () => {
+    requestVersion.current += 1;
+    setScreen("menu");
+    setSelectedCard(null);
+    setPage(1);
+    onOpenChange(false);
+  };
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) setScreen("menu");
-    onOpenChange(nextOpen);
+    if (!nextOpen) closeDialog();
+    else onOpenChange(true);
   };
   const dialogHeader = (
     <DialogHeader
@@ -67,18 +84,22 @@ export function ChristmasCardDialog({
           className="size-4 fill-emerald-600 text-emerald-900"
           strokeWidth={1.5}
         />
-        {isFormScreen
-          ? "카드 작성하기"
-          : screen === "list"
-            ? "크리스마스 카드 목록"
-            : "크리스마스 카드"}
+        {screen === "detail"
+          ? "카드 상세 보기"
+          : isFormScreen
+            ? "카드 작성하기"
+            : screen === "list"
+              ? "크리스마스 카드 목록"
+              : "크리스마스 카드"}
       </DialogTitle>
       <DialogDescription className="sr-only">
-        {isFormScreen
-          ? "닉네임과 메시지를 입력해 크리스마스 카드를 작성하세요."
-          : screen === "list"
-            ? "크리스마스 카드 목록을 확인하세요."
-            : "방명록 메뉴를 선택하세요."}
+        {screen === "detail"
+          ? `${selectedCard?.nickname}님이 남긴 카드입니다.`
+          : isFormScreen
+            ? "닉네임과 메시지를 입력해 크리스마스 카드를 작성하세요."
+            : screen === "list"
+              ? "크리스마스 카드 목록을 확인하세요."
+              : "방명록 메뉴를 선택하세요."}
       </DialogDescription>
       {isFullScreen ? (
         <DialogClose asChild>
@@ -105,7 +126,7 @@ export function ChristmasCardDialog({
           onClick={() => setScreen("writing")}
           type="button"
         >
-          <Pencil aria-hidden="true" /> 작성하기
+          <Pencil aria-hidden="true" /> 카드 작성하기
         </Button>
         <Button
           className="h-9 w-full cursor-pointer justify-start border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
@@ -123,19 +144,91 @@ export function ChristmasCardDialog({
       >
         <ChristmasCardForm
           nickname={nickname}
-          onBack={() => setScreen("menu")}
-          onClose={() => handleOpenChange(false)}
+          onBack={() => {
+            requestVersion.current += 1;
+            setScreen("list");
+          }}
+          onClose={closeDialog}
           onComplete={() => setScreen("complete")}
-          onSubmit={onSubmit}
+          onSubmit={
+            onSubmit
+              ? async (nickname, message) => {
+                  const version = requestVersion.current;
+                  const card = await onSubmit(nickname, message);
+                  return version === requestVersion.current ? card : undefined;
+                }
+              : undefined
+          }
           onViewList={handleViewList}
         />
+      </div>
+    ) : screen === "detail" && selectedCard ? (
+      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4 lg:flex-1">
+        <div className="shrink-0">
+          <ChristmasCardFace message={selectedCard.content} />
+        </div>
+        <p className="shrink-0 border-b border-[#c8a88b] px-1 py-1 text-sm text-[#63322d] sm:px-0 sm:pt-0 sm:pb-2">
+          From. {selectedCard.nickname}
+        </p>
+        <div className="flex shrink-0 flex-col justify-between gap-3 sm:flex-row sm:items-center lg:mt-auto">
+          <time className="min-w-0 text-xs text-[#63322d]" dateTime={selectedCard.created_at}>
+            {new Date(selectedCard.created_at).toLocaleString("ko-KR")}
+          </time>
+          <Button
+            autoFocus
+            className="font-display w-full shrink-0 cursor-pointer px-2 sm:w-32"
+            onClick={() => setScreen("list")}
+            type="button"
+            variant="outline"
+          >
+            <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+              <List aria-hidden="true" />
+              <span>목록 보기</span>
+            </span>
+          </Button>
+        </div>
+      </div>
+    ) : screen === "list" ? (
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 p-6">
+        {onLoadCards ? (
+          <div className="christmas-card-gallery-scrollbar min-h-0 flex-1 overflow-hidden">
+            <ChristmasCardGallery
+              userId={userId}
+              onLoadCards={onLoadCards}
+              onPageChange={setPage}
+              onSelect={(card) => {
+                setSelectedCard(card);
+                setScreen("detail");
+              }}
+              page={page}
+              selectedCardId={selectedCard?.id}
+            />
+          </div>
+        ) : (
+          <>
+            <p className="font-display text-lg font-semibold">아직 카드 목록을 준비하고 있어요.</p>
+            <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
+          </>
+        )}
+        <DialogFooter className="w-full shrink-0 justify-center">
+          <Button
+            className="font-display w-full cursor-pointer bg-[#f1c6bd] px-2 text-[#63322d] hover:bg-[#e8b2a8] sm:w-32"
+            onClick={() => setScreen("writing")}
+            type="button"
+          >
+            <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+              <Pencil aria-hidden="true" />
+              <span>카드 작성하기</span>
+            </span>
+          </Button>
+        </DialogFooter>
       </div>
     ) : (
       <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="font-display text-lg font-semibold">아직 카드 목록을 준비하고 있어요.</p>
         <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
         <Button
-          className="cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
+          className="font-display cursor-pointer border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
           onClick={() => setScreen("menu")}
           type="button"
           variant="outline"
@@ -166,7 +259,7 @@ export function ChristmasCardDialog({
           if (!isFullScreen || event.key !== "Escape") return;
           event.preventDefault();
           event.stopPropagation();
-          handleOpenChange(false);
+          closeDialog();
         }}
         showCloseButton={!isFullScreen}
         showOverlay={isFullScreen}
@@ -182,8 +275,16 @@ export function ChristmasCardDialog({
         {isFullScreen ? (
           <div className="pointer-events-none flex h-dvh w-full items-center justify-center p-4 sm:p-8">
             <section
-              className={`pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-y-auto rounded-xl border border-[#aabfce] bg-[var(--winter-town-canvas-background)] shadow-xl sm:max-h-[calc(100dvh-4rem)] ${
-                screen === "writing" ? "max-w-6xl" : "max-w-md"
+              className={`pointer-events-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-xl border border-[#aabfce] bg-[var(--winter-town-canvas-background)] shadow-xl sm:max-h-[calc(100dvh-4rem)] ${
+                screen === "writing"
+                  ? "max-w-6xl"
+                  : screen === "list"
+                    ? "h-[min(calc(100dvh-2rem),52.43rem)] max-w-6xl sm:h-[min(calc(100dvh-4rem),52.43rem)]"
+                    : screen === "detail"
+                      ? "max-w-6xl lg:h-[min(calc(100dvh-4rem),52.43rem)]"
+                      : screen === "complete"
+                        ? "max-w-md"
+                        : "max-w-6xl"
               }`}
             >
               {dialogHeader}

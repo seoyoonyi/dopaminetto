@@ -52,7 +52,10 @@ describe("ChristmasCardDetailDialog", () => {
     expect(card?.querySelector("img")?.getAttribute("alt")).toBe("");
     expect(card?.querySelector("textarea")).toBeNull();
     expect(card?.querySelector("p")?.parentElement?.className).toContain("christmas-card-lines");
-    expect(card?.querySelector("p")?.className).toContain("min-[641px]:text-left");
+    expect(card?.querySelector("p")?.className).toContain("text-center");
+    expect(card?.querySelector("p")?.className).toContain("py-0");
+    expect(card?.querySelector("p")?.className).toContain("xl:leading-9");
+    expect(card?.querySelector("p")?.className).not.toContain("text-left");
     expect(card?.textContent).toContain("따뜻한 연말 보내세요!");
     expect(document.body.textContent).toContain("눈사람");
     expect(document.querySelector("button[aria-label='닫기']")).not.toBeNull();

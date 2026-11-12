@@ -125,6 +125,18 @@ describe("ChristmasCardForm", () => {
   it("메시지가 비어 있을 때 안내 문구를 입력 시작 위치에 표시하고 입력하면 숨긴다", async () => {
     await render();
 
+    const listButton = Array.from(form().querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    const cardButton = submitButton();
+    for (const button of [listButton, cardButton]) {
+      expect(button?.className).toContain("w-full");
+      expect(button?.className).toContain("sm:w-32");
+      expect(button?.className).toContain("px-2");
+      expect(button?.querySelector("span")?.className).toContain("justify-center");
+      expect(button?.querySelector("span")?.className).toContain("sm:justify-evenly");
+    }
+
     const placeholder = container!.querySelector<HTMLElement>("[data-card-message-placeholder]");
     expect(placeholder?.textContent).toBe(
       "도파민또에 남기고 싶은 이야기를 180자 안에 담아보세요. 🎄",
@@ -461,6 +473,18 @@ describe("ChristmasCardForm", () => {
     expect(container!.querySelector("article")).toBeNull();
     expect(container!.textContent).toContain("목록 보기");
     expect(container!.textContent).toContain("닫기");
+    const actionButtons = Array.from(container!.querySelectorAll("button"));
+    const listButton = actionButtons.find((button) => button.textContent?.includes("목록 보기"));
+    const closeButton = actionButtons.find((button) => button.textContent?.includes("닫기"));
+    expect(listButton?.className).toContain("w-24");
+    expect(closeButton?.className).toContain("w-24");
+    expect(listButton?.className).toContain("h-9");
+    expect(closeButton?.className).toContain("h-9");
+    expect(listButton?.querySelector("svg")?.getAttribute("class")).not.toContain(
+      "absolute left-3",
+    );
+    expect(closeButton?.className).not.toContain("pl-10");
+    expect(closeButton?.querySelector("svg")).toBeNull();
   });
 
   it("저장 실패 시 작성 내용을 유지하고 재시도 안내를 표시한다", async () => {

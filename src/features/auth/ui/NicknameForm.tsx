@@ -157,9 +157,14 @@ export function NicknameForm() {
         />
       </div>
 
-      <Button type="submit" disabled={isEnterButtonDisabled} className="w-full">
-        {isPending ? "입장 중..." : "타운 입장"}
-      </Button>
+      <div className="space-y-2">
+        <Button type="submit" disabled={isEnterButtonDisabled} className="w-full">
+          {isPending ? "입장 중..." : "타운 입장"}
+        </Button>
+        <p className="text-center text-xs text-gray-500">
+          <span aria-hidden="true">🎄</span> 트리 가까이 가면 캐롤이 들려요~
+        </p>
+      </div>
     </form>
   );
 }

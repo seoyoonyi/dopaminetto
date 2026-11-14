@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 
-import { validateMovement } from "./validateMovement";
+import { isValidSavedPosition, validateMovement } from "./validateMovement";
 
 const loadTownMap = () => {
   const tmjPath = path.resolve(process.cwd(), "public/assets/images/town-map.tmj");
@@ -11,6 +11,16 @@ const loadTownMap = () => {
 
   return new MapLoader(tmj, { tmjUrl: "/assets/images/town-map.tmj" });
 };
+
+describe("lobby spawn point", () => {
+  it("정문 앞 눈길의 로비 스폰은 충돌 없이 로비 영역 안에 있다", () => {
+    const mapLoader = loadTownMap();
+    const spawn = mapLoader.getSpawnPoint("lobby")!;
+
+    expect({ x: spawn.x, y: spawn.y }).toEqual({ x: 728, y: 1064 });
+    expect(isValidSavedPosition("lobby", spawn, mapLoader)).toBe(true);
+  });
+});
 
 describe("validateMovement snowman collision", () => {
   it("blocks entry into the footprint and allows moving around it", () => {

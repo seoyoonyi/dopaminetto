@@ -9,6 +9,7 @@ import {
   AMBIENT_AUDIO_KEYS,
   AMBIENT_AUDIO_URLS,
   AmbientSoundController,
+  CHRISTMAS_TREE_ENTRY_DELAY_MS,
   CHRISTMAS_TREE_SOUND_CONFIG,
   resolveChristmasTreeSources,
 } from "@/features/ambientSound/phaser";
@@ -223,12 +224,17 @@ export class TownScene extends Phaser.Scene {
       christmasTreeSources.length > 0 &&
       this.cache?.audio?.exists(AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE)
     ) {
-      this.christmasTreeAmbientController = new AmbientSoundController(
-        this,
-        AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE,
-        christmasTreeSources,
-        CHRISTMAS_TREE_SOUND_CONFIG,
-      );
+      // 입장 직후 캐롤이 갑자기 들리지 않도록 컨트롤러 생성을 한 번만 지연한다.
+      // 생성 전에는 update()가 no-op이고, 생성 후에는 기존 거리·마을·음소거 조건을 그대로 따른다.
+      // 대기 중인 타이머는 Scene shutdown/destroy 시 Phaser Clock이 함께 제거한다.
+      this.time.delayedCall(CHRISTMAS_TREE_ENTRY_DELAY_MS, () => {
+        this.christmasTreeAmbientController = new AmbientSoundController(
+          this,
+          AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE,
+          christmasTreeSources,
+          CHRISTMAS_TREE_SOUND_CONFIG,
+        );
+      });
     }
 
     if (mapLoader) {

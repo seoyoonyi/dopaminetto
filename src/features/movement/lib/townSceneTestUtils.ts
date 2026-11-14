@@ -48,15 +48,25 @@ vi.mock("@/features/movement", async () => {
   return { ...config, ...actionAnimation, ...store, TownEngine: () => null };
 });
 
+const mockAmbient = vi.hoisted(() => ({
+  create: vi.fn(),
+  update: vi.fn(),
+  resolveSources: vi.fn((): unknown[] => []),
+}));
+
 vi.mock("@/features/ambientSound/phaser", () => ({
   AMBIENT_AUDIO_KEYS: { CHRISTMAS_TREE: "christmas-tree" },
   AMBIENT_AUDIO_URLS: { CHRISTMAS_TREE: "" },
+  CHRISTMAS_TREE_ENTRY_DELAY_MS: 2000,
   CHRISTMAS_TREE_SOUND_CONFIG: {},
   AmbientSoundController: class AmbientSoundController {
+    constructor(...args: unknown[]) {
+      mockAmbient.create(...args);
+    }
     destroy = mockAmbientDestroy;
-    update = vi.fn();
+    update = mockAmbient.update;
   },
-  resolveChristmasTreeSources: () => [],
+  resolveChristmasTreeSources: mockAmbient.resolveSources,
 }));
 
 type DisplayObject = {
@@ -285,4 +295,4 @@ export function makeScene(): {
 
 export const shutdownScenes: Array<() => void> = [];
 
-export { mockAmbientDestroy, mockSnowfall };
+export { mockAmbient, mockAmbientDestroy, mockSnowfall };

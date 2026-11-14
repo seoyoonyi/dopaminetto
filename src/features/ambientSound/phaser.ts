@@ -11,6 +11,7 @@ export { resolveChristmasTreeSources } from "./lib/resolveChristmasTreeSources";
 export {
   AMBIENT_AUDIO_KEYS,
   AMBIENT_AUDIO_URLS,
+  CHRISTMAS_TREE_ENTRY_DELAY_MS,
   CHRISTMAS_TREE_SOUND_CONFIG,
 } from "./model/config";
 export type { AmbientSoundFalloffConfig, AmbientSoundSource } from "./model/types";

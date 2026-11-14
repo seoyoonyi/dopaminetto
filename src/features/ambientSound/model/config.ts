@@ -12,6 +12,9 @@ export const AMBIENT_AUDIO_URLS = {
   CHRISTMAS_TREE: "/assets/audio/ambient/christmas-carol.mp3",
 } as const;
 
+/** 로비 입장(TownScene create) 직후 캐롤이 갑자기 들리지 않도록 재생 갱신을 미루는 시간(ms). */
+export const CHRISTMAS_TREE_ENTRY_DELAY_MS = 2000;
+
 /** 트리 캐롤의 초기 근거리·외곽 감쇠값. 실제 청취 후 조정한다. */
 export const CHRISTMAS_TREE_SOUND_CONFIG: AmbientSoundFalloffConfig = {
   innerRadius: 100,

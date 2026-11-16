@@ -5,7 +5,7 @@ import { useGuestbookDialogStore } from "@/shared/store/useGuestbookDialogStore"
 import { useNicknameDialogStore } from "@/shared/store/useNicknameDialogStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeScene, shutdownScenes } from "./townSceneTestUtils";
+import { makeScene, mockAmbient, shutdownScenes } from "./townSceneTestUtils";
 
 describe("TownScene 크리스마스 트리 연동", () => {
   beforeEach(() => {
@@ -92,6 +92,44 @@ describe("TownScene 크리스마스 트리 연동", () => {
     expect(useGuestbookDialogStore.getState().isOpen).toBe(false);
     expect(treeBase?.destroy).toHaveBeenCalledOnce();
     expect(treeDecoration?.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("입장 직후에는 캐롤 컨트롤러를 만들지 않고 지연 시간이 지난 뒤 한 번만 만든다", () => {
+    mockAmbient.create.mockClear();
+    mockAmbient.update.mockClear();
+    mockAmbient.resolveSources.mockReturnValueOnce([
+      { id: "christmas-tree-436", villageId: "lobby", x: 734, y: 857 },
+    ]);
+    useMovementStore.setState({
+      mapLoader: {
+        getBackgroundImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getFrontImage: () => ({ visible: false, x: 0, y: 0, width: 1448, height: 1086 }),
+        getMapBounds: () => ({ x: 0, y: 0, width: 1448, height: 1086 }),
+        getChristmasTreeEffect: () => undefined,
+      } as never,
+    });
+    const { scene } = makeScene();
+    const delayedCall = vi.fn();
+    Object.assign(scene, {
+      cache: { audio: { exists: () => true } },
+      sound: {},
+      time: { delayedCall },
+    });
+
+    scene.create();
+    scene.update(0, 16);
+
+    expect(delayedCall).toHaveBeenCalledOnce();
+    expect(delayedCall).toHaveBeenCalledWith(2000, expect.any(Function));
+    expect(mockAmbient.create).not.toHaveBeenCalled();
+    expect(mockAmbient.update).not.toHaveBeenCalled();
+
+    delayedCall.mock.calls[0][1]();
+    scene.update(16, 16);
+    scene.update(32, 16);
+
+    expect(mockAmbient.create).toHaveBeenCalledOnce();
+    expect(mockAmbient.update).toHaveBeenCalledTimes(2);
   });
 
   it("설정 다이얼로그가 열린 동안 트리를 눌러도 방명록을 열지 않는다", () => {

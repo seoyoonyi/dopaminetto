@@ -224,6 +224,9 @@ export class TownScene extends Phaser.Scene {
       christmasTreeSources.length > 0 &&
       this.cache?.audio?.exists(AMBIENT_AUDIO_KEYS.CHRISTMAS_TREE)
     ) {
+      // 지연 대기 중 blur로 AudioContext가 suspend되지 않도록 먼저 끈다.
+      this.sound.pauseOnBlur = false;
+
       // 입장 직후 캐롤이 갑자기 들리지 않도록 컨트롤러 생성을 한 번만 지연한다.
       // 생성 전에는 update()가 no-op이고, 생성 후에는 기존 거리·마을·음소거 조건을 그대로 따른다.
       // 대기 중인 타이머는 Scene shutdown/destroy 시 Phaser Clock이 함께 제거한다.

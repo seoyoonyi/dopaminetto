@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeScene, mockAmbient, shutdownScenes } from "./townSceneTestUtils";
 
-// townSceneTestUtils가 "phaser" 패키지 루트를 mock하므로, 실제 Clock·EventEmitter는 소스 경로에서 불러온다.
+// "phaser" 루트는 townSceneTestUtils가 mock하므로 실제 구현은 소스 경로에서 불러온다.
 const { default: Clock } = await vi.importActual<{ default: typeof Phaser.Time.Clock }>(
   "phaser/src/time/Clock",
 );
@@ -16,15 +16,19 @@ const { default: EventEmitter } = await vi.importActual<{
   default: typeof Phaser.Events.EventEmitter;
 }>("phaser/src/events/EventEmitter");
 
-/** 실제 Clock이 붙은 TownScene을 만들고, Phaser Systems.step 순서대로 프레임을 진행하는 함수를 돌려준다. */
+/** 실제 Clock을 붙인 TownScene과 프레임 진행 함수(step)를 만든다. */
 function createSceneWithRealClock() {
   const { scene } = makeScene();
   const events = new EventEmitter();
+  const sound = { pauseOnBlur: true };
+
   Object.assign(scene, {
     events,
     sys: { events, game: { loop: { time: 0 } } },
     cache: { audio: { exists: () => true } },
+    sound,
   });
+
   const clock = new Clock(scene as unknown as Phaser.Scene);
   Object.assign(scene, { time: clock });
   const delayedCall = vi.spyOn(clock, "delayedCall");
@@ -40,9 +44,10 @@ function createSceneWithRealClock() {
     events.emit("update", now, delta);
     scene.update(now, delta);
   };
+
   const timer = delayedCall.mock.results[0].value as Phaser.Time.TimerEvent;
 
-  return { events, clock, timer, step };
+  return { events, clock, timer, step, sound };
 }
 
 describe("TownScene 캐롤 지연 타이머 (실제 Phaser Clock)", () => {
@@ -97,6 +102,14 @@ describe("TownScene 캐롤 지연 타이머 (실제 Phaser Clock)", () => {
     expect(mockAmbient.create).toHaveBeenCalledOnce();
   });
 
+  it("지연 대기 중 blur로 오디오가 멈추지 않도록 입장 시점에 pauseOnBlur를 끈다", () => {
+    const { events, sound } = createSceneWithRealClock();
+    activeEvents = events;
+
+    expect(mockAmbient.create).not.toHaveBeenCalled();
+    expect(sound.pauseOnBlur).toBe(false);
+  });
+
   it.each(["shutdown", "destroy"])(
     "1초 시점에 %s가 발생하면 예약된 타이머를 정리하고 컨트롤러를 만들지 않는다",
     (sceneEvent) => {
@@ -113,7 +126,7 @@ describe("TownScene 캐롤 지연 타이머 (실제 Phaser Clock)", () => {
       expect(destroyTimer).toHaveBeenCalledOnce();
       expect(timer.callback).toBeUndefined();
 
-      // 씬 이벤트 구독이 끊긴 뒤에도 Clock을 직접 진행시켜 콜백이 남아 있지 않음을 확인한다.
+      // 구독이 끊긴 뒤 Clock을 직접 돌려도 콜백이 실행되지 않는다.
       step(1000);
       step(1000);
       clock.preUpdate(5000, 3000);

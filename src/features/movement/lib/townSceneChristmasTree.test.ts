@@ -112,6 +112,7 @@ describe("TownScene 크리스마스 트리 연동", () => {
     const delayedCall = vi.fn();
     Object.assign(scene, {
       cache: { audio: { exists: () => true } },
+      sound: {},
       time: { delayedCall },
     });
 

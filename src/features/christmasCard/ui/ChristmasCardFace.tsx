@@ -8,7 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/shared/ui/textarea";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 
 import Image from "next/image";
@@ -29,6 +29,7 @@ interface ChristmasCardFaceProps {
   inputId?: string;
   className?: string;
   onMessageChange?: (message: string) => void;
+  onComposingChange?: (isComposing: boolean) => void;
 }
 
 export function ChristmasCardFace({
@@ -37,7 +38,15 @@ export function ChristmasCardFace({
   inputId,
   className,
   onMessageChange,
+  onComposingChange,
 }: ChristmasCardFaceProps) {
+  const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
+  const composition = useRef<{ value: string; start: number; end: number } | null>(null);
+  const completedComposition = useRef<{
+    candidate: string;
+    value: string;
+    selection: { start: number; end: number } | null;
+  } | null>(null);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const subscribeToMotionPreference = useCallback((onChange: () => void) => {
     const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
@@ -137,6 +146,26 @@ export function ChristmasCardFace({
     return normalizedValue;
   }
 
+  function finishComposition(textarea: HTMLTextAreaElement) {
+    const previous = composition.current;
+    if (!previous) return;
+    const candidate = textarea.value;
+    const value =
+      candidate.length > CHRISTMAS_CARD_MESSAGE_MAX_LENGTH
+        ? previous.value
+        : updateMessage(textarea, candidate);
+    textarea.value = value;
+    if (value !== candidate) textarea.setSelectionRange(previous.start, previous.end);
+    completedComposition.current = {
+      candidate,
+      value,
+      selection: value !== candidate ? previous : null,
+    };
+    composition.current = null;
+    setCompositionDraft(null);
+    onComposingChange?.(false);
+  }
+
   return (
     <section
       aria-label="크리스마스 카드 미리보기"
@@ -181,8 +210,24 @@ export function ChristmasCardFace({
               aria-label="카드 메시지 입력"
               className="relative z-10 h-full w-full max-h-full min-h-0 field-sizing-fixed resize-none overflow-hidden rounded-none border-0 bg-transparent px-1 py-0 text-center text-sm leading-5 text-[#63322d] shadow-none placeholder:text-center focus-visible:border-0 focus-visible:ring-0 sm:px-1.5 sm:py-0 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:px-2 lg:py-0 lg:text-xl lg:leading-8 xl:leading-9 max-[920px]:text-sm max-[920px]:leading-5"
               id={inputId}
-              maxLength={CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
+              onCompositionStart={(event) => {
+                const textarea = event.currentTarget;
+                composition.current = {
+                  value: message,
+                  start: textarea.selectionStart,
+                  end: textarea.selectionEnd,
+                };
+                completedComposition.current = null;
+                setCompositionDraft(textarea.value);
+                onComposingChange?.(true);
+              }}
+              onCompositionEnd={(event) => finishComposition(event.currentTarget)}
+              onBlur={(event) => finishComposition(event.currentTarget)}
               onPaste={(event) => {
+                if (composition.current) {
+                  event.preventDefault();
+                  return;
+                }
                 const pastedText = event.clipboardData
                   .getData("text/plain")
                   .replace(/\r\n?/g, "\n");
@@ -208,11 +253,28 @@ export function ChristmasCardFace({
                 );
               }}
               onChange={(event) => {
+                if (composition.current) {
+                  setCompositionDraft(event.currentTarget.value);
+                  return;
+                }
+                // 조합 종료 직후 뒤따르는 input이 거절한 후보를 다시 삽입하지 않게 한다.
+                const completed = completedComposition.current;
+                completedComposition.current = null;
+                if (completed && event.currentTarget.value === completed.candidate) {
+                  event.currentTarget.value = completed.value;
+                  if (completed.selection) {
+                    event.currentTarget.setSelectionRange(
+                      completed.selection.start,
+                      completed.selection.end,
+                    );
+                  }
+                  return;
+                }
                 updateMessage(event.currentTarget, event.currentTarget.value);
               }}
-              value={message}
+              value={compositionDraft ?? message}
             />
-            {message.length === 0 ? (
+            {(compositionDraft ?? message).length === 0 ? (
               <span
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center px-1 pt-0 pb-0 text-center text-sm leading-5 text-[#8a8075] sm:px-1.5 sm:pt-3 sm:text-base sm:leading-6 md:text-lg md:leading-7 lg:px-2 lg:pt-4 lg:text-xl lg:leading-8 xl:leading-9 max-[920px]:text-sm max-[920px]:leading-5 [@media(max-width:520px)]:text-xs"

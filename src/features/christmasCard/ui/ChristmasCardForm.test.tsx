@@ -74,6 +74,18 @@ async function submit() {
   });
 }
 
+async function compose(type: "compositionstart" | "compositionend", data = "") {
+  await act(async () => {
+    messageField().dispatchEvent(new CompositionEvent(type, { bubbles: true, data }));
+  });
+}
+
+function mockSixLineCapacity() {
+  const field = messageField();
+  Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 120 });
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(120);
+}
+
 function mockLargeMessageArea() {
   const field = messageField();
   Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 400 });
@@ -124,6 +136,10 @@ describe("ChristmasCardForm", () => {
 
   it("메시지가 비어 있을 때 안내 문구를 입력 시작 위치에 표시하고 입력하면 숨긴다", async () => {
     await render();
+
+    expect(form().querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
+      "메시지 제한: 180자 · 최대 6줄",
+    );
 
     const listButton = Array.from(form().querySelectorAll("button")).find((button) =>
       button.textContent?.includes("목록 보기"),
@@ -210,6 +226,152 @@ describe("ChristmasCardForm", () => {
 
     await setMessage("1".repeat(61));
     expect(messageField().value).toBe("1".repeat(60));
+  });
+
+  it("179자에서 조합 중 181자가 되어도 자르지 않고 완료된 180자만 제출한다", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    await render({ onSubmit });
+    mockSixLineCapacity();
+    const prefix = "메리 크리스마스! ".repeat(18).slice(0, 179);
+    expect(prefix).toHaveLength(179);
+    await setMessage(prefix);
+    await compose("compositionstart");
+    await setMessage(`${prefix}ㅎㅏ`);
+    expect(messageField().value).toHaveLength(181);
+    expect(container!.textContent).toContain("179 / 180");
+    expect(submitButton().disabled).toBe(true);
+    await submit();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await setMessage(`${prefix}하`);
+    await compose("compositionend", "하");
+    await setMessage(`${prefix}하`);
+    expect(messageField().value).toBe(`${prefix}하`);
+    expect(container!.textContent).toContain("180 / 180");
+    expect(submitButton().disabled).toBe(false);
+    await submit();
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("눈사람", `${prefix}하`.trim());
+  });
+
+  it("180자의 중간에서 181자가 되는 조합을 거절하고 뒤 원문과 선택 위치를 보존한다", async () => {
+    await render();
+    mockSixLineCapacity();
+    const original = `${"가".repeat(179)}끝`;
+    await setMessage(original);
+    messageField().setSelectionRange(179, 179);
+    await compose("compositionstart");
+    await setMessage(`${"가".repeat(179)}한끝`);
+    expect(messageField().value).toHaveLength(181);
+    await compose("compositionend", "한");
+    expect(messageField().value).toBe(original);
+    expect(messageField().selectionStart).toBe(179);
+    expect(container!.textContent).toContain("180 / 180");
+    await setMessage(`${"가".repeat(179)}한끝`);
+    expect(messageField().value).toBe(original);
+    expect(messageField().selectionStart).toBe(179);
+  });
+
+  it("180자에서 선택한 한 글자를 한글 조합으로 교체할 수 있다", async () => {
+    await render();
+    mockSixLineCapacity();
+    await setMessage(`${"가".repeat(179)}끝`);
+    messageField().setSelectionRange(179, 180);
+    await compose("compositionstart");
+    await setMessage(`${"가".repeat(179)}한`);
+    await compose("compositionend", "한");
+    expect(messageField().value).toBe(`${"가".repeat(179)}한`);
+    expect(container!.textContent).toContain("180 / 180");
+  });
+
+  it("조합 종료 시 180자 미만이라도 7번째 줄이 생기면 기존 6줄로 복원한다", async () => {
+    await render();
+    mockSixLineCapacity();
+    const original = Array(6).fill("가".repeat(28)).join("\n");
+    expect(original).toHaveLength(173);
+    await setMessage(original);
+    await compose("compositionstart");
+    await setMessage(`${original}\n한`);
+    expect(messageField().value).toHaveLength(175);
+    await compose("compositionend", "한");
+    expect(messageField().value).toBe(original);
+  });
+
+  it.each(["가", "i"])("일반 %s 입력도 180자는 허용하고 181자는 남기지 않는다", async (letter) => {
+    await render();
+    mockSixLineCapacity();
+    await setMessage(letter.repeat(180));
+    expect(messageField().value).toHaveLength(180);
+    await setMessage(letter.repeat(181));
+    expect(messageField().value).toBe(letter.repeat(180));
+  });
+
+  it("179자에서 조합 완료값이 180자여도 자동 줄바꿈으로 7줄이 되면 거절한다", async () => {
+    await render();
+    mockSixLineCapacity();
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (!(this instanceof HTMLTextAreaElement) || this.style.position !== "fixed") return 120;
+      const width = Array.from(this.value).reduce((sum, char) => sum + (char === "한" ? 2 : 1), 0);
+      return Math.ceil(width / 30) * 20;
+    });
+    const prefix = "i".repeat(179);
+    await setMessage(prefix);
+    await compose("compositionstart");
+    await setMessage(`${prefix}한`);
+    expect(messageField().value).toHaveLength(180);
+    await compose("compositionend", "한");
+    expect(messageField().value).toBe(prefix);
+    expect(container!.textContent).toContain("179 / 180");
+  });
+
+  it("179자에서 조합 시작과 같은 이벤트 묶음의 submit도 이전 값으로 저장하지 않는다", async () => {
+    const onSubmit = vi.fn();
+    await render({ onSubmit });
+    mockSixLineCapacity();
+    await setMessage("i".repeat(179));
+    await act(async () => {
+      messageField().dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("179자에서 조합 중 붙여넣기는 확정값을 덮어쓰지 않고 blur로 180자 조합을 확정한다", async () => {
+    await render({ onSubmit: vi.fn() });
+    mockSixLineCapacity();
+    const prefix = "가".repeat(179);
+    await setMessage(prefix);
+    await act(async () => messageField().focus());
+    await compose("compositionstart");
+    await setMessage(`${prefix}한`);
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", { value: { getData: () => "붙여넣기" } });
+    await act(async () => messageField().dispatchEvent(paste));
+    expect(paste.defaultPrevented).toBe(true);
+    expect(messageField().value).toBe(`${prefix}한`);
+    expect(container!.textContent).toContain("179 / 180");
+    await act(async () => messageField().blur());
+    await compose("compositionend", "한");
+    expect(container!.textContent).toContain("180 / 180");
+    expect(submitButton().disabled).toBe(false);
+  });
+
+  it("180자 조합 취소 뒤 삭제하고 새 조합을 시작할 수 있다", async () => {
+    await render({ onSubmit: vi.fn() });
+    mockSixLineCapacity();
+    const original = "가".repeat(180);
+    await setMessage(original);
+    await compose("compositionstart");
+    await setMessage(`${original}ㅎ`);
+    await setMessage(original);
+    await compose("compositionend");
+    await setMessage(original.slice(0, -1));
+    await compose("compositionstart");
+    await setMessage(`${original.slice(0, -1)}한`);
+    await compose("compositionend", "한");
+    expect(messageField().value).toBe(`${original.slice(0, -1)}한`);
+    expect(submitButton().disabled).toBe(false);
   });
 
   it("마지막 6번째 줄에 붙여넣어도 기존 5줄을 합치지 않고 삽입한 끝부분만 제한한다", async () => {
@@ -305,10 +467,10 @@ describe("ChristmasCardForm", () => {
     expect(container!.querySelector('label[for="christmas-card-nickname"]')?.textContent).toBe(
       "From.",
     );
-    expect(messageField().maxLength).toBe(180);
+    expect(messageField().maxLength).toBe(-1);
     expect(container!.textContent).toContain("0 / 180");
     expect(container!.querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
-      "메시지 개수",
+      "메시지 제한: 180자 · 최대 6줄",
     );
     expect(
       container!.querySelector('label[for="christmas-card-message"]')?.parentElement?.className,

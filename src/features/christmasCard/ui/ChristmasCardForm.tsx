@@ -34,6 +34,8 @@ export function ChristmasCardForm({
 }: ChristmasCardFormProps) {
   const [nickname, setNickname] = useState(initialNickname);
   const [message, setMessage] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
+  const composing = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [isComplete, setIsComplete] = useState(false);
@@ -52,11 +54,12 @@ export function ChristmasCardForm({
     normalizedNickname.length > 0 &&
     normalizedNickname.length <= CHRISTMAS_CARD_NICKNAME_MAX_LENGTH &&
     isValid &&
+    !isComposing &&
     !isSubmitting;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || !onSubmit || submitLock.current) return;
+    if (composing.current || !canSubmit || !onSubmit || submitLock.current) return;
 
     submitLock.current = true;
     setIsSubmitting(true);
@@ -106,6 +109,10 @@ export function ChristmasCardForm({
         editable
         inputId="christmas-card-message"
         message={message}
+        onComposingChange={(value) => {
+          composing.current = value;
+          setIsComposing(value);
+        }}
         onMessageChange={setMessage}
       />
       <div className="flex shrink-0 flex-col gap-1">
@@ -128,7 +135,7 @@ export function ChristmasCardForm({
       </div>
       <div className="flex shrink-0 items-center justify-between text-xs text-[#63322d]">
         <label className="font-medium" htmlFor="christmas-card-message">
-          메시지 개수
+          메시지 제한: 180자 · 최대 6줄
         </label>
         <p>
           {message.length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}

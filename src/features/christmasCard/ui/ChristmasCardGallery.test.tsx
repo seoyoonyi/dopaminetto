@@ -111,6 +111,7 @@ describe("ChristmasCardGallery", () => {
     const ownedCard = container.querySelector<HTMLButtonElement>('[data-owned-card="true"]');
     expect(ownedCard?.querySelector("svg")).toBeTruthy();
     expect(ownedCard?.getAttribute("aria-label")).toBe("QA_나1님의 카드 보기, 내가 작성한 카드");
+    vi.spyOn(ownedCard!, "matches").mockImplementation((selector) => selector === ":focus-visible");
 
     await act(async () => {
       ownedCard?.focus();
@@ -120,6 +121,53 @@ describe("ChristmasCardGallery", () => {
     expect(document.body.querySelector('[role="tooltip"]')?.textContent).toContain(
       "내가 작성한 카드",
     );
+  });
+
+  it("프로그램 포커스 복원은 내 카드 툴팁을 열지 않는다", async () => {
+    mockUseChristmasCardsQuery.mockReturnValue({
+      data: {
+        cards: [
+          {
+            id: 1,
+            created_at: "2026-11-12",
+            nickname: "QA_나1",
+            content: "내 카드",
+            event_type: "christmas",
+            user_id: "user-1",
+          },
+        ],
+        totalCount: 1,
+      },
+      isError: false,
+      isPending: false,
+      isPlaceholderData: false,
+      refetch: vi.fn(),
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () =>
+      root!.render(
+        <ChristmasCardGallery
+          userId="user-1"
+          onLoadCards={async () => ({ cards: [], totalCount: 1 })}
+          onPageChange={vi.fn()}
+          onSelect={vi.fn()}
+          page={1}
+        />,
+      ),
+    );
+
+    const ownedCard = container.querySelector<HTMLButtonElement>('[data-owned-card="true"]')!;
+    vi.spyOn(ownedCard, "matches").mockReturnValue(false);
+
+    await act(async () => {
+      ownedCard.focus();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(document.body.querySelector('[data-slot="tooltip-content"]')).toBeNull();
   });
 
   it("내 카드의 일반 영역을 호버할 때는 소유 설명 툴팁을 표시하지 않는다", async () => {
@@ -220,7 +268,7 @@ describe("ChristmasCardGallery", () => {
     );
 
     expect(container.querySelector("ul")?.className.split(" ")).toEqual(
-      expect.arrayContaining(["pt-1", "pl-1"]),
+      expect.arrayContaining(["pt-1", "pl-1", "pr-1"]),
     );
     expect(container.querySelector("ul")?.className).not.toContain("pr-2");
     expect(container.querySelector("[data-owned-pin]")?.getAttribute("class")).toContain("-top-1");
@@ -282,6 +330,7 @@ describe("ChristmasCardGallery", () => {
     });
 
     expect(container.querySelector("ul")?.className).toContain("pr-2");
+    expect(container.querySelector("ul")?.className).not.toContain("pr-1");
   });
 
   it("같은 페이지 리렌더는 위치를 유지하고 페이지가 바뀌면 최상단으로 이동한다", async () => {

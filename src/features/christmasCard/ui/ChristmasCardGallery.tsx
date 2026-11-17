@@ -166,7 +166,7 @@ export function ChristmasCardGallery({
               <ul
                 ref={cardGridRef}
                 className={cn(
-                  "grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pt-1 pb-3 pl-1 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]",
+                  "grid grid-cols-1 grid-rows-[repeat(6,minmax(19rem,auto))] gap-3 pt-1 pb-3 pl-1 pr-1 sm:grid-cols-2 sm:grid-rows-[repeat(3,minmax(19rem,auto))] lg:grid-cols-3 lg:grid-rows-[repeat(2,minmax(19rem,auto))]",
                   hasVerticalOverflow && "pr-2",
                 )}
               >
@@ -200,8 +200,10 @@ export function ChristmasCardGallery({
                         focus-visible:outline-[#7FA6BC]
                       "
                       onClick={() => onSelect(card)}
-                      onFocus={() => {
-                        if (isOwnedCard) setOpenTooltipCardId(card.id);
+                      onFocus={(event) => {
+                        if (isOwnedCard && event.currentTarget.matches(":focus-visible")) {
+                          setOpenTooltipCardId(card.id);
+                        }
                       }}
                       onBlur={() => {
                         if (openTooltipCardId === card.id) setOpenTooltipCardId(null);

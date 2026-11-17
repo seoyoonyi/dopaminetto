@@ -139,7 +139,7 @@ export function ChristmasCardDialog({
       </DialogFooter>
     ) : isFormScreen ? (
       <div
-        className="flex w-full shrink-0 flex-col items-center justify-center p-3"
+        className="christmas-card-scrollbar flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto p-3"
         data-card-writing-content
       >
         <ChristmasCardForm
@@ -163,19 +163,18 @@ export function ChristmasCardDialog({
         />
       </div>
     ) : screen === "detail" && selectedCard ? (
-      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4 lg:flex-1">
+      <div className="christmas-card-scrollbar flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4">
         <div className="shrink-0">
           <ChristmasCardFace message={selectedCard.content} />
         </div>
         <p className="shrink-0 border-b border-[#c8a88b] px-1 py-1 text-sm text-[#63322d] sm:px-0 sm:pt-0 sm:pb-2">
           From. {selectedCard.nickname}
         </p>
-        <div className="flex shrink-0 flex-col justify-between gap-3 sm:flex-row sm:items-center lg:mt-auto">
+        <div className="flex shrink-0 flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <time className="min-w-0 text-xs text-[#63322d]" dateTime={selectedCard.created_at}>
             {new Date(selectedCard.created_at).toLocaleString("ko-KR")}
           </time>
           <Button
-            autoFocus
             className="font-display w-full shrink-0 cursor-pointer px-2 sm:w-32"
             onClick={() => setScreen("list")}
             type="button"
@@ -191,7 +190,7 @@ export function ChristmasCardDialog({
     ) : screen === "list" ? (
       <div className="flex min-h-0 w-full flex-1 flex-col gap-4 p-6">
         {onLoadCards ? (
-          <div className="christmas-card-gallery-scrollbar min-h-0 flex-1 overflow-hidden">
+          <div className="christmas-card-scrollbar min-h-0 flex-1 overflow-hidden">
             <ChristmasCardGallery
               userId={userId}
               onLoadCards={onLoadCards}
@@ -281,7 +280,7 @@ export function ChristmasCardDialog({
                   : screen === "list"
                     ? "h-[min(calc(100dvh-2rem),52.43rem)] max-w-6xl sm:h-[min(calc(100dvh-4rem),52.43rem)]"
                     : screen === "detail"
-                      ? "max-w-6xl lg:h-[min(calc(100dvh-4rem),52.43rem)]"
+                      ? "max-w-6xl"
                       : screen === "complete"
                         ? "max-w-md"
                         : "max-w-6xl"

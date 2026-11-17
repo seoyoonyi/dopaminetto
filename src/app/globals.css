@@ -3,31 +3,38 @@
 
 @tailwind base;
 
-.christmas-card-gallery-scrollbar {
+.christmas-card-scrollbar {
   min-height: 0;
 }
 
-.christmas-card-gallery-scrollbar [data-slot="carousel-content"] {
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+.christmas-card-scrollbar,
+.christmas-card-scrollbar [data-slot="carousel-content"] {
   scroll-behavior: smooth;
   scrollbar-color: #b8ccda transparent;
   scrollbar-width: thin;
 }
 
-.christmas-card-gallery-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar {
+.christmas-card-scrollbar [data-slot="carousel-content"] {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.christmas-card-scrollbar::-webkit-scrollbar,
+.christmas-card-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar {
   width: 16px;
 }
 
-.christmas-card-gallery-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar-track {
+.christmas-card-scrollbar::-webkit-scrollbar-track,
+.christmas-card-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar-track {
   border-left: 12px solid transparent;
   border-radius: 9999px;
   background: #d9e8f2;
   background-clip: padding-box;
 }
 
-.christmas-card-gallery-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar-thumb {
+.christmas-card-scrollbar::-webkit-scrollbar-thumb,
+.christmas-card-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-left-width: 10px;
   border-radius: 9999px;
@@ -35,7 +42,8 @@
   background-clip: content-box;
 }
 
-.christmas-card-gallery-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar-thumb:hover {
+.christmas-card-scrollbar::-webkit-scrollbar-thumb:hover,
+.christmas-card-scrollbar [data-slot="carousel-content"]::-webkit-scrollbar-thumb:hover {
   background: #7fa6bc;
   background-clip: content-box;
 }

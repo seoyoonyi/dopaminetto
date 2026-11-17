@@ -471,9 +471,7 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.querySelector("section")?.className).not.toContain(
       "h-[min(calc(100dvh-2rem),52.43rem)]",
     );
-    expect(dialog()?.querySelector("section")?.className).toContain(
-      "lg:h-[min(calc(100dvh-4rem),52.43rem)]",
-    );
+    expect(dialog()?.querySelector("section")?.className).not.toContain("lg:h-[min(");
     expect(dialog()?.querySelector("section")?.className).toContain("max-w-6xl");
     expect(dialog()?.textContent).toContain("From. 눈사람");
     expect(dialog()?.textContent).toContain("따뜻한 겨울 보내세요!");
@@ -481,10 +479,14 @@ describe("ChristmasGuestbook", () => {
       button.textContent?.includes("목록 보기"),
     );
     expect(detailButton?.parentElement?.className).toContain("justify-between");
-    expect(detailButton?.parentElement?.className).toContain("lg:mt-auto");
+    expect(detailButton?.parentElement?.className).not.toContain("lg:mt-auto");
     expect(detailButton?.parentElement?.className).not.toContain("sm:mt-5");
-    expect(detailButton?.parentElement?.parentElement?.className).toContain("lg:flex-1");
+    expect(detailButton?.parentElement?.parentElement?.className).not.toContain("lg:flex-1");
+    expect(detailButton?.parentElement?.parentElement?.className).toContain(
+      "christmas-card-scrollbar",
+    );
     expect(detailButton?.className).toContain("font-display");
+    expect(detailButton?.hasAttribute("autofocus")).toBe(false);
     expect(detailButton?.className).toContain("w-full");
     expect(detailButton?.className).toContain("sm:w-32");
     expect(detailButton?.className).toContain("px-2");
@@ -593,7 +595,12 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.querySelector("section")?.className).toContain("max-h-[calc(100dvh-2rem)]");
     expect(dialog()?.querySelector("section")?.className).toContain("overflow-hidden");
     expect(dialog()?.querySelector("section")?.className).not.toContain("h-full");
-    expect(dialog()?.querySelector("[data-card-writing-content]")?.className).toContain("shrink-0");
+    const writingContent = dialog()?.querySelector("[data-card-writing-content]");
+    expect(writingContent?.className).toContain("min-h-0");
+    expect(writingContent?.className).toContain("flex-1");
+    expect(writingContent?.className).toContain("overflow-y-auto");
+    expect(writingContent?.className).toContain("christmas-card-scrollbar");
+    expect(dialog()?.querySelector("section")?.className).not.toContain("lg:h-[min(");
     expect(dialog()?.querySelector("#christmas-card-nickname")).not.toBeNull();
     expect(dialog()?.querySelector("#christmas-card-message")).not.toBeNull();
     const formButtons = Array.from(dialog()!.querySelectorAll("form button"));

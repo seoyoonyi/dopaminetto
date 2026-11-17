@@ -12,7 +12,7 @@ import {
 } from "@/shared/ui/dialog";
 import { ArrowLeft, List, Pencil, TreePine, X } from "lucide-react";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import { useCardMenuPosition } from "../hooks/useCardMenuPosition";
@@ -47,6 +47,11 @@ export function ChristmasCardDialog({
   const [screen, setScreen] = useState<"menu" | "writing" | "complete" | "list" | "detail">("menu");
   const [selectedCard, setSelectedCard] = useState<ChristmasCard | null>(null);
   const [page, setPage] = useState(1);
+  const galleryScrollTopRef = useRef(0);
+  const getGalleryScrollTop = useCallback(() => galleryScrollTopRef.current, []);
+  const saveGalleryScrollTop = useCallback((scrollTop: number) => {
+    galleryScrollTopRef.current = scrollTop;
+  }, []);
   const requestVersion = useRef(0);
   const isFullScreen = screen !== "menu";
   const isFormScreen = screen === "writing" || screen === "complete";
@@ -66,6 +71,7 @@ export function ChristmasCardDialog({
     setScreen("menu");
     setSelectedCard(null);
     setPage(1);
+    galleryScrollTopRef.current = 0;
     onOpenChange(false);
   };
   const handleOpenChange = (nextOpen: boolean) => {
@@ -119,7 +125,10 @@ export function ChristmasCardDialog({
 
   const screenContent =
     screen === "menu" ? (
-      <DialogFooter className="font-display flex flex-col gap-1 p-2 sm:flex-col sm:items-stretch sm:justify-start">
+      <DialogFooter
+        className="font-display flex flex-col gap-1 p-2 sm:flex-col sm:items-stretch sm:justify-start"
+        key="menu"
+      >
         <Button
           className="h-9 w-full cursor-pointer justify-start bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
           data-primary="true"
@@ -141,6 +150,7 @@ export function ChristmasCardDialog({
       <div
         className="christmas-card-scrollbar flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto p-3"
         data-card-writing-content
+        key="writing"
       >
         <ChristmasCardForm
           nickname={nickname}
@@ -163,7 +173,10 @@ export function ChristmasCardDialog({
         />
       </div>
     ) : screen === "detail" && selectedCard ? (
-      <div className="christmas-card-scrollbar flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4">
+      <div
+        className="christmas-card-scrollbar flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4"
+        key="detail"
+      >
         <div className="shrink-0">
           <ChristmasCardFace message={selectedCard.content} />
         </div>
@@ -188,13 +201,15 @@ export function ChristmasCardDialog({
         </div>
       </div>
     ) : screen === "list" ? (
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 p-6">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 p-6" key="list">
         {onLoadCards ? (
           <div className="christmas-card-scrollbar min-h-0 flex-1 overflow-hidden">
             <ChristmasCardGallery
               userId={userId}
               onLoadCards={onLoadCards}
               onPageChange={setPage}
+              getScrollTop={getGalleryScrollTop}
+              onScrollTopChange={saveGalleryScrollTop}
               onSelect={(card) => {
                 setSelectedCard(card);
                 setScreen("detail");
@@ -223,7 +238,10 @@ export function ChristmasCardDialog({
         </DialogFooter>
       </div>
     ) : (
-      <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+      <div
+        className="flex w-full flex-1 flex-col items-center justify-center gap-4 p-6 text-center"
+        key="complete"
+      >
         <p className="font-display text-lg font-semibold">아직 카드 목록을 준비하고 있어요.</p>
         <p className="text-sm text-slate-600">카드가 모이면 이곳에서 확인할 수 있어요.</p>
         <Button

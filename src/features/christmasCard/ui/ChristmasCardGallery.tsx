@@ -13,7 +13,7 @@ import type { CarouselApi } from "@/shared/ui/carousel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { Pin } from "lucide-react";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useChristmasCardsQuery } from "../hooks/useChristmasCardsQuery";
 import { CHRISTMAS_CARD_PAGE_SIZE } from "../model/christmasCard";
@@ -26,7 +26,17 @@ interface ChristmasCardGalleryProps {
   onLoadCards: (page: number) => Promise<ChristmasCardPage>;
   onSelect: (card: ChristmasCard) => void;
   selectedCardId?: number;
+  getScrollTop?: () => number;
+  onScrollTopChange?: (scrollTop: number) => void;
   userId?: string;
+}
+
+function setScrollTopImmediately(element: HTMLElement, top: number) {
+  if (typeof element.scrollTo === "function") {
+    element.scrollTo({ top, behavior: "instant" });
+  } else {
+    element.scrollTop = top;
+  }
 }
 
 export function ChristmasCardGallery({
@@ -35,6 +45,8 @@ export function ChristmasCardGallery({
   onLoadCards,
   onSelect,
   selectedCardId,
+  getScrollTop,
+  onScrollTopChange,
   userId,
 }: ChristmasCardGalleryProps) {
   const query = useChristmasCardsQuery(onLoadCards, page);
@@ -43,6 +55,8 @@ export function ChristmasCardGallery({
   const [openTooltipCardId, setOpenTooltipCardId] = useState<number | null>(null);
   const cardGridRef = useRef<HTMLUListElement>(null);
   const selectedCardRef = useRef<HTMLButtonElement>(null);
+  const localScrollTopRef = useRef(0);
+  const previousPageRef = useRef(page);
   const [startIndex] = useState(page - 1);
   const [totalCount, setTotalCount] = useState(0);
   if (query.data && query.data.totalCount !== totalCount) setTotalCount(query.data.totalCount);
@@ -56,6 +70,46 @@ export function ChristmasCardGallery({
       api.off("select", onSelectPage);
     };
   }, [api, onPageChange]);
+
+  useEffect(() => {
+    if (!api) return;
+    const scrollViewport = api.rootNode();
+
+    const saveScrollPosition = () => {
+      if (onScrollTopChange) onScrollTopChange(scrollViewport.scrollTop);
+      else localScrollTopRef.current = scrollViewport.scrollTop;
+    };
+    scrollViewport.addEventListener("scroll", saveScrollPosition, { passive: true });
+    return () => scrollViewport.removeEventListener("scroll", saveScrollPosition);
+  }, [api, onScrollTopChange]);
+
+  useLayoutEffect(() => {
+    if (!api) return;
+    const scrollViewport = api.rootNode();
+
+    if (previousPageRef.current !== page) {
+      previousPageRef.current = page;
+      setScrollTopImmediately(scrollViewport, 0);
+      if (onScrollTopChange) onScrollTopChange(0);
+      else localScrollTopRef.current = 0;
+      return;
+    }
+
+    if (query.isPending || query.isPlaceholderData || (!query.data && query.isError)) return;
+
+    setScrollTopImmediately(scrollViewport, getScrollTop?.() ?? localScrollTopRef.current);
+    if (onScrollTopChange) onScrollTopChange(scrollViewport.scrollTop);
+    else localScrollTopRef.current = scrollViewport.scrollTop;
+  }, [
+    api,
+    getScrollTop,
+    onScrollTopChange,
+    page,
+    query.data,
+    query.isError,
+    query.isPending,
+    query.isPlaceholderData,
+  ]);
 
   useEffect(() => {
     selectedCardRef.current?.focus({ preventScroll: true });

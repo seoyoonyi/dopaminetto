@@ -565,6 +565,102 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.querySelector('[role="status"]')).toBeNull();
   });
 
+  it("상세 보기에서 목록으로 돌아오면 보던 세로 위치를 복원한다", async () => {
+    await render();
+    mockLoadCards.mockResolvedValue({
+      cards: [
+        {
+          id: 1,
+          created_at: "2026-11-10T00:00:00.000Z",
+          nickname: "눈사람",
+          content: "따뜻한 겨울 보내세요!",
+          event_type: "christmas",
+          user_id: "user-1",
+        },
+      ],
+      totalCount: 1,
+    });
+    act(() => useGuestbookDialogStore.getState().setOpen(true));
+
+    const openListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => openListButton?.click());
+    await vi.waitFor(() =>
+      expect(dialog()?.querySelector('button[aria-label="눈사람님의 카드 보기"]')).not.toBeNull(),
+    );
+
+    const scrollViewport = dialog()!.querySelector<HTMLElement>('[data-slot="carousel-content"]')!;
+    scrollViewport.scrollTop = 240;
+    await act(async () => scrollViewport.dispatchEvent(new Event("scroll")));
+    const cardButton = dialog()!.querySelector<HTMLButtonElement>(
+      'button[aria-label="눈사람님의 카드 보기"]',
+    );
+    await act(async () => cardButton?.click());
+    const detailListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => detailListButton?.click());
+    await vi.waitFor(() =>
+      expect(dialog()?.querySelector('button[aria-label="눈사람님의 카드 보기"]')).not.toBeNull(),
+    );
+
+    expect(dialog()!.querySelector<HTMLElement>('[data-slot="carousel-content"]')?.scrollTop).toBe(
+      240,
+    );
+  });
+
+  it("상세 화면의 스크롤 위치를 작성 화면에 이어받지 않는다", async () => {
+    await render();
+    mockLoadCards.mockResolvedValue({
+      cards: [
+        {
+          id: 1,
+          created_at: "2026-11-10T00:00:00.000Z",
+          nickname: "눈사람",
+          content: "따뜻한 겨울 보내세요!",
+          event_type: "christmas",
+          user_id: "user-1",
+        },
+      ],
+      totalCount: 1,
+    });
+    act(() => useGuestbookDialogStore.getState().setOpen(true));
+
+    const openListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => openListButton?.click());
+    const cardButton = await vi.waitFor(() => {
+      const button = dialog()?.querySelector<HTMLButtonElement>(
+        'button[aria-label="눈사람님의 카드 보기"]',
+      );
+      expect(button).not.toBeNull();
+      return button!;
+    });
+    await act(async () => cardButton.click());
+
+    const detailContent = Array.from(
+      dialog()!.querySelectorAll<HTMLElement>(".christmas-card-scrollbar"),
+    ).find((element) => element.querySelector("button"))!;
+    detailContent.scrollTop = 169;
+    const detailListButton = Array.from(dialog()!.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("목록 보기"),
+    );
+    await act(async () => detailListButton?.click());
+
+    const writeButton = await vi.waitFor(() => {
+      const button = Array.from(dialog()!.querySelectorAll("button")).find((candidate) =>
+        candidate.textContent?.includes("카드 작성하기"),
+      );
+      expect(button).toBeDefined();
+      return button!;
+    });
+    await act(async () => writeButton.click());
+
+    expect(dialog()!.querySelector<HTMLElement>("[data-card-writing-content]")?.scrollTop).toBe(0);
+  });
+
   it("닫기 동작은 공유 열림 상태도 초기화한다", async () => {
     await render();
     act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 500, y: 300 }));

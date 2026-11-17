@@ -284,6 +284,92 @@ describe("ChristmasCardGallery", () => {
     expect(container.querySelector("ul")?.className).toContain("pr-2");
   });
 
+  it("같은 페이지 리렌더는 위치를 유지하고 페이지가 바뀌면 최상단으로 이동한다", async () => {
+    mockUseChristmasCardsQuery.mockReturnValue({
+      data: {
+        cards: [
+          {
+            id: 1,
+            created_at: "2026-11-12",
+            nickname: "QA_나1",
+            content: "카드 내용",
+            event_type: "christmas",
+            user_id: "user-1",
+          },
+        ],
+        totalCount: 12,
+      },
+      isError: false,
+      isPending: false,
+      isPlaceholderData: false,
+      refetch: vi.fn(),
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const renderPage = (page: number) =>
+      root!.render(
+        <ChristmasCardGallery
+          onLoadCards={async () => ({ cards: [], totalCount: 12 })}
+          onPageChange={vi.fn()}
+          onSelect={vi.fn()}
+          page={page}
+        />,
+      );
+
+    await act(async () => renderPage(1));
+    const scrollViewport = container.querySelector<HTMLElement>('[data-slot="carousel-content"]')!;
+    scrollViewport.scrollTop = 240;
+
+    await act(async () => renderPage(1));
+    expect(scrollViewport.scrollTop).toBe(240);
+
+    await act(async () => renderPage(2));
+    expect(scrollViewport.scrollTop).toBe(0);
+  });
+
+  it("페이지 데이터가 준비된 뒤 저장한 스크롤 위치를 복원한다", async () => {
+    const savedScrollTopRef = { current: 240 };
+    mockUseChristmasCardsQuery.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isPending: true,
+      isPlaceholderData: false,
+      refetch: vi.fn(),
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const renderGallery = () =>
+      root!.render(
+        <ChristmasCardGallery
+          onLoadCards={async () => ({ cards: [], totalCount: 1 })}
+          onPageChange={vi.fn()}
+          onSelect={vi.fn()}
+          page={1}
+          getScrollTop={() => savedScrollTopRef.current}
+          onScrollTopChange={(scrollTop) => {
+            savedScrollTopRef.current = scrollTop;
+          }}
+        />,
+      );
+
+    await act(async () => renderGallery());
+    const scrollViewport = container.querySelector<HTMLElement>('[data-slot="carousel-content"]')!;
+    expect(scrollViewport.scrollTop).toBe(0);
+
+    mockUseChristmasCardsQuery.mockReturnValue({
+      data: { cards: [], totalCount: 1 },
+      isError: false,
+      isPending: false,
+      isPlaceholderData: false,
+      refetch: vi.fn(),
+    });
+    await act(async () => renderGallery());
+
+    expect(scrollViewport.scrollTop).toBe(240);
+  });
+
   it("현재 페이지에만 스켈레톤 여섯 장을 표시한다", async () => {
     mockUseChristmasCardsQuery.mockReturnValue({
       data: undefined,

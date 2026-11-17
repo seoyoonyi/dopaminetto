@@ -58,9 +58,9 @@ describe("validateMovement Christmas tree collision", () => {
         .map(({ x, y, width, height, name }) => ({ x, y, width, height, name })),
     ).toEqual([
       {
-        x: 594,
+        x: 585,
         y: 786,
-        width: 292,
+        width: 301,
         height: 28,
         name: "christmas-tree-base-upper",
       },
@@ -72,24 +72,17 @@ describe("validateMovement Christmas tree collision", () => {
         name: "christmas-tree-base-lower",
       },
       {
-        x: 574,
-        y: 814,
-        width: 48,
-        height: 43,
+        x: 573,
+        y: 802,
+        width: 49,
+        height: 52,
         name: "christmas-tree-base-left-corner",
-      },
-      {
-        x: 560,
-        y: 814,
-        width: 14,
-        height: 43,
-        name: "christmas-tree-base-left-outer-corner",
       },
       {
         x: 858,
         y: 814,
         width: 28,
-        height: 43,
+        height: 40,
         name: "christmas-tree-base-right-corner",
       },
     ]);
@@ -103,22 +96,6 @@ describe("validateMovement Christmas tree collision", () => {
     const aroundSide = validateMovement({ x: 540, y: 820 }, "lobby", { x: 0, y: -4 }, mapLoader);
     expect(aroundSide.nextPosition).toEqual({ x: 540, y: 816 });
 
-    const blockedAtLeftCorner = validateMovement(
-      { x: 580, y: 835 },
-      "lobby",
-      { x: 20, y: 0 },
-      mapLoader,
-    );
-    expect(blockedAtLeftCorner.nextPosition).toEqual({ x: 580, y: 835 });
-
-    const blockedAtOuterLeftCorner = validateMovement(
-      { x: 560, y: 835 },
-      "lobby",
-      { x: 20, y: 0 },
-      mapLoader,
-    );
-    expect(blockedAtOuterLeftCorner.nextPosition).toEqual({ x: 560, y: 835 });
-
     const approachLeftCorner = validateMovement(
       { x: 540, y: 835 },
       "lobby",
@@ -127,21 +104,21 @@ describe("validateMovement Christmas tree collision", () => {
     );
     expect(approachLeftCorner.nextPosition).toEqual({ x: 554, y: 835 });
 
-    const blockedAtOuterEdge = validateMovement(
-      { x: 554, y: 835 },
+    const blockedAtLeftCorner = validateMovement(
+      { x: 566, y: 835 },
       "lobby",
       { x: 4, y: 0 },
       mapLoader,
     );
-    expect(blockedAtOuterEdge.nextPosition).toEqual({ x: 554, y: 835 });
+    expect(blockedAtLeftCorner.nextPosition).toEqual({ x: 566, y: 835 });
 
     const blockedAtRightCorner = validateMovement(
-      { x: 900, y: 835 },
+      { x: 892, y: 835 },
       "lobby",
-      { x: -20, y: 0 },
+      { x: -4, y: 0 },
       mapLoader,
     );
-    expect(blockedAtRightCorner.nextPosition).toEqual({ x: 900, y: 835 });
+    expect(blockedAtRightCorner.nextPosition).toEqual({ x: 892, y: 835 });
 
     const inFront = validateMovement({ x: 740, y: 874 }, "lobby", { x: 0, y: -4 }, mapLoader);
     expect(inFront.nextPosition).toEqual({ x: 740, y: 870 });

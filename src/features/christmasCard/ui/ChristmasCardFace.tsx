@@ -29,6 +29,7 @@ interface ChristmasCardFaceProps {
   inputId?: string;
   className?: string;
   onMessageChange?: (message: string) => void;
+  onCompositionDraftChange?: (message: string | null) => void;
   onComposingChange?: (isComposing: boolean) => void;
 }
 
@@ -38,6 +39,7 @@ export function ChristmasCardFace({
   inputId,
   className,
   onMessageChange,
+  onCompositionDraftChange,
   onComposingChange,
 }: ChristmasCardFaceProps) {
   const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export function ChristmasCardFace({
     };
     composition.current = null;
     setCompositionDraft(null);
+    onCompositionDraftChange?.(null);
     onComposingChange?.(false);
   }
 
@@ -148,6 +151,7 @@ export function ChristmasCardFace({
                 selectionBeforeInput.current = null;
                 completedComposition.current = null;
                 setCompositionDraft(textarea.value);
+                onCompositionDraftChange?.(textarea.value);
                 onComposingChange?.(true);
               }}
               onKeyDown={(event) => {
@@ -208,6 +212,7 @@ export function ChristmasCardFace({
                 selectionBeforeInput.current = null;
                 if (composition.current) {
                   setCompositionDraft(textarea.value);
+                  onCompositionDraftChange?.(textarea.value);
                   return;
                 }
                 // 조합 종료 직후 뒤따르는 input이 거절한 후보를 다시 삽입하지 않게 한다.

@@ -34,6 +34,7 @@ export function ChristmasCardForm({
 }: ChristmasCardFormProps) {
   const [nickname, setNickname] = useState(initialNickname);
   const [message, setMessage] = useState("");
+  const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
   const composing = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,6 +110,7 @@ export function ChristmasCardForm({
         editable
         inputId="christmas-card-message"
         message={message}
+        onCompositionDraftChange={setCompositionDraft}
         onComposingChange={(value) => {
           composing.current = value;
           setIsComposing(value);
@@ -138,7 +140,7 @@ export function ChristmasCardForm({
           메시지 제한: 180자
         </label>
         <p>
-          {message.length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
+          {(compositionDraft ?? message).length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
         </p>
       </div>
       {!onSubmit ? (

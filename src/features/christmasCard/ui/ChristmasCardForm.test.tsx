@@ -220,7 +220,7 @@ describe("ChristmasCardForm", () => {
     await compose("compositionstart");
     await setMessage(`${prefix}ㅎㅏ`);
     expect(messageField().value).toHaveLength(181);
-    expect(container!.textContent).toContain("179 / 180");
+    expect(container!.textContent).toContain("181 / 180");
     expect(submitButton().disabled).toBe(true);
     await submit();
     expect(onSubmit).not.toHaveBeenCalled();
@@ -233,6 +233,23 @@ describe("ChristmasCardForm", () => {
     expect(submitButton().disabled).toBe(false);
     await submit();
     expect(onSubmit).toHaveBeenCalledExactlyOnceWith("눈사람", `${prefix}하`.trim());
+  });
+
+  it("한글 조합 중에도 입력창에 보이는 글자 수를 카운터에 반영한다", async () => {
+    await render({ onSubmit: vi.fn() });
+    const prefix = "가".repeat(179);
+    await setMessage(prefix);
+    await compose("compositionstart");
+    await setMessage(`${prefix}ㄱ`);
+
+    expect(messageField().value).toBe(`${prefix}ㄱ`);
+    expect(container!.textContent).toContain("180 / 180");
+    expect(submitButton().disabled).toBe(true);
+
+    await setMessage(`${prefix}가`);
+    await compose("compositionend", "가");
+    expect(container!.textContent).toContain("180 / 180");
+    expect(submitButton().disabled).toBe(false);
   });
 
   it("180자의 중간에서 181자가 되는 조합을 거절하고 뒤 원문과 선택 위치를 보존한다", async () => {
@@ -338,7 +355,7 @@ describe("ChristmasCardForm", () => {
     await act(async () => messageField().dispatchEvent(paste));
     expect(paste.defaultPrevented).toBe(true);
     expect(messageField().value).toBe(`${prefix}한`);
-    expect(container!.textContent).toContain("179 / 180");
+    expect(container!.textContent).toContain("180 / 180");
     await act(async () => messageField().blur());
     await compose("compositionend", "한");
     expect(container!.textContent).toContain("180 / 180");

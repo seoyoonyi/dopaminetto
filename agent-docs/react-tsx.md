@@ -48,6 +48,13 @@ if (prevDependency !== dependency) {
 
 외부 시스템 연동(소켓, DOM, 외부 라이브러리)이 아닌 순수 state 초기화는 `useEffect` 대신 렌더 중 비교 패턴을 사용한다.
 
+## Controlled 입력 값 관리
+
+- `value` 또는 `checked`를 전달하는 입력은 React state를 기준값으로 유지하고, `onChange`에서 동기적으로 state를 갱신한다.
+- 일반 입력 흐름에서는 DOM의 `.value`나 `.checked`를 직접 대입해 React state와 이중으로 관리하지 않는다. 입력값 변환은 state에 반영할 값으로 처리한다.
+- 글자 수 제한, 사용자 정의 붙여넣기, IME 조합처럼 입력 후보를 거절·복원해야 하는 예외에서는 DOM 값을 직접 복구할 수 있다. 이때 React state와 DOM 값을 같은 이벤트 흐름에서 일치시키고, 커서·선택 범위 보존을 테스트한다.
+- 경계 입력 테스트는 최종 문자열뿐 아니라 거절된 입력 뒤 기존 문자열과 커서·선택 범위가 유지되는지도 확인한다.
+
 ## TypeScript 주의 규칙
 
 ### `React.FC` 사용 지양

@@ -68,6 +68,29 @@ async function setMessage(value: string) {
   });
 }
 
+async function typeText(text: string) {
+  const field = messageField();
+  const start = field.selectionStart;
+  const end = field.selectionEnd;
+
+  await act(async () => {
+    field.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: text }));
+    const beforeInput = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: text,
+      inputType: "insertText",
+    });
+    field.dispatchEvent(beforeInput);
+    if (beforeInput.defaultPrevented) return;
+
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    setter.call(field, `${field.value.slice(0, start)}${text}${field.value.slice(end)}`);
+    field.setSelectionRange(start + text.length, start + text.length);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 async function submit() {
   await act(async () => {
     form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -258,6 +281,19 @@ describe("ChristmasCardForm", () => {
     expect(messageField().value).toHaveLength(180);
     await setMessage(letter.repeat(181));
     expect(messageField().value).toBe(letter.repeat(180));
+  });
+
+  it("180자에서 중간 입력을 거절해 기존 끝 글자와 커서 위치를 보존한다", async () => {
+    await render();
+    const original = `${"가".repeat(179)}끝`;
+    await setMessage(original);
+    messageField().setSelectionRange(90, 90);
+
+    await typeText("나");
+
+    expect(messageField().value).toBe(original);
+    expect(messageField().selectionStart).toBe(90);
+    expect(messageField().selectionEnd).toBe(90);
   });
 
   it("710px 이하 글꼴을 적용하면서 한글 180자 입력을 허용한다", async () => {

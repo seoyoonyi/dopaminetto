@@ -42,6 +42,7 @@ export function ChristmasCardFace({
 }: ChristmasCardFaceProps) {
   const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
   const composition = useRef<{ value: string; start: number; end: number } | null>(null);
+  const selectionBeforeInput = useRef<{ start: number; end: number } | null>(null);
   const completedComposition = useRef<{
     candidate: string;
     value: string;
@@ -68,7 +69,7 @@ export function ChristmasCardFace({
     const normalizedValue = nextValue
       .slice(0, CHRISTMAS_CARD_MESSAGE_MAX_LENGTH)
       .replace(/[\uD800-\uDBFF]$/, "");
-    textarea.value = normalizedValue;
+    if (textarea.value !== normalizedValue) textarea.value = normalizedValue;
     onMessageChange?.(normalizedValue);
     return normalizedValue;
   }
@@ -144,13 +145,37 @@ export function ChristmasCardFace({
                   start: textarea.selectionStart,
                   end: textarea.selectionEnd,
                 };
+                selectionBeforeInput.current = null;
                 completedComposition.current = null;
                 setCompositionDraft(textarea.value);
                 onComposingChange?.(true);
               }}
+              onKeyDown={(event) => {
+                if (
+                  composition.current ||
+                  event.ctrlKey ||
+                  event.metaKey ||
+                  event.altKey ||
+                  (event.key.length !== 1 && event.key !== "Enter")
+                ) {
+                  return;
+                }
+                selectionBeforeInput.current = {
+                  start: event.currentTarget.selectionStart,
+                  end: event.currentTarget.selectionEnd,
+                };
+              }}
+              onBeforeInput={(event) => {
+                if (composition.current) return;
+                selectionBeforeInput.current = {
+                  start: event.currentTarget.selectionStart,
+                  end: event.currentTarget.selectionEnd,
+                };
+              }}
               onCompositionEnd={(event) => finishComposition(event.currentTarget)}
               onBlur={(event) => finishComposition(event.currentTarget)}
               onPaste={(event) => {
+                selectionBeforeInput.current = null;
                 if (composition.current) {
                   event.preventDefault();
                   return;
@@ -178,24 +203,33 @@ export function ChristmasCardFace({
                 );
               }}
               onChange={(event) => {
+                const textarea = event.currentTarget;
+                const previousSelection = selectionBeforeInput.current;
+                selectionBeforeInput.current = null;
                 if (composition.current) {
-                  setCompositionDraft(event.currentTarget.value);
+                  setCompositionDraft(textarea.value);
                   return;
                 }
                 // 조합 종료 직후 뒤따르는 input이 거절한 후보를 다시 삽입하지 않게 한다.
                 const completed = completedComposition.current;
                 completedComposition.current = null;
-                if (completed && event.currentTarget.value === completed.candidate) {
-                  event.currentTarget.value = completed.value;
+                if (completed && textarea.value === completed.candidate) {
+                  textarea.value = completed.value;
                   if (completed.selection) {
-                    event.currentTarget.setSelectionRange(
-                      completed.selection.start,
-                      completed.selection.end,
-                    );
+                    textarea.setSelectionRange(completed.selection.start, completed.selection.end);
                   }
                   return;
                 }
-                updateMessage(event.currentTarget, event.currentTarget.value);
+                if (textarea.value.length > CHRISTMAS_CARD_MESSAGE_MAX_LENGTH) {
+                  const selection = previousSelection ?? {
+                    start: Math.min(textarea.selectionStart, message.length),
+                    end: Math.min(textarea.selectionEnd, message.length),
+                  };
+                  textarea.value = message;
+                  textarea.setSelectionRange(selection.start, selection.end);
+                  return;
+                }
+                updateMessage(textarea, textarea.value);
               }}
               value={compositionDraft ?? message}
             />

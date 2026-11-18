@@ -135,7 +135,7 @@ export function ChristmasCardForm({
       </div>
       <div className="flex shrink-0 items-center justify-between text-xs text-[#63322d]">
         <label className="font-medium" htmlFor="christmas-card-message">
-          메시지 제한: 180자 · 최대 6줄
+          메시지 제한: 180자
         </label>
         <p>
           {message.length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}

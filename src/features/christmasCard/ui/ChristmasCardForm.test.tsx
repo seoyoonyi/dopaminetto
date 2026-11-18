@@ -80,29 +80,6 @@ async function compose(type: "compositionstart" | "compositionend", data = "") {
   });
 }
 
-function mockSixLineCapacity() {
-  const field = messageField();
-  Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 120 });
-  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(120);
-}
-
-function mockLargeMessageArea() {
-  const field = messageField();
-  Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 400 });
-  Object.defineProperty(field, "clientHeight", { configurable: true, value: 400 });
-  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
-    this: HTMLElement,
-  ) {
-    if (!(this instanceof HTMLTextAreaElement)) return 0;
-    if (this.style.position !== "fixed") return 400;
-    return (
-      this.value
-        .split("\n")
-        .reduce((rows, line) => rows + Math.max(1, Math.ceil(line.length / 10)), 0) * 20
-    );
-  });
-}
-
 describe("ChristmasCardForm", () => {
   it("모션 감소 설정이 켜지면 영상을 빼고 설정 변경을 따라 다시 렌더링한다", async () => {
     let matches = true;
@@ -138,7 +115,7 @@ describe("ChristmasCardForm", () => {
     await render();
 
     expect(form().querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
-      "메시지 제한: 180자 · 최대 6줄",
+      "메시지 제한: 180자",
     );
 
     const listButton = Array.from(form().querySelectorAll("button")).find((button) =>
@@ -159,7 +136,24 @@ describe("ChristmasCardForm", () => {
     );
     expect(placeholder?.className).toContain("items-start");
     expect(placeholder?.className).toContain("justify-center");
-    expect(placeholder?.className.split(" ")).toContain("[@media(max-width:520px)]:text-xs");
+    expect(placeholder?.className.split(" ")).toContain(
+      "[@media(min-width:500px)_and_(max-width:540px)]:!text-[0.84375rem]",
+    );
+    expect(placeholder?.className.split(" ")).toContain(
+      "[@media(min-width:541px)_and_(max-width:711px)]:!text-[0.875rem]",
+    );
+    expect(placeholder?.className.split(" ")).toContain(
+      "[@media(min-width:712px)_and_(max-width:920px)]:!text-[1rem]",
+    );
+    expect(messageField().className.split(" ")).toContain(
+      "[@media(min-width:500px)_and_(max-width:540px)]:!text-[0.84375rem]",
+    );
+    expect(messageField().className.split(" ")).toContain(
+      "[@media(min-width:541px)_and_(max-width:711px)]:!text-[0.875rem]",
+    );
+    expect(messageField().className.split(" ")).toContain(
+      "[@media(min-width:712px)_and_(max-width:920px)]:!text-[1rem]",
+    );
 
     await setMessage("메리 크리스마스!");
     expect(container!.querySelector("[data-card-message-placeholder]")).toBeNull();
@@ -176,62 +170,27 @@ describe("ChristmasCardForm", () => {
     expect(field.style.paddingTop).toBe("");
   });
 
-  it("부모 내부 높이의 마지막 줄까지 입력하고 초과 입력은 기존 줄바꿈을 유지한 채 거절한다", async () => {
+  it("화면 높이와 무관하게 6줄을 넘는 직접 입력을 허용한다", async () => {
     await render();
-    const field = messageField();
-    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
-    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
-    field.style.lineHeight = "20px";
-    Object.defineProperty(field, "scrollHeight", {
-      configurable: true,
-      get: () => Math.max(field.clientHeight, field.value.split("\n").length * 20),
-    });
-
-    await setMessage("첫째\n둘째\n셋째\n넷째");
-    expect(field.value).toBe("첫째\n둘째\n셋째\n넷째");
-
-    await setMessage("첫째\n둘째\n셋째\n넷째\n다섯째");
-    expect(field.value).toBe("첫째\n둘째\n셋째\n넷째");
-    expect(container!.textContent).toContain("11 / 180");
+    const sevenLines = Array(7).fill("내용").join("\n");
+    await setMessage(sevenLines);
+    expect(messageField().value).toBe(sevenLines);
   });
 
-  it("넓은 화면에서도 6줄은 허용하고 7번째 수동 줄바꿈은 반영하지 않는다", async () => {
+  it("붙여넣기는 줄 수가 아니라 180자 제한만 적용한다", async () => {
     await render();
-    mockLargeMessageArea();
-    const sixLines = Array(6).fill("1").join("\n");
-    await setMessage(sixLines);
-    expect(messageField().value).toBe(sixLines);
-
-    await setMessage(`${sixLines}\n1`);
-    expect(messageField().value).toBe(sixLines);
-  });
-
-  it("넓은 화면의 붙여넣기도 최소 폭에서 자동 줄바꿈을 포함한 6줄까지만 허용한다", async () => {
-    await render();
-    mockLargeMessageArea();
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
-      value: { getData: () => "1".repeat(100) },
+      value: { getData: () => Array(8).fill("가가가").join("\n") + "x".repeat(180) },
     });
     await act(async () => messageField().dispatchEvent(pasteEvent));
 
-    expect(messageField().value).toBe("1".repeat(60));
-  });
-
-  it("6줄을 넘는 직접 입력의 자동 줄바꿈도 기존 내용을 변경하지 않고 거절한다", async () => {
-    await render();
-    mockLargeMessageArea();
-    await setMessage("1".repeat(60));
-    expect(messageField().value).toBe("1".repeat(60));
-
-    await setMessage("1".repeat(61));
-    expect(messageField().value).toBe("1".repeat(60));
+    expect(messageField().value).toHaveLength(180);
   });
 
   it("179자에서 조합 중 181자가 되어도 자르지 않고 완료된 180자만 제출한다", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     await render({ onSubmit });
-    mockSixLineCapacity();
     const prefix = "메리 크리스마스! ".repeat(18).slice(0, 179);
     expect(prefix).toHaveLength(179);
     await setMessage(prefix);
@@ -255,7 +214,6 @@ describe("ChristmasCardForm", () => {
 
   it("180자의 중간에서 181자가 되는 조합을 거절하고 뒤 원문과 선택 위치를 보존한다", async () => {
     await render();
-    mockSixLineCapacity();
     const original = `${"가".repeat(179)}끝`;
     await setMessage(original);
     messageField().setSelectionRange(179, 179);
@@ -273,7 +231,6 @@ describe("ChristmasCardForm", () => {
 
   it("180자에서 선택한 한 글자를 한글 조합으로 교체할 수 있다", async () => {
     await render();
-    mockSixLineCapacity();
     await setMessage(`${"가".repeat(179)}끝`);
     messageField().setSelectionRange(179, 180);
     await compose("compositionstart");
@@ -283,52 +240,48 @@ describe("ChristmasCardForm", () => {
     expect(container!.textContent).toContain("180 / 180");
   });
 
-  it("조합 종료 시 180자 미만이라도 7번째 줄이 생기면 기존 6줄로 복원한다", async () => {
+  it("조합 종료 시 180자 미만이면 줄 수와 무관하게 메시지를 반영한다", async () => {
     await render();
-    mockSixLineCapacity();
-    const original = Array(6).fill("가".repeat(28)).join("\n");
-    expect(original).toHaveLength(173);
+    const original = Array(8).fill("가".repeat(20)).join("\n");
+    expect(original).toHaveLength(167);
     await setMessage(original);
     await compose("compositionstart");
     await setMessage(`${original}\n한`);
-    expect(messageField().value).toHaveLength(175);
+    expect(messageField().value).toHaveLength(169);
     await compose("compositionend", "한");
-    expect(messageField().value).toBe(original);
+    expect(messageField().value).toBe(`${original}\n한`);
   });
 
   it.each(["가", "i"])("일반 %s 입력도 180자는 허용하고 181자는 남기지 않는다", async (letter) => {
     await render();
-    mockSixLineCapacity();
     await setMessage(letter.repeat(180));
     expect(messageField().value).toHaveLength(180);
     await setMessage(letter.repeat(181));
     expect(messageField().value).toBe(letter.repeat(180));
   });
 
-  it("179자에서 조합 완료값이 180자여도 자동 줄바꿈으로 7줄이 되면 거절한다", async () => {
+  it("710px 이하 글꼴을 적용하면서 한글 180자 입력을 허용한다", async () => {
     await render();
-    mockSixLineCapacity();
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      if (!(this instanceof HTMLTextAreaElement) || this.style.position !== "fixed") return 120;
-      const width = Array.from(this.value).reduce((sum, char) => sum + (char === "한" ? 2 : 1), 0);
-      return Math.ceil(width / 30) * 20;
-    });
-    const prefix = "i".repeat(179);
+    await setMessage("가".repeat(180));
+    expect(messageField().value).toBe("가".repeat(180));
+    expect(container!.textContent).toContain("180 / 180");
+  });
+
+  it("179자에서 조합 완료값이 180자면 줄 수와 무관하게 반영한다", async () => {
+    await render();
+    const prefix = "가".repeat(179);
     await setMessage(prefix);
     await compose("compositionstart");
     await setMessage(`${prefix}한`);
     expect(messageField().value).toHaveLength(180);
     await compose("compositionend", "한");
-    expect(messageField().value).toBe(prefix);
-    expect(container!.textContent).toContain("179 / 180");
+    expect(messageField().value).toBe(`${prefix}한`);
+    expect(container!.textContent).toContain("180 / 180");
   });
 
   it("179자에서 조합 시작과 같은 이벤트 묶음의 submit도 이전 값으로 저장하지 않는다", async () => {
     const onSubmit = vi.fn();
     await render({ onSubmit });
-    mockSixLineCapacity();
     await setMessage("i".repeat(179));
     await act(async () => {
       messageField().dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
@@ -339,7 +292,6 @@ describe("ChristmasCardForm", () => {
 
   it("179자에서 조합 중 붙여넣기는 확정값을 덮어쓰지 않고 blur로 180자 조합을 확정한다", async () => {
     await render({ onSubmit: vi.fn() });
-    mockSixLineCapacity();
     const prefix = "가".repeat(179);
     await setMessage(prefix);
     await act(async () => messageField().focus());
@@ -359,7 +311,6 @@ describe("ChristmasCardForm", () => {
 
   it("180자 조합 취소 뒤 삭제하고 새 조합을 시작할 수 있다", async () => {
     await render({ onSubmit: vi.fn() });
-    mockSixLineCapacity();
     const original = "가".repeat(180);
     await setMessage(original);
     await compose("compositionstart");
@@ -374,9 +325,8 @@ describe("ChristmasCardForm", () => {
     expect(submitButton().disabled).toBe(false);
   });
 
-  it("마지막 6번째 줄에 붙여넣어도 기존 5줄을 합치지 않고 삽입한 끝부분만 제한한다", async () => {
+  it("여러 수동 줄바꿈이 있어도 붙여넣은 내용을 보존한다", async () => {
     await render();
-    mockLargeMessageArea();
     const prefix = `${Array(5).fill("1").join("\n")}\n`;
     await setMessage(prefix);
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
@@ -385,20 +335,13 @@ describe("ChristmasCardForm", () => {
     });
     await act(async () => messageField().dispatchEvent(pasteEvent));
 
-    expect(messageField().value).toBe(`${prefix}${"1".repeat(10)}`);
+    expect(messageField().value).toBe(`${prefix}${"1".repeat(20)}`);
     expect(document.querySelector('textarea[aria-hidden="true"]')).toBeNull();
   });
 
-  it("붙여넣기도 부모 내부 높이의 마지막 줄까지 사용하고 초과 줄바꿈만 정리한다", async () => {
+  it("붙여넣은 수동 줄바꿈을 부모 높이와 무관하게 보존한다", async () => {
     await render();
     const field = messageField();
-    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
-    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
-    field.style.lineHeight = "20px";
-    Object.defineProperty(field, "scrollHeight", {
-      configurable: true,
-      get: () => Math.max(field.clientHeight, field.value.split("\n").length * 20),
-    });
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
       value: { getData: () => "첫째\n둘째\n셋째\n넷째\n다섯째" },
@@ -406,20 +349,13 @@ describe("ChristmasCardForm", () => {
 
     await act(async () => field.dispatchEvent(pasteEvent));
 
-    expect(field.value).toBe("첫째\n둘째\n셋째\n넷째 다섯째");
+    expect(field.value).toBe("첫째\n둘째\n셋째\n넷째\n다섯째");
     expect(container!.textContent).toContain("15 / 180");
   });
 
-  it("붙여넣은 한 줄 텍스트가 자동 줄바꿈으로 부모 내부 높이를 넘지 않게 제한한다", async () => {
+  it("붙여넣은 한 줄 텍스트는 부모 높이와 무관하게 180자까지 반영한다", async () => {
     await render();
     const field = messageField();
-    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
-    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
-    field.style.lineHeight = "20px";
-    Object.defineProperty(field, "scrollHeight", {
-      configurable: true,
-      get: () => Math.max(field.clientHeight, Math.ceil(field.value.length / 10) * 20),
-    });
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
       value: { getData: () => "1".repeat(50) },
@@ -427,23 +363,13 @@ describe("ChristmasCardForm", () => {
 
     await act(async () => field.dispatchEvent(pasteEvent));
 
-    expect(field.value).toBe("1".repeat(40));
-    expect(container!.textContent).toContain("40 / 180");
+    expect(field.value).toBe("1".repeat(50));
+    expect(container!.textContent).toContain("50 / 180");
   });
 
-  it("붙여넣기 제한 시 붙여넣기 전 수동 줄바꿈은 유지한다", async () => {
+  it("수동 줄바꿈 뒤 붙여넣어도 앞 내용을 유지한다", async () => {
     await render();
     const field = messageField();
-    Object.defineProperty(field.parentElement!, "clientHeight", { configurable: true, value: 80 });
-    Object.defineProperty(field, "clientHeight", { configurable: true, value: 80 });
-    field.style.lineHeight = "20px";
-    Object.defineProperty(field, "scrollHeight", {
-      configurable: true,
-      get: () =>
-        field.value
-          .split("\n")
-          .reduce((rows, line) => rows + Math.max(1, Math.ceil(line.length / 10)), 0) * 20,
-    });
     await setMessage("1\n1\n");
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
@@ -452,7 +378,7 @@ describe("ChristmasCardForm", () => {
 
     await act(async () => field.dispatchEvent(pasteEvent));
 
-    expect(field.value).toBe("1\n1\n12345678901234567890");
+    expect(field.value).toBe("1\n1\n123456789012345678901234567890");
   });
 
   it("로그인 닉네임을 수정 가능한 기본값으로 표시하고 글자 수와 한 개의 카드 템플릿을 제공한다", async () => {
@@ -470,7 +396,7 @@ describe("ChristmasCardForm", () => {
     expect(messageField().maxLength).toBe(-1);
     expect(container!.textContent).toContain("0 / 180");
     expect(container!.querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
-      "메시지 제한: 180자 · 최대 6줄",
+      "메시지 제한: 180자",
     );
     expect(
       container!.querySelector('label[for="christmas-card-message"]')?.parentElement?.className,
@@ -496,12 +422,15 @@ describe("ChristmasCardForm", () => {
     expect(messageField().className.split(" ")).toContain("text-center");
     expect(messageField().className).not.toContain("min-[641px]:text-left");
     expect(messageField().className).toContain("text-sm");
-    expect(messageField().className).not.toContain("text-xs");
+    expect(messageField().className.split(" ")).not.toContain("text-xs");
     expect(messageField().className).toContain("sm:text-base");
     expect(messageField().className).toContain("md:text-lg");
     expect(messageField().className).toContain("lg:text-xl");
     expect(messageField().className).not.toContain("lg:text-2xl");
     expect(messageField().className).toContain("max-[920px]:text-sm");
+    expect(messageField().className).toContain(
+      "[@media(min-width:500px)_and_(max-width:540px)]:!text-[0.84375rem]",
+    );
     expect(messageField().className).toContain("max-[920px]:leading-5");
     expect(messageField().className).toContain("leading-5");
     expect(messageField().className).toContain("sm:leading-6");
@@ -530,6 +459,9 @@ describe("ChristmasCardForm", () => {
     );
     expect(messageField().parentElement?.className).toContain(
       "h-[calc(var(--card-message-lines)*1lh_+_18px)]",
+    );
+    expect(messageField().parentElement?.className).toContain(
+      "[@media(min-width:500px)_and_(max-width:540px)]:h-[calc(var(--card-message-lines)*1lh_+_22px)]",
     );
     expect(messageField().parentElement?.className).toContain(
       "sm:h-[calc(var(--card-message-lines)*1lh_+_42px)]",

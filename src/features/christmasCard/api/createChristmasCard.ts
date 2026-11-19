@@ -1,19 +1,11 @@
 import { ensureAnonymousSession } from "@/shared/lib/auth/ensureAnonymousSession";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { ChristmasCard } from "../model/christmasCard";
 import {
   CHRISTMAS_CARD_NICKNAME_MAX_LENGTH,
   validateChristmasCardMessage,
 } from "../model/christmasCardMessage";
-
-interface ChristmasCard {
-  id: number;
-  created_at: string;
-  nickname: string;
-  content: string;
-  event_type: "christmas" | "newyear";
-  user_id: string;
-}
 
 export async function createChristmasCard(
   supabase: SupabaseClient,

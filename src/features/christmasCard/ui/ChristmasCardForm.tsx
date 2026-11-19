@@ -7,16 +7,17 @@ import {
 } from "@/features/christmasCard/model/christmasCardMessage";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
-import { ArrowLeft, List, Send, X } from "lucide-react";
+import { List, Send } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import type { ChristmasCard } from "../model/christmasCard";
 import { ChristmasCardFace } from "./ChristmasCardFace";
 
 interface ChristmasCardFormProps {
   nickname: string;
-  onSubmit?: (nickname: string, message: string) => Promise<void>;
+  onSubmit?: (nickname: string, message: string) => Promise<void | ChristmasCard>;
   onViewList: () => void;
   onBack: () => void;
   onClose: () => void;
@@ -33,6 +34,9 @@ export function ChristmasCardForm({
 }: ChristmasCardFormProps) {
   const [nickname, setNickname] = useState(initialNickname);
   const [message, setMessage] = useState("");
+  const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
+  const [isComposing, setIsComposing] = useState(false);
+  const composing = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [isComplete, setIsComplete] = useState(false);
@@ -51,11 +55,12 @@ export function ChristmasCardForm({
     normalizedNickname.length > 0 &&
     normalizedNickname.length <= CHRISTMAS_CARD_NICKNAME_MAX_LENGTH &&
     isValid &&
+    !isComposing &&
     !isSubmitting;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || !onSubmit || submitLock.current) return;
+    if (composing.current || !canSubmit || !onSubmit || submitLock.current) return;
 
     submitLock.current = true;
     setIsSubmitting(true);
@@ -80,14 +85,19 @@ export function ChristmasCardForm({
         </p>
         <div className="flex justify-between gap-2">
           <Button
-            className="cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
+            className="font-display w-24 cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
             onClick={onViewList}
             type="button"
           >
             <List aria-hidden="true" /> 목록 보기
           </Button>
-          <Button className="cursor-pointer" onClick={onClose} type="button" variant="outline">
-            <X aria-hidden="true" /> 닫기
+          <Button
+            className="font-display w-24 cursor-pointer"
+            onClick={onClose}
+            type="button"
+            variant="outline"
+          >
+            닫기
           </Button>
         </div>
       </div>
@@ -100,6 +110,11 @@ export function ChristmasCardForm({
         editable
         inputId="christmas-card-message"
         message={message}
+        onCompositionDraftChange={setCompositionDraft}
+        onComposingChange={(value) => {
+          composing.current = value;
+          setIsComposing(value);
+        }}
         onMessageChange={setMessage}
       />
       <div className="flex shrink-0 flex-col gap-1">
@@ -122,10 +137,10 @@ export function ChristmasCardForm({
       </div>
       <div className="flex shrink-0 items-center justify-between text-xs text-[#63322d]">
         <label className="font-medium" htmlFor="christmas-card-message">
-          메시지 개수
+          메시지 제한: 180자
         </label>
         <p>
-          {message.length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
+          {(compositionDraft ?? message).length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
         </p>
       </div>
       {!onSubmit ? (
@@ -136,16 +151,27 @@ export function ChristmasCardForm({
           {error}
         </p>
       ) : null}
-      <div className="flex shrink-0 justify-between gap-2">
-        <Button className="cursor-pointer" onClick={onBack} type="button" variant="outline">
-          <ArrowLeft aria-hidden="true" /> 돌아가기
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:justify-between">
+        <Button
+          className="font-display w-full cursor-pointer px-2 sm:w-32"
+          onClick={onBack}
+          type="button"
+          variant="outline"
+        >
+          <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+            <List aria-hidden="true" />
+            <span>목록 보기</span>
+          </span>
         </Button>
         <Button
-          className="cursor-pointer bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
+          className="font-display w-full cursor-pointer bg-[#f1c6bd] px-2 text-[#63322d] hover:bg-[#e8b2a8] sm:w-32"
           disabled={!canSubmit}
           type="submit"
         >
-          <Send aria-hidden="true" /> {isSubmitting ? "보내는 중" : "카드 남기기"}
+          <span className="flex w-full items-center justify-center gap-2 sm:justify-evenly">
+            <Send aria-hidden="true" />
+            <span>{isSubmitting ? "보내는 중" : "카드 남기기"}</span>
+          </span>
         </Button>
       </div>
     </form>

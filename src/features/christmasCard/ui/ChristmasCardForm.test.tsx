@@ -60,11 +60,11 @@ const messageField = () =>
   container!.querySelector<HTMLTextAreaElement>("#christmas-card-message")!;
 const submitButton = () => form().querySelector<HTMLButtonElement>('button[type="submit"]')!;
 
-async function setMessage(value: string) {
+async function setMessage(value: string, inputType = "") {
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
     setter.call(messageField(), value);
-    messageField().dispatchEvent(new Event("input", { bubbles: true }));
+    messageField().dispatchEvent(new InputEvent("input", { bubbles: true, inputType }));
   });
 }
 
@@ -138,8 +138,9 @@ describe("ChristmasCardForm", () => {
     await render();
 
     expect(form().querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
-      "메시지 제한: 180자",
+      "메시지 제한: 최대 180자 · 최대 7줄",
     );
+    expect(container!.textContent).toContain("0 / 180자");
 
     const listButton = Array.from(form().querySelectorAll("button")).find((button) =>
       button.textContent?.includes("목록 보기"),
@@ -159,8 +160,9 @@ describe("ChristmasCardForm", () => {
     );
     expect(placeholder?.className).toContain("items-start");
     expect(placeholder?.className).toContain("justify-center");
+    expect(placeholder?.className).toContain("max-[501px]:!text-[0.8125rem]");
     expect(placeholder?.className.split(" ")).toContain(
-      "[@media(min-width:500px)_and_(max-width:540px)]:!text-[0.84375rem]",
+      "[@media(min-width:501px)_and_(max-width:540px)]:!text-[0.84375rem]",
     );
     expect(placeholder?.className.split(" ")).toContain(
       "[@media(min-width:541px)_and_(max-width:711px)]:!text-[0.875rem]",
@@ -168,8 +170,9 @@ describe("ChristmasCardForm", () => {
     expect(placeholder?.className.split(" ")).toContain(
       "[@media(min-width:712px)_and_(max-width:920px)]:!text-[1rem]",
     );
+    expect(messageField().className.split(" ")).toContain("max-[501px]:!text-[0.8125rem]");
     expect(messageField().className.split(" ")).toContain(
-      "[@media(min-width:500px)_and_(max-width:540px)]:!text-[0.84375rem]",
+      "[@media(min-width:501px)_and_(max-width:540px)]:!text-[0.84375rem]",
     );
     expect(messageField().className.split(" ")).toContain(
       "[@media(min-width:541px)_and_(max-width:711px)]:!text-[0.875rem]",
@@ -193,22 +196,201 @@ describe("ChristmasCardForm", () => {
     expect(field.style.paddingTop).toBe("");
   });
 
-  it("화면 높이와 무관하게 6줄을 넘는 직접 입력을 허용한다", async () => {
+  it("7줄까지 허용하고 8번째 줄을 만드는 입력은 이전 값으로 복원한다", async () => {
     await render();
     const sevenLines = Array(7).fill("내용").join("\n");
     await setMessage(sevenLines);
     expect(messageField().value).toBe(sevenLines);
+
+    await setMessage(`${sevenLines}\n내용`);
+    expect(messageField().value).toBe(sevenLines);
+    expect(container!.textContent).toContain("좁은 화면에서도 읽을 수 있도록 최대 7줄로 제한해요.");
   });
 
-  it("붙여넣기는 줄 수가 아니라 180자 제한만 적용한다", async () => {
+  it("세 줄 문자열은 명시적 줄바꿈도 문자 수에 포함한다", async () => {
+    await render();
+    await setMessage("ㅎ\nㅎ\nㅎ");
+
+    expect(container!.textContent).toContain("5 / 180자");
+    expect(container!.textContent).not.toContain("현재 3 / 7줄");
+  });
+
+  it("7행에 한 글자씩 입력하면 원문 문자 수만 표시하고 행 제한을 안내한다", async () => {
+    await render();
+    await setMessage(Array(7).fill("ㅎ").join("\n"));
+
+    expect(container!.textContent).toContain("13 / 180자");
+    expect(container!.textContent).not.toContain("현재 7 / 7줄");
+    expect(container!.textContent).toContain("좁은 화면에서도 읽을 수 있도록 최대 7줄로 제한해요.");
+  });
+
+  it("넓은 화면에서는 현재 줄 수를 표시하면서 좁은 화면 기준 제한은 유지한다", async () => {
+    const candidate = "ㅎ".repeat(150);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(140);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (!(this instanceof HTMLTextAreaElement) || this.value !== candidate) return 140;
+      return this.style.width.startsWith("calc(") ? 140 : 80;
+    });
+
+    await render();
+    await setMessage(candidate);
+
+    expect(messageField().value).toBe(candidate);
+    expect(container!.textContent).toContain("150 / 180자");
+    expect(container!.textContent).not.toContain("현재 4 / 7줄");
+    expect(container!.textContent).not.toContain(
+      "좁은 화면에서도 읽을 수 있도록 최대 7줄로 제한해요.",
+    );
+  });
+
+  it("실제 줄바꿈을 포함한 180자는 허용하고 181자는 거절한다", async () => {
+    await render();
+    const original = `${"a".repeat(59)}\n${"b".repeat(59)}\n${"c".repeat(60)}`;
+    await setMessage(original);
+    messageField().setSelectionRange(original.length, original.length);
+
+    await typeText("c");
+
+    expect(messageField().value).toBe(original);
+    expect(container!.textContent).toContain("180 / 180자");
+  });
+
+  it("붙여넣기에서 줄 전환을 추가 계산하지 않고 입력 문자열 길이만 센다", async () => {
+    await render();
+    const field = messageField();
+    const pastedText = `${"a".repeat(59)}\n${"b".repeat(59)}\n${"c".repeat(59)}`;
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => pastedText },
+    });
+
+    await act(async () => field.dispatchEvent(pasteEvent));
+
+    expect(field.value).toBe(pastedText);
+    expect(container!.textContent).toContain("179 / 180자");
+  });
+
+  it.each(["직접 입력", "붙여넣기", "조합 확정"])(
+    "자동 줄바꿈이 8행이 되는 후보(%s)는 7행 원문과 커서를 유지한다",
+    async (method) => {
+      // jsdom에 없는 브라우저 레이아웃 측정값만 모의한다.
+      const original = `ㅎ\nㅎ\nㅎ\n${"ㅎ".repeat(108)}`;
+      const candidate = `${original}ㅎ`;
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(140);
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return this instanceof HTMLTextAreaElement && this.value === candidate ? 160 : 140;
+      });
+
+      await render();
+      await setMessage(original);
+      const field = messageField();
+      field.setSelectionRange(original.length, original.length);
+      if (method === "직접 입력") {
+        await typeText("ㅎ");
+      } else if (method === "붙여넣기") {
+        const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+        Object.defineProperty(pasteEvent, "clipboardData", { value: { getData: () => "ㅎ" } });
+        await act(async () => field.dispatchEvent(pasteEvent));
+      } else {
+        await compose("compositionstart");
+        await setMessage(candidate);
+        await compose("compositionend", "ㅎ");
+        await setMessage(candidate);
+      }
+
+      expect(field.value).toBe(original);
+      expect(field.selectionStart).toBe(original.length);
+      expect(field.selectionEnd).toBe(original.length);
+      expect(container!.textContent).toContain("114 / 180자");
+      expect(container!.textContent).not.toContain("/ 7줄");
+      expect(container!.textContent).toContain(
+        "좁은 화면에서도 읽을 수 있도록 최대 7줄로 제한해요.",
+      );
+    },
+  );
+
+  it("8줄 붙여넣기는 7줄까지만 반영하고 잘린 사실을 안내한다", async () => {
     await render();
     const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, "clipboardData", {
-      value: { getData: () => Array(8).fill("가가가").join("\n") + "x".repeat(180) },
+      value: { getData: () => Array(8).fill("가가가").join("\n") },
     });
     await act(async () => messageField().dispatchEvent(pasteEvent));
 
-    expect(messageField().value).toHaveLength(180);
+    expect(messageField().value).toBe(Array(7).fill("가가가").join("\n"));
+    expect(container!.textContent).toContain("일부 내용만 붙여넣었어요.");
+    expect(container!.textContent).toContain("27 / 180자");
+  });
+
+  it("180자를 초과한 붙여넣기는 허용 범위까지만 반영하고 안내한다", async () => {
+    await render();
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: { getData: () => "1".repeat(200) },
+    });
+    await act(async () => messageField().dispatchEvent(pasteEvent));
+
+    expect(messageField().value).toBe("1".repeat(180));
+    expect(container!.textContent).toContain("180 / 180자");
+    expect(container!.textContent).toContain("제한에 맞춰 일부 내용만 붙여넣었어요.");
+  });
+
+  it("520px에서 sm 기준이 적용되면 최소 폭 측정에도 같은 입력 패딩을 사용한다", async () => {
+    const candidate = `가\n나\n다\n라\n마\n바\n${"W".repeat(35)}`;
+    // 1024px짜리 jsdom에서 기본 글꼴 12px로 계산한 520px의 반응형 조건이다.
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (media) =>
+        ({
+          matches: media.startsWith("(min-width: 78.76"),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(140);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this instanceof HTMLTextAreaElement &&
+        this.value === candidate &&
+        this.style.paddingInline === "0.375rem"
+        ? 160
+        : 140;
+    });
+    await render();
+    await setMessage("이전 문장");
+    await setMessage(candidate);
+    expect(messageField().value).toBe("이전 문장");
+  });
+
+  it("좁아진 폭에서 기존 초안이 넘치면 저장하지 않고 한 글자씩 줄일 수 있다", async () => {
+    let narrowed = false;
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const original = "W".repeat(160);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(140);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return narrowed && this instanceof HTMLTextAreaElement && this.value.length >= 159
+        ? 160
+        : 140;
+    });
+    await render({ onSubmit });
+    await setMessage(original);
+    narrowed = true;
+    await submit();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(messageField().value).toBe(original);
+
+    await setMessage(original.slice(0, -1), "deleteContentBackward");
+    expect(messageField().value).toHaveLength(159);
+    await setMessage(original.slice(0, -2), "deleteContentBackward");
+    expect(messageField().value).toHaveLength(158);
+    await submit();
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("눈사람", original.slice(0, -2));
   });
 
   it("179자에서 조합 중 181자가 되어도 자르지 않고 완료된 180자만 제출한다", async () => {
@@ -264,6 +446,7 @@ describe("ChristmasCardForm", () => {
     expect(messageField().value).toBe(original);
     expect(messageField().selectionStart).toBe(179);
     expect(container!.textContent).toContain("180 / 180");
+    expect(container!.textContent).toContain("최대 180자까지 작성할 수 있어요.");
     await setMessage(`${"가".repeat(179)}한끝`);
     expect(messageField().value).toBe(original);
     expect(messageField().selectionStart).toBe(179);
@@ -280,16 +463,14 @@ describe("ChristmasCardForm", () => {
     expect(container!.textContent).toContain("180 / 180");
   });
 
-  it("조합 종료 시 180자 미만이면 줄 수와 무관하게 메시지를 반영한다", async () => {
+  it("조합 종료 시 8번째 수동 줄은 거절하고 이전 메시지를 유지한다", async () => {
     await render();
-    const original = Array(8).fill("가".repeat(20)).join("\n");
-    expect(original).toHaveLength(167);
+    const original = Array(7).fill("가".repeat(20)).join("\n");
     await setMessage(original);
     await compose("compositionstart");
     await setMessage(`${original}\n한`);
-    expect(messageField().value).toHaveLength(169);
     await compose("compositionend", "한");
-    expect(messageField().value).toBe(`${original}\n한`);
+    expect(messageField().value).toBe(original);
   });
 
   it.each(["가", "i"])("일반 %s 입력도 180자는 허용하고 181자는 남기지 않는다", async (letter) => {
@@ -320,7 +501,7 @@ describe("ChristmasCardForm", () => {
     expect(container!.textContent).toContain("180 / 180");
   });
 
-  it("179자에서 조합 완료값이 180자면 줄 수와 무관하게 반영한다", async () => {
+  it("7행에 들어가는 조합 완료값은 180자까지 반영한다", async () => {
     await render();
     const prefix = "가".repeat(179);
     await setMessage(prefix);
@@ -403,7 +584,7 @@ describe("ChristmasCardForm", () => {
     await act(async () => field.dispatchEvent(pasteEvent));
 
     expect(field.value).toBe("첫째\n둘째\n셋째\n넷째\n다섯째");
-    expect(container!.textContent).toContain("15 / 180");
+    expect(container!.textContent).toContain("15 / 180자");
   });
 
   it("붙여넣은 한 줄 텍스트는 부모 높이와 무관하게 180자까지 반영한다", async () => {
@@ -449,7 +630,7 @@ describe("ChristmasCardForm", () => {
     expect(messageField().maxLength).toBe(-1);
     expect(container!.textContent).toContain("0 / 180");
     expect(container!.querySelector('label[for="christmas-card-message"]')?.textContent).toBe(
-      "메시지 제한: 180자",
+      "메시지 제한: 최대 180자 · 최대 7줄",
     );
     expect(
       container!.querySelector('label[for="christmas-card-message"]')?.parentElement?.className,
@@ -481,8 +662,9 @@ describe("ChristmasCardForm", () => {
     expect(messageField().className).toContain("lg:text-xl");
     expect(messageField().className).not.toContain("lg:text-2xl");
     expect(messageField().className).toContain("max-[920px]:text-sm");
+    expect(messageField().className).toContain("max-[501px]:!text-[0.8125rem]");
     expect(messageField().className).toContain(
-      "[@media(min-width:500px)_and_(max-width:540px)]:!text-[0.84375rem]",
+      "[@media(min-width:501px)_and_(max-width:540px)]:!text-[0.84375rem]",
     );
     expect(messageField().className).toContain("max-[920px]:leading-5");
     expect(messageField().className).toContain("leading-5");
@@ -493,7 +675,7 @@ describe("ChristmasCardForm", () => {
     expect(messageField().className).not.toContain("overflow-y-auto");
     expect(messageField().className).toContain("field-sizing-fixed");
     expect(messageField().className.split(" ")).toContain("h-full");
-    expect(messageField().className).toContain("max-h-full");
+    expect(messageField().className).toContain("max-h-[calc(var(--card-message-lines)*1lh)]");
     expect(messageField().className).not.toContain("min-[921px]:h-full");
     expect(messageField().className).not.toContain("size-full");
     expect(messageField().parentElement?.className).toContain("christmas-card-message-focus");
@@ -523,7 +705,7 @@ describe("ChristmasCardForm", () => {
       "lg:h-[calc(var(--card-message-lines)*1lh_+_50px)]",
     );
     expect(messageField().parentElement?.getAttribute("style")).toContain(
-      "--card-message-lines: 6",
+      "--card-message-lines: 7",
     );
     expect(messageField().parentElement?.className).toContain("min-[921px]:top-[28%]");
     expect(messageField().parentElement?.className).not.toContain("bottom-[0.5lh]");

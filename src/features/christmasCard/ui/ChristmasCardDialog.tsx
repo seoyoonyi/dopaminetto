@@ -148,7 +148,7 @@ export function ChristmasCardDialog({
       </DialogFooter>
     ) : isFormScreen ? (
       <div
-        className="christmas-card-scrollbar flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto p-3"
+        className={`christmas-card-scrollbar flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto p-3 ${screen === "writing" ? "[scrollbar-gutter:stable]" : ""}`}
         data-card-writing-content
         key="writing"
       >
@@ -174,7 +174,7 @@ export function ChristmasCardDialog({
       </div>
     ) : screen === "detail" && selectedCard ? (
       <div
-        className="christmas-card-scrollbar flex min-h-0 flex-col gap-3 overflow-y-auto p-6 sm:gap-4"
+        className="christmas-card-scrollbar flex min-h-0 flex-col gap-3 overflow-y-auto p-6 [scrollbar-gutter:stable] sm:gap-4"
         key="detail"
       >
         <div className="shrink-0">

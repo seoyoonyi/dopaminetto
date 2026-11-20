@@ -2,6 +2,7 @@
 
 import {
   CHRISTMAS_CARD_MESSAGE_MAX_LENGTH,
+  CHRISTMAS_CARD_MESSAGE_MAX_LINES,
   CHRISTMAS_CARD_NICKNAME_MAX_LENGTH,
   validateChristmasCardMessage,
 } from "@/features/christmasCard/model/christmasCardMessage";
@@ -13,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type { ChristmasCard } from "../model/christmasCard";
-import { ChristmasCardFace } from "./ChristmasCardFace";
+import { ChristmasCardFace, measureChristmasCardMessage } from "./ChristmasCardFace";
 
 interface ChristmasCardFormProps {
   nickname: string;
@@ -34,7 +35,10 @@ export function ChristmasCardForm({
 }: ChristmasCardFormProps) {
   const [nickname, setNickname] = useState(initialNickname);
   const [message, setMessage] = useState("");
-  const [compositionDraft, setCompositionDraft] = useState<string | null>(null);
+  const [messageCount, setMessageCount] = useState(0);
+  const [messageLineCount, setMessageLineCount] = useState(1);
+  const [messageExceedsLimits, setMessageExceedsLimits] = useState(false);
+  const [limitFeedback, setLimitFeedback] = useState<"characters" | "lines" | "paste" | null>(null);
   const [isComposing, setIsComposing] = useState(false);
   const composing = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,12 +59,22 @@ export function ChristmasCardForm({
     normalizedNickname.length > 0 &&
     normalizedNickname.length <= CHRISTMAS_CARD_NICKNAME_MAX_LENGTH &&
     isValid &&
+    !messageExceedsLimits &&
     !isComposing &&
     !isSubmitting;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (composing.current || !canSubmit || !onSubmit || submitLock.current) return;
+
+    const field = event.currentTarget.elements.namedItem("christmas-card-message");
+    if (
+      field instanceof HTMLTextAreaElement &&
+      measureChristmasCardMessage(field, message).exceedsLimits
+    ) {
+      setError("카드 안에 들어가도록 메시지를 줄여 주세요.");
+      return;
+    }
 
     submitLock.current = true;
     setIsSubmitting(true);
@@ -110,12 +124,20 @@ export function ChristmasCardForm({
         editable
         inputId="christmas-card-message"
         message={message}
-        onCompositionDraftChange={setCompositionDraft}
+        onMessageCountChange={(count, lineCount, exceedsLimits) => {
+          setMessageCount(count);
+          setMessageLineCount(lineCount);
+          setMessageExceedsLimits(exceedsLimits);
+        }}
+        onLimitFeedbackChange={setLimitFeedback}
         onComposingChange={(value) => {
           composing.current = value;
           setIsComposing(value);
         }}
-        onMessageChange={setMessage}
+        onMessageChange={(value) => {
+          setMessage(value);
+          setLimitFeedback(null);
+        }}
       />
       <div className="flex shrink-0 flex-col gap-1">
         <div className="flex items-center gap-1 border-b border-[#c8a88b] px-1 py-1 text-sm text-[#63322d]">
@@ -135,14 +157,30 @@ export function ChristmasCardForm({
           <p className="text-xs text-destructive">닉네임을 입력해 주세요.</p>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center justify-between text-xs text-[#63322d]">
+      <div className="flex shrink-0 items-center justify-between gap-2 text-xs text-[#63322d]">
         <label className="font-medium" htmlFor="christmas-card-message">
-          메시지 제한: 180자
+          메시지 제한: 최대 {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}자 · 최대{" "}
+          {CHRISTMAS_CARD_MESSAGE_MAX_LINES}줄
         </label>
-        <p>
-          {(compositionDraft ?? message).length} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}
+        <p className="shrink-0 tabular-nums">
+          {messageCount} / {CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}자
         </p>
       </div>
+      <p
+        aria-live="polite"
+        className={`-mt-2 min-h-4 text-xs text-[#a14c3c] transition-opacity duration-200 ${limitFeedback || messageLineCount >= CHRISTMAS_CARD_MESSAGE_MAX_LINES ? "opacity-100" : "opacity-0"}`}
+        role="status"
+      >
+        {limitFeedback === "paste"
+          ? "제한에 맞춰 일부 내용만 붙여넣었어요."
+          : limitFeedback === "characters"
+            ? `최대 ${CHRISTMAS_CARD_MESSAGE_MAX_LENGTH}자까지 작성할 수 있어요.`
+            : limitFeedback === "lines" ||
+                messageExceedsLimits ||
+                messageLineCount >= CHRISTMAS_CARD_MESSAGE_MAX_LINES
+              ? `좁은 화면에서도 읽을 수 있도록 최대 ${CHRISTMAS_CARD_MESSAGE_MAX_LINES}줄로 제한해요.`
+              : ""}
+      </p>
       {!onSubmit ? (
         <p className="shrink-0 text-xs text-muted-foreground">카드 저장 기능은 준비 중이에요.</p>
       ) : null}

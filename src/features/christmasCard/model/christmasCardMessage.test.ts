@@ -24,6 +24,19 @@ describe("validateChristmasCardMessage", () => {
     expect(validateChristmasCardMessage("가".repeat(181)).isValid).toBe(false);
   });
 
+  it("공백과 직접 입력한 줄바꿈만 각각 실제 문자열 길이에 포함한다", () => {
+    const message = `${"a".repeat(89)}\n${"b".repeat(90)}`;
+
+    expect(message.length).toBe(180);
+    expect(validateChristmasCardMessage(message).isValid).toBe(true);
+    expect(validateChristmasCardMessage(`${message}c`).isValid).toBe(false);
+  });
+
+  it("수동 줄바꿈은 7줄까지 허용하고 8줄은 거부한다", () => {
+    expect(validateChristmasCardMessage(Array(7).fill("내용").join("\n")).isValid).toBe(true);
+    expect(validateChristmasCardMessage(Array(8).fill("내용").join("\n")).isValid).toBe(false);
+  });
+
   it("이모지는 JavaScript 문자열 길이 기준으로 계산한다", () => {
     expect(validateChristmasCardMessage("🎄".repeat(90)).isValid).toBe(true);
     expect(validateChristmasCardMessage("🎄".repeat(91)).isValid).toBe(false);

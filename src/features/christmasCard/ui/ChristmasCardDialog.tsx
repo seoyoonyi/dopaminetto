@@ -15,6 +15,8 @@ import { ArrowLeft, List, Pencil, TreePine, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
 
+import Image from "next/image";
+
 import { useCardMenuPosition } from "../hooks/useCardMenuPosition";
 import type { ChristmasCard, ChristmasCardPage } from "../model/christmasCard";
 import { ChristmasCardFace } from "./ChristmasCardFace";
@@ -78,12 +80,8 @@ export function ChristmasCardDialog({
     if (!nextOpen) closeDialog();
     else onOpenChange(true);
   };
-  const dialogHeader = (
-    <DialogHeader
-      className={`relative min-h-10 shrink-0 justify-center bg-[#b8ccda] px-3 pr-10 text-left ${
-        isFullScreen ? "w-full px-5 py-4" : ""
-      }`}
-    >
+  const dialogHeader = isFullScreen ? (
+    <DialogHeader className="relative min-h-10 w-full shrink-0 justify-center bg-[#b8ccda] px-5 py-4 text-left">
       <DialogTitle className="font-display flex items-center gap-2 text-sm font-semibold">
         <TreePine
           aria-hidden="true"
@@ -107,45 +105,59 @@ export function ChristmasCardDialog({
               ? "크리스마스 카드 목록을 확인하세요."
               : "방명록 메뉴를 선택하세요."}
       </DialogDescription>
-      {isFullScreen ? (
-        <DialogClose asChild>
-          <Button
-            aria-label="닫기"
-            className="absolute top-2 right-2 cursor-pointer"
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <X aria-hidden="true" />
-          </Button>
-        </DialogClose>
-      ) : null}
+      <DialogClose asChild>
+        <Button
+          aria-label="닫기"
+          className="absolute top-2 right-2 cursor-pointer"
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <X aria-hidden="true" />
+        </Button>
+      </DialogClose>
+    </DialogHeader>
+  ) : (
+    <DialogHeader className="shrink-0 items-center gap-1.5 px-10 pt-6 sm:text-center">
+      <DialogTitle className="font-display text-lg font-bold text-[#63322d]">
+        크리스마스 카드
+      </DialogTitle>
+      <DialogDescription className="text-xs leading-relaxed text-[#63322d]/80">
+        함께한 한 해의 추억을 카드에 남겨보세요.
+      </DialogDescription>
     </DialogHeader>
   );
 
   const screenContent =
     screen === "menu" ? (
-      <DialogFooter
-        className="font-display flex flex-col gap-1 p-2 sm:flex-col sm:items-stretch sm:justify-start"
-        key="menu"
-      >
-        <Button
-          className="h-9 w-full cursor-pointer justify-start bg-[#f1c6bd] text-[#63322d] hover:bg-[#e8b2a8]"
-          data-primary="true"
-          onClick={() => setScreen("writing")}
-          type="button"
-        >
-          <Pencil aria-hidden="true" /> 카드 작성하기
-        </Button>
-        <Button
-          className="h-9 w-full cursor-pointer justify-start border-[#bfd0dd] bg-white text-slate-700 hover:bg-[#f5f9fc]"
-          onClick={handleViewList}
-          type="button"
-          variant="outline"
-        >
-          <List aria-hidden="true" /> 목록 보기
-        </Button>
-      </DialogFooter>
+      <div className="flex flex-col items-center gap-4 px-5 pb-5" key="menu">
+        {/* ponytail: 게임 맵 트리 스프라이트를 임시로 재사용하고, 팝업 전용 일러스트가 준비되면 src만 교체한다 */}
+        <Image
+          alt=""
+          className="h-32 max-h-[25dvh] w-auto"
+          height={377}
+          src="/assets/images/christmas-tree-base.png"
+          width={320}
+        />
+        <DialogFooter className="font-display w-full flex-row flex-wrap gap-2 sm:justify-center">
+          <Button
+            className="h-10 min-w-28 flex-1 cursor-pointer bg-[#b73a30] text-white shadow-sm hover:bg-[#9c2f27]"
+            data-primary="true"
+            onClick={() => setScreen("writing")}
+            type="button"
+          >
+            <Pencil aria-hidden="true" /> 작성하기
+          </Button>
+          <Button
+            className="h-10 min-w-28 flex-1 cursor-pointer border-[#63322d] bg-[#fff8ed] text-[#63322d] hover:bg-[#f6e8d4] hover:text-[#63322d]"
+            onClick={handleViewList}
+            type="button"
+            variant="outline"
+          >
+            <List aria-hidden="true" /> 목록 보기
+          </Button>
+        </DialogFooter>
+      </div>
     ) : isFormScreen ? (
       <div
         className={`christmas-card-scrollbar flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto p-3 ${screen === "writing" ? "[scrollbar-gutter:stable]" : ""}`}
@@ -261,7 +273,7 @@ export function ChristmasCardDialog({
         className={`${
           isFullScreen
             ? "!top-0 !left-0 !h-dvh !max-h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !gap-0 !overflow-visible !rounded-none !border-0 !bg-transparent !p-0 !shadow-none !pointer-events-none sm:!max-w-none"
-            : "z-40 w-48 gap-2 overflow-hidden border-[#aabfce] bg-[var(--winter-town-canvas-background)] p-0 shadow-md sm:max-w-48"
+            : "z-40 w-72 gap-4 overflow-hidden rounded-2xl border-2 border-[#63322d] bg-[#fff8ed] p-0 shadow-lg sm:max-w-72 [&_[data-slot=dialog-close]]:text-[#63322d]"
         } text-slate-800 [&_[data-slot=dialog-close]]:top-1 [&_[data-slot=dialog-close]]:right-1 [&_[data-slot=dialog-close]]:p-1 ${
           !isFullScreen
             ? `translate-x-0 translate-y-0 overflow-y-auto transition-none ${menuLayout.ready ? "" : "!animate-none"}`

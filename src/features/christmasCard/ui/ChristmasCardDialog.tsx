@@ -131,13 +131,12 @@ export function ChristmasCardDialog({
   const screenContent =
     screen === "menu" ? (
       <div className="flex flex-col items-center gap-4 px-5 pb-5" key="menu">
-        {/* ponytail: 게임 맵 트리 스프라이트를 임시로 재사용하고, 팝업 전용 일러스트가 준비되면 src만 교체한다 */}
         <Image
           alt=""
-          className="h-32 max-h-[25dvh] w-auto"
-          height={377}
-          src="/assets/images/christmas-tree-base.png"
-          width={320}
+          className="h-40 max-h-[25dvh] w-auto"
+          height={1402}
+          src="/assets/images/christmas-card-menu-tree.png"
+          width={1122}
         />
         <DialogFooter className="font-display w-full flex-row flex-wrap gap-2 sm:justify-center">
           <Button

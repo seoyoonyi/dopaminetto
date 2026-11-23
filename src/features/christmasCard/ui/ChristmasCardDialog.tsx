@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
-import { ArrowLeft, List, Pencil, TreePine, X } from "lucide-react";
+import { ArrowLeft, List, Pencil, Snowflake, Sparkle, TreePine, X } from "lucide-react";
 
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -118,11 +118,13 @@ export function ChristmasCardDialog({
       </DialogClose>
     </DialogHeader>
   ) : (
-    <DialogHeader className="shrink-0 items-center gap-1.5 px-10 pt-6 sm:text-center">
-      <DialogTitle className="font-display text-lg font-bold text-[#63322d]">
+    <DialogHeader className="shrink-0 items-center gap-2 px-12 pt-6 sm:text-center">
+      <DialogTitle className="font-display flex items-center gap-1.5 text-[19px] font-bold whitespace-nowrap text-[#5a2a14]">
+        <Snowflake aria-hidden="true" className="size-3.5 shrink-0 text-[#dda65a]" />
         크리스마스 카드
+        <Snowflake aria-hidden="true" className="size-3.5 shrink-0 text-[#dda65a]" />
       </DialogTitle>
-      <DialogDescription className="text-xs leading-relaxed text-[#63322d]/80">
+      <DialogDescription className="text-base leading-snug text-balance break-keep text-[#713b20]">
         함께한 한 해의 추억을 카드에 남겨보세요.
       </DialogDescription>
     </DialogHeader>
@@ -130,17 +132,31 @@ export function ChristmasCardDialog({
 
   const screenContent =
     screen === "menu" ? (
-      <div className="flex flex-col items-center gap-4 px-5 pb-5" key="menu">
-        <Image
-          alt=""
-          className="h-40 max-h-[25dvh] w-auto"
-          height={1402}
-          src="/assets/images/christmas-card-menu-tree.png"
-          width={1122}
-        />
+      <div className="flex flex-col items-center gap-1.5 px-5 pb-5" key="menu">
+        <div className="relative">
+          <Image
+            alt=""
+            className="h-48 max-h-[25dvh] w-auto"
+            height={1402}
+            src="/assets/images/christmas-card-menu-tree.png"
+            width={1122}
+          />
+          <Sparkle
+            aria-hidden="true"
+            className="absolute top-3 -left-7 size-3.5 fill-[#dda65a] text-[#dda65a]"
+          />
+          <Snowflake
+            aria-hidden="true"
+            className="absolute top-1/3 -right-8 size-4 text-[#e6d3b4]"
+          />
+          <Sparkle
+            aria-hidden="true"
+            className="absolute bottom-6 -left-9 size-3 fill-[#e6d3b4] text-[#e6d3b4]"
+          />
+        </div>
         <DialogFooter className="font-display w-full flex-row flex-wrap gap-2 sm:justify-center">
           <Button
-            className="h-10 min-w-28 flex-1 cursor-pointer bg-[#b73a30] text-white shadow-sm hover:bg-[#9c2f27]"
+            className="h-12 min-w-28 flex-1 cursor-pointer gap-1.5 rounded-lg font-bold border border-transparent bg-[#c62026] text-[13px] text-white shadow-xs hover:bg-[#a81b20] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-[#dda65a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fff8ee]"
             data-primary="true"
             onClick={() => setScreen("writing")}
             type="button"
@@ -148,7 +164,7 @@ export function ChristmasCardDialog({
             <Pencil aria-hidden="true" /> 작성하기
           </Button>
           <Button
-            className="h-10 min-w-28 flex-1 cursor-pointer border-[#63322d] bg-[#fff8ed] text-[#63322d] hover:bg-[#f6e8d4] hover:text-[#63322d]"
+            className="h-12 min-w-28 flex-1 cursor-pointer gap-1.5 rounded-lg font-bold border border-[#713b20] bg-[#fff8ee] text-[13px] text-[#713b20] shadow-xs hover:bg-[#f7e7cf] hover:text-[#5a2a14] focus-visible:border-[#713b20] focus-visible:ring-2 focus-visible:ring-[#dda65a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fff8ee]"
             onClick={handleViewList}
             type="button"
             variant="outline"
@@ -272,10 +288,10 @@ export function ChristmasCardDialog({
         className={`${
           isFullScreen
             ? "!top-0 !left-0 !h-dvh !max-h-dvh !w-screen !max-w-none !translate-x-0 !translate-y-0 !gap-0 !overflow-visible !rounded-none !border-0 !bg-transparent !p-0 !shadow-none !pointer-events-none sm:!max-w-none"
-            : "z-40 w-72 gap-4 overflow-hidden rounded-2xl border-2 border-[#63322d] bg-[#fff8ed] p-0 shadow-lg sm:max-w-72 [&_[data-slot=dialog-close]]:text-[#63322d]"
+            : "z-40 w-76 gap-1.5 overflow-hidden outline-none rounded-2xl border-2 border-[#713b20] bg-[#fff8ee] bg-linear-to-b from-[#fff8ee] to-[#fbefdc] p-0 shadow-lg sm:max-w-76 [&_[data-slot=dialog-close]]:text-[#713b20]"
         } text-slate-800 [&_[data-slot=dialog-close]]:top-1 [&_[data-slot=dialog-close]]:right-1 [&_[data-slot=dialog-close]]:p-1 ${
           !isFullScreen
-            ? `translate-x-0 translate-y-0 overflow-y-auto transition-none ${menuLayout.ready ? "" : "!animate-none"}`
+            ? `christmas-card-menu-scrollbar translate-x-0 translate-y-0 overflow-y-auto transition-none [&_[data-slot=dialog-close]]:top-2 [&_[data-slot=dialog-close]]:right-2 [&_[data-slot=dialog-close]]:grid [&_[data-slot=dialog-close]]:size-10 [&_[data-slot=dialog-close]]:place-items-center [&_[data-slot=dialog-close]]:p-0 [&_[data-slot=dialog-close]_svg]:!size-5 ${menuLayout.ready ? "" : "!animate-none"}`
             : ""
         } ${
           !isFullScreen
@@ -283,6 +299,12 @@ export function ChristmasCardDialog({
             : ""
         }`}
         ref={menuRef}
+        onOpenAutoFocus={(event) => {
+          // 트리 클릭 후 첫 버튼에 스크립트 포커스가 가면 :focus-visible 링이 항상 보이므로 메뉴는 컨테이너에 포커스한다.
+          if (isFullScreen) return;
+          event.preventDefault();
+          menuRef.current?.focus();
+        }}
         onKeyDownCapture={(event) => {
           if (!isFullScreen || event.key !== "Escape") return;
           event.preventDefault();

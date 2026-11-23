@@ -316,10 +316,15 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.querySelector("img")?.getAttribute("alt")).toBe("");
     expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull();
     expect(document.body.style.pointerEvents).not.toBe("none");
-    expect(dialog()?.className).toContain("bg-[#fff8ed]");
-    expect(dialog()?.className).toContain("border-[#63322d]");
+    expect(dialog()?.className).toContain("bg-[#fff8ee]");
+    expect(dialog()?.className).toContain("border-[#713b20]");
     expect(dialog()?.className).toContain("p-0");
-    expect(dialog()?.className).toContain("w-72");
+    expect(dialog()?.className).toContain("w-76");
+    expect(dialog()?.className).toContain("christmas-card-menu-scrollbar");
+    expect(dialog()?.className).toContain("[&_[data-slot=dialog-close]]:size-10");
+    expect(dialog()?.className).toContain("[&_[data-slot=dialog-close]]:p-0");
+    expect(dialog()?.className).not.toContain("[&_[data-slot=dialog-close]]:p-1");
+    expect(dialog()?.className).toContain("overflow-y-auto");
     expect(dialog()?.className).toContain("z-40");
     expect(dialog()?.className).toContain("origin-center");
     expect(dialog()?.className).toContain("transition-none");
@@ -347,8 +352,17 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.style.top).toBe("124px");
     const writeButton = dialog()?.querySelector<HTMLButtonElement>("button[data-primary='true']");
     expect(writeButton?.textContent).toContain("작성하기");
-    expect(writeButton?.className).toContain("bg-[#b73a30]");
+    expect(writeButton?.className).toContain("bg-[#c62026]");
     expect(writeButton?.className).toContain("text-white");
+    expect(document.activeElement).toBe(dialog());
+    const [, listButton] = Array.from(dialog()!.querySelectorAll("button"));
+    for (const button of [writeButton, listButton]) {
+      expect(button?.className).toContain("h-12");
+      expect(button?.className).toContain("rounded-lg");
+      expect(button?.className).toContain("focus-visible:ring-[#dda65a]");
+      expect(button?.className).not.toContain("focus-visible:ring-[3px]");
+      expect(button?.className).not.toContain("focus-visible:ring-ring/50");
+    }
     expect(writeButton?.className).toContain("cursor-pointer");
   });
 
@@ -414,6 +428,7 @@ describe("ChristmasGuestbook", () => {
     await act(async () => listButton?.click());
 
     expect(dialog()?.className).toContain("!w-screen");
+    expect(document.querySelector(".christmas-card-menu-scrollbar")).toBeNull();
     const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
     expect(overlay).not.toBeNull();
     expect(overlay?.className).toContain("bg-black/50");

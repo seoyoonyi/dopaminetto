@@ -117,6 +117,8 @@ type SceneHarness = {
     image: ReturnType<typeof vi.fn>;
     sprite: ReturnType<typeof vi.fn>;
     text: ReturnType<typeof vi.fn>;
+    graphics: ReturnType<typeof vi.fn>;
+    container: ReturnType<typeof vi.fn>;
   };
   anims: {
     create: ReturnType<typeof vi.fn>;
@@ -258,6 +260,15 @@ export function makeScene(): {
         createdImages.push(image);
         return image;
       }),
+      graphics: vi.fn(() => ({
+        fillStyle: vi.fn(),
+        lineStyle: vi.fn(),
+        fillRoundedRect: vi.fn(),
+        strokeRoundedRect: vi.fn(),
+        fillTriangle: vi.fn(),
+        lineBetween: vi.fn(),
+      })),
+      container: vi.fn((x: number, y: number) => makeDisplayObject(x, y)),
     },
     anims: {
       create: vi.fn(),

@@ -34,10 +34,9 @@ describe("ChristmasTreeEffectsController", () => {
     };
     const image = vi.fn(() => base);
     const sprite = vi.fn(() => decoration);
-    const text = vi.fn(() => createHint());
 
     new ChristmasTreeEffectsController(
-      { add: { image, sprite, text }, anims } as never,
+      { add: { image, sprite, ...createTooltipAdds() }, anims } as never,
       { id: 436, name: "christmas-tree", x: 734, y: 857 },
       1000,
     );
@@ -68,7 +67,7 @@ describe("ChristmasTreeEffectsController", () => {
         add: {
           image: vi.fn(() => createBase()),
           sprite: vi.fn(() => decoration),
-          text: vi.fn(() => createHint()),
+          ...createTooltipAdds(),
         },
         anims,
       } as never,
@@ -106,7 +105,7 @@ describe("ChristmasTreeEffectsController", () => {
         add: {
           image: vi.fn(() => createBase()),
           sprite: vi.fn(() => decoration),
-          text: vi.fn(() => createHint()),
+          ...createTooltipAdds(),
         },
         anims,
       } as never,
@@ -119,7 +118,7 @@ describe("ChristmasTreeEffectsController", () => {
     expect(decoration.play).toHaveBeenCalledWith("christmas-tree-pulse");
   });
 
-  it("트리 본체만 픽셀 기준 클릭 영역과 호버 안내를 가진다", () => {
+  it("트리 본체만 픽셀 기준 클릭 영역과 말풍선 호버 안내를 가진다", () => {
     const tree = createTreeHarness();
 
     new ChristmasTreeEffectsController(
@@ -134,12 +133,23 @@ describe("ChristmasTreeEffectsController", () => {
       cursor: "pointer",
     });
     expect(tree.hint.setVisible).toHaveBeenCalledWith(false);
+    expect(tree.hint.setDepth).toHaveBeenCalledWith(1858);
     expect(tree.scene.add.text).toHaveBeenCalledWith(
-      734,
-      492,
-      "트리를 클릭하고\n크리스마스 카드를 남겨보세요!",
-      expect.objectContaining({ fontFamily: "galmuri9", fontSize: "14px", align: "center" }),
+      0,
+      expect.any(Number),
+      "트리를 클릭하고\n❤️ 크리스마스 카드를 남겨보세요!",
+      expect.objectContaining({
+        fontFamily: "galmuri9",
+        fontSize: "13px",
+        align: "center",
+        color: "#5b3a1e",
+      }),
     );
+    // 말풍선 꼬리 끝이 기존 안내 위치(트리 상단 8px 위)에 오도록 Container를 배치한다.
+    expect(tree.scene.add.container).toHaveBeenCalledWith(734, 492, [tree.bubble, tree.label]);
+    expect(tree.bubble.fillRoundedRect).toHaveBeenCalled();
+    expect(tree.bubble.strokeRoundedRect).toHaveBeenCalled();
+    expect(tree.bubble.fillTriangle).toHaveBeenCalled();
     expect(tree.decoration.setInteractive).not.toHaveBeenCalled();
   });
 
@@ -205,11 +215,61 @@ describe("ChristmasTreeEffectsController", () => {
     expect(tree.base.destroy).toHaveBeenCalled();
     expect(tree.decoration.destroy).toHaveBeenCalled();
   });
+
+  it("호버 glow를 한 번만 만들고 over/out/down에 따라 켜고 끈다", () => {
+    const tree = createTreeHarness();
+
+    new ChristmasTreeEffectsController(
+      tree.scene as never,
+      { id: 436, name: "christmas-tree", x: 734, y: 857 },
+      1000,
+      vi.fn(),
+    );
+
+    expect(tree.preFX.setPadding).toHaveBeenCalledWith(16);
+    expect(tree.preFX.addGlow).toHaveBeenCalledWith(0xffd28a, 5);
+    expect(tree.glow.setActive).toHaveBeenLastCalledWith(false);
+
+    tree.emit("pointerover");
+    expect(tree.glow.setActive).toHaveBeenLastCalledWith(true);
+    tree.emit("pointerout");
+    expect(tree.glow.setActive).toHaveBeenLastCalledWith(false);
+
+    tree.emit("pointerover");
+    tree.emit("pointerdown", { downElement: tree.scene.game.canvas });
+    expect(tree.glow.setActive).toHaveBeenLastCalledWith(false);
+
+    expect(tree.preFX.addGlow).toHaveBeenCalledTimes(1);
+  });
+
+  it("preFX가 없는 렌더러에서도 호버 안내와 클릭이 그대로 동작한다", () => {
+    const tree = createTreeHarness({ withPreFX: false });
+    const onOpenGuestbook = vi.fn();
+
+    new ChristmasTreeEffectsController(
+      tree.scene as never,
+      { id: 436, name: "christmas-tree", x: 734, y: 857 },
+      1000,
+      onOpenGuestbook,
+    );
+
+    tree.emit("pointerover");
+    expect(tree.hint.setVisible).toHaveBeenLastCalledWith(true);
+    tree.emit("pointerdown", { downElement: tree.scene.game.canvas });
+    expect(onOpenGuestbook).toHaveBeenCalledTimes(1);
+    expect(tree.glow.setActive).not.toHaveBeenCalled();
+  });
 });
 
-function createTreeHarness() {
+function createTreeHarness({ withPreFX = true } = {}) {
   const handlers = new Map<string, (...args: unknown[]) => void>();
+  const glow = { setActive: vi.fn().mockReturnThis() };
+  const preFX = {
+    setPadding: vi.fn(),
+    addGlow: vi.fn(() => glow),
+  };
   const base = {
+    preFX: withPreFX ? preFX : null,
     setOrigin: vi.fn().mockReturnThis(),
     setDepth: vi.fn().mockReturnThis(),
     setInteractive: vi.fn().mockReturnThis(),
@@ -225,12 +285,7 @@ function createTreeHarness() {
     disableInteractive: vi.fn().mockReturnThis(),
     destroy: vi.fn(),
   };
-  const hint = {
-    setOrigin: vi.fn().mockReturnThis(),
-    setDepth: vi.fn().mockReturnThis(),
-    setVisible: vi.fn().mockReturnThis(),
-    destroy: vi.fn(),
-  };
+  const { text, graphics, container, label, bubble, hint } = createTooltipParts();
   const decoration = {
     setOrigin: vi.fn().mockReturnThis(),
     setDepth: vi.fn().mockReturnThis(),
@@ -242,7 +297,11 @@ function createTreeHarness() {
 
   return {
     base,
+    glow,
+    preFX,
     hint,
+    label,
+    bubble,
     decoration,
     input,
     emit: (event: string, ...args: unknown[]) => handlers.get(event)?.(...args),
@@ -250,7 +309,9 @@ function createTreeHarness() {
       add: {
         image: vi.fn(() => base),
         sprite: vi.fn(() => decoration),
-        text: vi.fn(() => hint),
+        text,
+        graphics,
+        container,
       },
       cameras: { main: { x: 0, y: 0, zoom: 1, worldView: { x: 100, y: 200 } } },
       game: {
@@ -269,13 +330,39 @@ function createTreeHarness() {
   };
 }
 
-function createHint() {
-  return {
+function createTooltipParts() {
+  const label = {
+    width: 220,
+    height: 38,
     setOrigin: vi.fn().mockReturnThis(),
+  };
+  const bubble = {
+    fillStyle: vi.fn().mockReturnThis(),
+    lineStyle: vi.fn().mockReturnThis(),
+    fillRoundedRect: vi.fn().mockReturnThis(),
+    strokeRoundedRect: vi.fn().mockReturnThis(),
+    fillTriangle: vi.fn().mockReturnThis(),
+    lineBetween: vi.fn().mockReturnThis(),
+  };
+  const hint = {
     setDepth: vi.fn().mockReturnThis(),
     setVisible: vi.fn().mockReturnThis(),
     destroy: vi.fn(),
   };
+
+  return {
+    label,
+    bubble,
+    hint,
+    text: vi.fn(() => label),
+    graphics: vi.fn(() => bubble),
+    container: vi.fn(() => hint),
+  };
+}
+
+function createTooltipAdds() {
+  const { text, graphics, container } = createTooltipParts();
+  return { text, graphics, container };
 }
 
 function createBase() {

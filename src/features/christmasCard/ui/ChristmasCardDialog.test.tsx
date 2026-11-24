@@ -312,12 +312,19 @@ describe("ChristmasGuestbook", () => {
     act(() => useGuestbookDialogStore.getState().setOpen(true, { x: 501, y: 301 }));
 
     expect(dialog()?.textContent).toContain("크리스마스 카드");
-    expect(dialog()?.querySelector("img")).toBeNull();
+    expect(dialog()?.textContent).toContain("함께한 한 해의 추억을 카드에 남겨보세요.");
+    expect(dialog()?.querySelector("img")?.getAttribute("alt")).toBe("");
     expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull();
     expect(document.body.style.pointerEvents).not.toBe("none");
-    expect(dialog()?.className).toContain("bg-[var(--winter-town-canvas-background)]");
+    expect(dialog()?.className).toContain("bg-[#fff8ee]");
+    expect(dialog()?.className).toContain("border-[#713b20]");
     expect(dialog()?.className).toContain("p-0");
-    expect(dialog()?.className).toContain("w-48");
+    expect(dialog()?.className).toContain("w-76");
+    expect(dialog()?.className).toContain("christmas-card-menu-scrollbar");
+    expect(dialog()?.className).toContain("[&_[data-slot=dialog-close]]:size-10");
+    expect(dialog()?.className).toContain("[&_[data-slot=dialog-close]]:p-0");
+    expect(dialog()?.className).not.toContain("[&_[data-slot=dialog-close]]:p-1");
+    expect(dialog()?.className).toContain("overflow-y-auto");
     expect(dialog()?.className).toContain("z-40");
     expect(dialog()?.className).toContain("origin-center");
     expect(dialog()?.className).toContain("transition-none");
@@ -325,27 +332,37 @@ describe("ChristmasGuestbook", () => {
     expect(dialog()?.className).toContain("[--tw-enter-translate-y:0.5rem]");
     expect(dialog()?.className).not.toContain("slide-in-from-right");
     expect(dialog()?.querySelector('[data-slot="dialog-header"]')?.className).toContain(
-      "bg-[#b8ccda]",
+      "sm:text-center",
     );
     expect(dialog()?.querySelector('[data-slot="dialog-title"]')?.className).toContain(
       "font-display",
     );
-    expect(
-      dialog()?.querySelector('[data-slot="dialog-title"] svg')?.getAttribute("class"),
-    ).toContain("fill-emerald-600");
+    expect(dialog()?.querySelector('[data-slot="dialog-description"]')?.className).not.toContain(
+      "sr-only",
+    );
     expect(dialog()?.querySelector('[data-slot="dialog-footer"]')?.className).toContain(
-      "sm:flex-col",
+      "flex-wrap",
     );
     expect(
       Array.from(dialog()?.querySelectorAll("button") ?? [])
         .slice(0, 2)
-        .every((button) => button.className.includes("w-full")),
+        .every((button) => button.className.includes("flex-1")),
     ).toBe(true);
     expect(dialog()?.style.left).toBe("240px");
     expect(dialog()?.style.top).toBe("124px");
     const writeButton = dialog()?.querySelector<HTMLButtonElement>("button[data-primary='true']");
-    expect(writeButton?.textContent).toContain("카드 작성하기");
-    expect(writeButton?.className).toContain("bg-[#f1c6bd]");
+    expect(writeButton?.textContent).toContain("작성하기");
+    expect(writeButton?.className).toContain("bg-[#c62026]");
+    expect(writeButton?.className).toContain("text-white");
+    expect(document.activeElement).toBe(dialog());
+    const [, listButton] = Array.from(dialog()!.querySelectorAll("button"));
+    for (const button of [writeButton, listButton]) {
+      expect(button?.className).toContain("h-12");
+      expect(button?.className).toContain("rounded-lg");
+      expect(button?.className).toContain("focus-visible:ring-[#dda65a]");
+      expect(button?.className).not.toContain("focus-visible:ring-[3px]");
+      expect(button?.className).not.toContain("focus-visible:ring-ring/50");
+    }
     expect(writeButton?.className).toContain("cursor-pointer");
   });
 
@@ -411,6 +428,7 @@ describe("ChristmasGuestbook", () => {
     await act(async () => listButton?.click());
 
     expect(dialog()?.className).toContain("!w-screen");
+    expect(document.querySelector(".christmas-card-menu-scrollbar")).toBeNull();
     const overlay = document.querySelector<HTMLElement>('[data-slot="dialog-overlay"]');
     expect(overlay).not.toBeNull();
     expect(overlay?.className).toContain("bg-black/50");

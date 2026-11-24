@@ -48,6 +48,34 @@
   background-clip: content-box;
 }
 
+/* 크리스마스 카드 선택 팝업(menu) 스크롤 컨테이너 전용 */
+.christmas-card-menu-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.christmas-card-menu-scrollbar::-webkit-scrollbar-track {
+  margin-block: 12px;
+  border-radius: 9999px;
+  background: #f5e9d6;
+}
+
+.christmas-card-menu-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: #c8a88b;
+}
+
+.christmas-card-menu-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a56b48;
+}
+
+/* Chrome은 scrollbar-color가 있으면 ::-webkit-scrollbar를 무시하므로 미지원 브라우저에만 적용한다 */
+@supports not selector(::-webkit-scrollbar) {
+  .christmas-card-menu-scrollbar {
+    scrollbar-color: #c8a88b #f5e9d6;
+    scrollbar-width: thin;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
